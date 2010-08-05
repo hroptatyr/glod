@@ -40,7 +40,7 @@ AM_LDFLAGS = -static
 AM_CFLAGS = -msse2 -mssse3
 
 bin_PROGRAMS =
-##bin_PROGRAMS += glod
+bin_PROGRAMS += glod
 noinst_PROGRAMS =
 noinst_PROGRAMS += facc
 noinst_LIBRARIES = libglod.a
@@ -49,7 +49,10 @@ facc_SOURCES = facc.c ftab.h
 BUILT_SOURCES = date.tab
 CLEANFILES = $(BUILT_SOURCES)
 
-libglod_a_SOURCES = prchunk.c prchunk.h gsep.c gsep.h
+libglod_a_SOURCES = prchunk.c prchunk.h gsep.c gsep.h gtype.c gtype.h
+
+glod_SOURCES = glod.c
+glod_LDADD = libglod.a
 
 %.tab: $(top_srcdir)/tmpl/%.tmpl facc
 	./facc $< $@

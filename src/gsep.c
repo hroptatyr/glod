@@ -39,15 +39,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#if defined STANDALONE
-# define HAD_STANDALONE
-# undef STANDALONE
-/* our line processor */
-#define STATIC_GUTS
-# include "prchunk.h"
-/* and its source */
-# include "prchunk.c"
-#endif	/* STANDALONE */
 
 #include "gsep.h"
 
@@ -90,7 +81,7 @@ static char raystack[NDLM] = {
 typedef uint16_t cnt_t;
 typedef uint32_t cnt32_t;
 
-typedef struct gsep_ctx_s {
+struct gsep_ctx_s {
 	/* per line counter */
 	cnt_t popcnt[NDLM];
 	/* total occurrence counter, of type cnt32_t which means
@@ -99,7 +90,10 @@ typedef struct gsep_ctx_s {
 	/* distance field, the last position is stored in [NDLM][0] */
 #define DISTFLD_LAST	(0)
 	cnt_t distfld[MAX_LINE_LEN][NDLM];
-} *gsep_ctx_t;
+};
+
+/* static bollocks */
+static struct gsep_ctx_s __ctx[1] = {{0}};
 
 static inline cnt_t
 get_pop(gsep_ctx_t ctx, dlm_t dlm)
@@ -164,14 +158,13 @@ skip_escaped(const char *line, size_t llen, size_t pos)
 	return pos;
 }
 
-static int __attribute__((noinline))
-gsep_in_line(char *line, size_t llen, void *clo)
+FDEFU int
+gsep_in_line(char *line, size_t llen)
 {
-	gsep_ctx_t ctx = clo;
 	cnt_t popcnt[NDLM] = {0};
 
 	/* get a new distance field, resets the last occ counters */
-	reset_distfld(ctx);
+	reset_distfld(__ctx);
 
 	/* count the delimiters, store their distances */
 	for (size_t i = 0; i < llen; i++) {
@@ -189,19 +182,19 @@ gsep_in_line(char *line, size_t llen, void *clo)
 			/* now fill the dist table to discover
 			 * patterns of delimiter locations relative
 			 * to each other */
-			distfld_measure(ctx, dlm, i);
+			distfld_measure(__ctx, dlm, i);
 		}
 	}
 	/* add the stuff to the total counters */
 	for (dlm_t i = (dlm_t)(DLM_UNK + 1); i < NDLM; i++) {
 		if (LIKELY(popcnt[i] == 0)) {
 			continue;
-		} else if (UNLIKELY(ctx->popcnt[i] > popcnt[i])) {
-			ctx->popcnt[i] = popcnt[i];
-		} else if (LIKELY(popcnt[i] != ctx->popcnt[i])) {
-			ctx->popcnt[i] = 0;
+		} else if (UNLIKELY(__ctx->popcnt[i] > popcnt[i])) {
+			__ctx->popcnt[i] = popcnt[i];
+		} else if (LIKELY(popcnt[i] != __ctx->popcnt[i])) {
+			__ctx->popcnt[i] = 0;
 		}
-		ctx->totcnt[i] = (cnt_t)(ctx->totcnt[i] + popcnt[i]);
+		__ctx->totcnt[i] = (cnt_t)(__ctx->totcnt[i] + popcnt[i]);
 	}
 	return 0;
 }
@@ -225,7 +218,8 @@ dlm_eligible_p(gsep_ctx_t ctx, dlm_t dlm)
 	return (short int)get_pop(ctx, dlm) > 0;
 }
 
-#define STATOUT		(stderr)
+#if defined STANDALONE
+# define STATOUT	(stderr)
 static void
 distfld_vis(gsep_ctx_t ctx, dlm_t dlm)
 {
@@ -242,65 +236,7 @@ distfld_vis(gsep_ctx_t ctx, dlm_t dlm)
 	}
 	return;
 }
-
-static void __attribute__((unused))
-assess(gsep_ctx_t ctx)
-{
-	size_t suptot = 0;
-
-	/* visualise how delimiters behave relative to each other */
-	fputs("SIMPLE:\n", STATOUT);
-	for (dlm_t i = (dlm_t)(DLM_UNK + 1); i < NDLM; i++) {
-		if (dlm_eligible_p(ctx, i)) {
-			suptot += get_tot(ctx, i);
-		}
-	}
-	for (dlm_t i = (dlm_t)(DLM_UNK + 1); i < NDLM; i++) {
-		if (dlm_eligible_p(ctx, i)) {
-			fprintf(STATOUT, "%02u ", i);
-			fprhist(STATOUT, get_tot(ctx, i), suptot);
-			fprintf(STATOUT, "  (%c)\n", raystack[i]);
-		}
-	}
-
-	/* get detailed stats about the delimiters */
-	fputs("\nDETAIL:\n", STATOUT);
-	for (dlm_t i = (dlm_t)(DLM_UNK + 1); i < NDLM; i++) {
-		if (dlm_eligible_p(ctx, i)) {
-			size_t pop = get_pop(ctx, i);
-			size_t tot = get_tot(ctx, i);
-			fprintf(STATOUT,
-				"counted %u (%c) %zu (tot %zu) times\n",
-				i, raystack[i], pop, tot);
-			distfld_vis(ctx, i);
-			fputc('\n', STATOUT);
-		}
-	}
-	return;
-}
-
-static void __attribute__((unused))
-svm_ass(gsep_ctx_t ctx)
-{
-	size_t suptot = 0;
-
-	/* visualise how delimiters behave relative to each other */
-	for (dlm_t i = (dlm_t)(DLM_UNK + 1); i < NDLM; i++) {
-		if (dlm_eligible_p(ctx, i)) {
-			suptot += get_tot(ctx, i);
-		}
-	}
-	fputs("x ", stderr);
-	for (dlm_t i = (dlm_t)(DLM_UNK + 1); i < NDLM; i++) {
-		double hist = 0.0;
-		if (dlm_eligible_p(ctx, i)) {
-			hist = (double)get_tot(ctx, i) / (double)suptot;
-		}
-		fprintf(STATOUT, "%2u:%2.4f ", i, hist);
-	}
-	fputs("\n", stderr);
-	return;
-}
+#endif	/* STANDALONE */
 
 /* weka assessment */
 /*
@@ -733,63 +669,36 @@ assess_PART(gsep_ctx_t ctx)
 }
 
 
-#if defined HAD_STANDALONE
-# define STANDALONE
-#endif	/* HAD_STANDALONE */
-#if defined STANDALONE
-static void
-init_ctx(gsep_ctx_t ctx)
+FDEFU void
+init_gsep(void)
 {
-	memset(ctx, -1, offsetof(struct gsep_ctx_s, distfld));
-	init_distfld(ctx);
+	memset(__ctx, -1, offsetof(struct gsep_ctx_s, distfld));
+	init_distfld(__ctx);
 	return;
 }
 
-int
-main(int argc, char *argv[])
+FDEFU void
+free_gsep(void)
 {
-	int fd;
-	struct gsep_ctx_s ctx[1] = {0};
-
-	if (argc <= 1) {
-		fd = STDIN_FILENO;
-	} else if ((fd = open(argv[1], O_RDONLY)) < 0) {
-		return 1;
-	}
-	/* get all of prchunk's resources sorted */
-	init_prchunk(fd);
-
-	/* process all lines, try and guess the separator */
-	while (!(prchunk_fill() < 0)) {
-		char *line;
-		size_t len;
-		dlm_t sep;
-		int nco;
-
-		/* (re)initialise our own context */
-		init_ctx(ctx);
-		/* now process every line in the buffer */
-		while ((len = prchunk_getline(&line))) {
-			/* just process the line */
-			if (gsep_in_line(line, len, ctx) < 0) {
-				goto oops;
-			}
-		}
-		/* print the stats */
-		sep = assess_PART(ctx);
-		nco = get_pop(ctx, sep) + 1;
-		fprintf(STATOUT, "sep '%c'  #cols %d\n", raystack[sep], nco);
-		/* rechunk now */
-		prchunk_rechunk(raystack[sep], nco);
-		break;
-	}
-oops:
-	/* get rid of prchunk's resources */
-	free_prchunk();
-	/* and out */
-	close(fd);
-	return 0;
+	return;
 }
-#endif	/* STANDALONE */
+
+FDEFU dlm_t
+gsep_assess(void)
+{
+	return assess_PART(__ctx);
+}
+
+FDEFU int
+gsep_get_sep_cnt(dlm_t dlm)
+{
+	return get_pop(__ctx, dlm);
+}
+
+FDEFU char
+gsep_get_sep_char(dlm_t dlm)
+{
+	return raystack[dlm];
+}
 
 /* gsep.c ends here */

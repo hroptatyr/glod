@@ -1,4 +1,4 @@
-/*** gsep.h -- guessing line oriented data formats
+/*** gtype.h -- guessing line oriented data formats
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,10 +35,8 @@
  *
  ***/
 
-#if !defined INCLUDED_gsep_h_
-#define INCLUDED_gsep_h_
-
-#include <stdint.h>
+#if !defined INCLUDED_gtype_h_
+#define INCLUDED_gtype_h_
 
 #if !defined STATIC_GUTS
 # define FDECL		extern
@@ -48,32 +46,20 @@
 # define FDEFU		static
 #endif	/* !STATIC_GUTS */
 
-/**
- * Supported delimiters. */
+/* we sort this by the order of checks
+ * our implicit order is datetime < {date, time, int} < flt < string
+ * that way we can easily fall back to a more generic type */
 typedef enum {
-	DLM_UNK,
-	DLM_COMMA,
-	DLM_SEMICOLON,
-	DLM_TAB,
-	DLM_PIPE,
-	DLM_COLON,
-	DLM_DOT,
-	DLM_SPACE,
-	DLM_NUL,
-	NDLM
-} dlm_t;
+	CTY_UNK,
+	CTY_DATETIME,
+	CTY_DATE,
+	CTY_TIME,
+	CTY_INT,
+	CTY_FLT,
+	CTY_STRING,
+	NCTY
+} cty_t;
 
-typedef struct gsep_ctx_s *gsep_ctx_t;
+FDECL cty_t gtype_in_col(char *cell, size_t clen);
 
-FDECL int gsep_in_line(char *line, size_t llen);
-FDECL dlm_t gsep_assess(void);
-
-FDECL void init_gsep(void);
-FDECL void free_gsep(void);
-
-/** return the number of occurrences of DLM per line. */
-FDECL int gsep_get_sep_cnt(dlm_t dlm);
-/** return the char representation of DLM. */
-FDECL char gsep_get_sep_char(dlm_t dlm);
-
-#endif	/* INCLUDED_gsep_h_ */
+#endif	/* INCLUDED_gtype_h_ */
