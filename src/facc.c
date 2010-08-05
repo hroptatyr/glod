@@ -331,17 +331,39 @@ static __ftab_btbl_t __facc_ftbl[%d] = {\n", pch_sz, FACC_MAX_LENGTH);
 }
 
 
+static void
+usage(void)
+{
+	fputs("usage: facc TEMPLATE [OUTFILE]\n"
+	      "\n"
+	      "Compile TEMPLATE and put the generated code on stdout, or\n"
+	      "OUTFILE if specified.\n", stdout);
+	return;
+}
+
 int
 main(int argc, char *argv[])
 {
-	FILE *fp = fopen(argv[1], "rc");
-	FILE *of = fopen("ftab.c", "wc");
+	FILE *fp;
+	FILE *of;
 	/* super table */
 	struct ftctx_s ctx[1];
 
-	if (fp == NULL) {
+	if (argc <= 1) {
+		usage();
 		return 1;
-	} else if (of == NULL) {
+	} else if (strcmp(argv[1], "--help") == 0) {
+		usage();
+		return 0;
+	} else if ((fp = fopen(argv[1], "rc")) == NULL) {
+		return 1;
+	}
+	if ((argc == 2 &&
+	     /* no outfile param */
+	     (of = stdout) == NULL) ||
+	    (argc > 2 &&
+	     /* outfile parameter given */
+	     (of = fopen(argv[2], "wc")) == NULL)) {
 		fclose(fp);
 		return 1;
 	}
