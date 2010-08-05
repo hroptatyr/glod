@@ -51,7 +51,7 @@
 typedef __facc_bmsk_t *__facc_btbl_t;
 
 /* length table */
-typedef __facc_bmsk_t __facc_ltbl_t[MAX_LENGTH + 1];
+typedef __facc_bmsk_t __facc_ltbl_t[FACC_MAX_LENGTH + 1];
 
 /* indirection table, for size improvements, full ascii? */
 typedef unsigned char __facc_meta_t[128];
