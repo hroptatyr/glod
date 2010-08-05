@@ -43,11 +43,13 @@ bin_PROGRAMS =
 ##bin_PROGRAMS += glod
 noinst_PROGRAMS =
 noinst_PROGRAMS += facc
-##noinst_LIBRARIES = libglod.a
+noinst_LIBRARIES = libglod.a
 
 facc_SOURCES = facc.c ftab.h
 BUILT_SOURCES = date.tab
 CLEANFILES = $(BUILT_SOURCES)
+
+libglod_a_SOURCES = prchunk.c prchunk.h gsep.c gsep.h
 
 %.tab: $(top_srcdir)/tmpl/%.tmpl facc
 	./facc $< $@
