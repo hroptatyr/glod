@@ -56,7 +56,7 @@ typedef __facc_bmsk_t __full_btbl_t[256];
 typedef struct ftctx_s {
 	int pos;
 	int pat;
-	__full_btbl_t tbl[MAX_LENGTH];
+	__full_btbl_t tbl[FACC_MAX_LENGTH];
 	char *spstr[64];
 } *ftctx_t;
 
@@ -298,7 +298,7 @@ static __facc_meta_t __facc_meta = {\n", of);
 	/* populate length table */
 	fputs("\
 static __facc_ltbl_t __facc_ltbl = {\n", of);
-	for (int i = 0; i < MAX_LENGTH + 1; i++) {
+	for (int i = 0; i < FACC_MAX_LENGTH + 1; i++) {
 		bmsk_t pat = facc_get_lmsk(i);
 		if (pat) {
 			fprintf(of, "\t[%d] = 0x%lx,\n", i, pat);
@@ -309,8 +309,8 @@ static __facc_ltbl_t __facc_ltbl = {\n", of);
 	/* populate bit mask table */
 	fprintf(of, "\
 typedef __facc_bmsk_t __ftab_btbl_t[%d];\n\
-static __ftab_btbl_t __facc_ftbl[%d] = {\n", pch_sz, MAX_LENGTH);
-	for (int i = 0; i < MAX_LENGTH; i++) {
+static __ftab_btbl_t __facc_ftbl[%d] = {\n", pch_sz, FACC_MAX_LENGTH);
+	for (int i = 0; i < FACC_MAX_LENGTH; i++) {
 		for (unsigned char c = FACC_1ST; c < FACC_LST; c++) {
 			bmsk_t pat = facc_get_bmsk(ctx->tbl[i], c);
 			if (pat != 0) {
