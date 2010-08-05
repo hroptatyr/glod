@@ -46,6 +46,11 @@ noinst_PROGRAMS += facc
 ##noinst_LIBRARIES = libglod.a
 
 facc_SOURCES = facc.c ftab.h
+BUILT_SOURCES = date.tab
+CLEANFILES = $(BUILT_SOURCES)
+
+%.tab: $(top_srcdir)/tmpl/%.tmpl facc
+	./facc $< $@
 
 # 
 # Help the developers get nice post-processed source files
