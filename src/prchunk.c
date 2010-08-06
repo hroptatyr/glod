@@ -97,13 +97,27 @@ get_loff(uint32_t lno)
 	return res >> 1;
 }
 
+/* return 0 if not \r terminated, 1 otherwise */
+static inline int
+lftermdp(uint32_t lno)
+{
+	return __ctx->loff[lno] & 1;
+}
+
+static inline void
+set_lftermd(uint32_t lno)
+{
+	__ctx->loff[lno] |= 1;
+	return;
+}
+
 static inline size_t
 get_llen(uint32_t lno)
 {
 	if (UNLIKELY(lno == 0)) {
-		return get_loff(0);
+		return get_loff(0) - lftermdp(0);
 	}
-	return get_loff(lno) - get_loff(lno - 1) - 1;
+	return get_loff(lno) - lftermdp(lno) - get_loff(lno - 1) - 1;
 }
 
 
@@ -175,7 +189,7 @@ yield2:
 		if (UNLIKELY(p[-1] == '\r')) {
 			/* oh god, when is this nightmare gonna end */
 			p[-1] = '\0';
-			__ctx->loff[__ctx->lno] |= 1;
+			set_lftermd(__ctx->lno);
 		}
 		*p = '\0';
 		off = ++p;
@@ -237,7 +251,7 @@ prchunk_getlineno(char **p, int lno)
 {
 	if (UNLIKELY(lno <= 0)) {
 		*p = __ctx->buf;
-		return get_loff(0);
+		return get_llen(0);
 	} else if (UNLIKELY(lno >= prchunk_get_nlines())) {
 		*p = NULL;
 		return 0;
