@@ -148,6 +148,10 @@ yield2:
 		}
 		/* massage our status structures */
 		__ctx->loff[__ctx->lno] = p - __ctx->buf;
+		if (UNLIKELY(p[-1] == '\r')) {
+			/* oh god, when is this nightmare gonna end */
+			p[-1] = '\0';
+		}
 		*p = '\0';
 		off = ++p;
 		/* count it as line and check if we need more */
