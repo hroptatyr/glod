@@ -1,0 +1,6 @@
+Automated guessing of line oriented data
+========================================
+
+glod is an attempt to automate the tedious task of finding the correct
+layout of csv files in order to use database importer tools.
+
