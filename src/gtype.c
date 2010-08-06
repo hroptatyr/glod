@@ -70,7 +70,10 @@ gtype_in_col(char *cell, size_t clen)
 	}
 
 	/* make sure we test the guys in order */
-	if (gtype_int_p(cell, clen) == 0) {
+	if (gtype_na_p(cell, clen) == 0) {
+		fputs("n/a\n", stderr);
+		return CTY_NA;
+	} else if (gtype_int_p(cell, clen) == 0) {
 		fputs("int\n", stderr);
 		return CTY_INT;
 	} else if (gtype_date_p(cell, clen) == 0) {
@@ -79,9 +82,6 @@ gtype_in_col(char *cell, size_t clen)
 	} else if (gtype_flt_p(cell, clen) == 0) {
 		fputs("float\n", stderr);
 		return CTY_FLT;
-	} else if (gtype_na_p(cell, clen) == 0) {
-		fputs("n/a\n", stderr);
-		return CTY_NA;
 	} else {
 		fputs("unknown, string then\n", stderr);
 		return CTY_STR;
