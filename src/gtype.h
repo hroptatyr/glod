@@ -51,12 +51,12 @@
  * that way we can easily fall back to a more generic type */
 typedef enum {
 	CTY_UNK,
-	CTY_DATETIME,
-	CTY_DATE,
-	CTY_TIME,
+	CTY_DTM,
+	CTY_DAT,
+	CTY_TIM,
 	CTY_INT,
 	CTY_FLT,
-	CTY_STRING,
+	CTY_STR,
 	NCTY
 } cty_t;
 
