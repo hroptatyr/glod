@@ -88,7 +88,9 @@ gtype_date_p(const char *cell, size_t clen)
 	max = clen < FACC_MAX_LENGTH ? (int)clen : FACC_MAX_LENGTH;
 
 	for (i = 0, p = cell; *p && i < max; p++, i++) {
-		msk &= facc_get_bmsk(ftbl[i], *p);
+		if ((msk &= facc_get_bmsk(ftbl[i], *p)) == 0) {
+			break;
+		}
 	}
 
 	/* let the magic begin */
