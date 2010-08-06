@@ -86,7 +86,7 @@ gtype_date_p(const char *cell, size_t clen)
 	}
 
 	/* let the magic begin */
-	if (msk == 0) {
+	if (msk == 0 || clen == 0) {
 		return -1;
 	}
 	/* if the popcnt is 1, have a guess, this is retarculous here
