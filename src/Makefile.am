@@ -52,7 +52,7 @@ CLEANFILES = $(BUILT_SOURCES)
 libglod_a_SOURCES = prchunk.c prchunk.h gsep.c gsep.h gtype.c gtype.h
 libglod_a_SOURCES += gtype-int.c gtype-int.h
 libglod_a_SOURCES += gtype-flt.c gtype-flt.h
-libglod_a_SOURCES += gtype-date.c gtype-date.h
+libglod_a_SOURCES += gtype-date.c gtype-date.h strptime.c strptime.h
 
 glod_SOURCES = glod.c
 glod_LDADD = libglod.a

@@ -38,8 +38,8 @@
 #if !defined INCLUDED_strptime_h_
 #define INCLUDED_strptime_h_
 
-#undef FDECL
-#undef FDEFU
+#include <time.h>
+
 #if !defined STATIC_GUTS
 # define FDECL		extern
 # define FDEFU
@@ -48,10 +48,6 @@
 # define FDEFU		static
 #endif	/* !STATIC_GUTS */
 
-FDECL void ffff_strptime(const char *buf, struct tm *restrict tm);
-FDECL void ffff_strptime_ISO(const char *buf, struct tm *restrict tm);
-FDECL void ffff_strptime_Ymd(const char *buf, struct tm *restrict tm);
-/* for the glod stuff */
 FDECL int
 glod_strptime(const char *buf, const char *fmt, struct tm *restrict tm);
 

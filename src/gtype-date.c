@@ -51,8 +51,7 @@
 #endif	/* !UNUSED */
 
 /* our own strptime */
-#define STATIC_GUTS
-#include "strptime.c"
+#include "strptime.h"
 
 /* the format table */
 #include "date.tab"
