@@ -47,7 +47,7 @@
 #endif	/* !STATIC_GUTS */
 
 /* we sort this by the order of checks
- * our implicit order is datetime < {date, time, int} < flt < string
+ * our implicit order is datetime < {date, time, int} < flt < na < string
  * that way we can easily fall back to a more generic type */
 typedef enum {
 	CTY_UNK,
@@ -56,6 +56,7 @@ typedef enum {
 	CTY_TIM,
 	CTY_INT,
 	CTY_FLT,
+	CTY_NA,
 	CTY_STR,
 	NCTY
 } cty_t;

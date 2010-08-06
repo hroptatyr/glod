@@ -1,4 +1,4 @@
-/*** gtype.c -- guessing line oriented data formats
+/*** gtype-na.c -- n/a cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,18 +35,10 @@
  *
  ***/
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
-#include "gtype.h"
-/* get some predicates up n running */
-#include "gtype-int.h"
-#include "gtype-flt.h"
-#include "gtype-date.h"
 #include "gtype-na.h"
 
-#define MAX_LINE_LEN	(512)
 #if !defined LIKELY
 # define LIKELY(_x)	__builtin_expect((_x), 1)
 #endif
@@ -57,26 +49,50 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
-FDEFU cty_t
-gtype_in_col(char *cell, size_t clen)
+/* we assume lil endian */
+/* NULL and null */
+static const uint32_t NULL1 = 0x4c4c554e;
+static const uint32_t NULL2 = 0x6c6c756e;
+/* N/A and n/a */
+static const uint32_t NA1 = 0x00412f4e;
+static const uint32_t NA2 = 0x00612f6e;
+/* #N/A and #n/a */
+static const uint32_t _NA1 = 0x412f4e23;
+static const uint32_t _NA2 = 0x612f6e23;
+
+FDEFU int
+gtype_na_p(const char *cell, size_t clen)
 {
-	/* make sure we test the guys in order */
-	if (gtype_int_p(cell, clen) == 0) {
-		fputs("int\n", stderr);
-		return CTY_INT;
-	} else if (gtype_date_p(cell, clen) == 0) {
-		fputs("date\n", stderr);
-		return CTY_DAT;
-	} else if (gtype_flt_p(cell, clen) == 0) {
-		fputs("float\n", stderr);
-		return CTY_FLT;
-	} else if (gtype_na_p(cell, clen) == 0) {
-		fputs("n/a\n", stderr);
-		return CTY_NA;
-	} else {
-		fputs("unknown, string then\n", stderr);
-		return CTY_STR;
+	uint32_t w;
+
+	/* kludge to allow for escaped fields,
+	 * fucking bundesbank does it that way */
+	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
+		/* skip that funky escape character */
+		cell++;
+		/* also adapt the length accordingly */
+		clen -= 2;
+	}
+	/* easy checks first */
+	if (clen == 0) {
+		/* could be interpreted as N/A */
+		return 0;
+	} else if (clen < 3) {
+		/* no patterns match that currently */
+		return -1;
+	}
+	/* check 4 bytes at a time */
+	switch (*((uint32_t*)cell)) {
+	case NULL1:
+	case NULL2:
+	case NA1:
+	case NA2:
+	case _NA1:
+	case _NA2:
+		return 0;
+	default:
+		return -1;
 	}
 }
 
-/* gtype.c ends here */
+/* gtype-na.c ends here */

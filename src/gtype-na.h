@@ -1,4 +1,4 @@
-/*** gtype.c -- guessing line oriented data formats
+/*** gtype-na.h -- n/a cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,48 +35,19 @@
  *
  ***/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include "gtype.h"
-/* get some predicates up n running */
-#include "gtype-int.h"
-#include "gtype-flt.h"
-#include "gtype-date.h"
-#include "gtype-na.h"
+#if !defined INCLUDED_gtype_na_h_
+#define INCLUDED_gtype_na_h_
 
-#define MAX_LINE_LEN	(512)
-#if !defined LIKELY
-# define LIKELY(_x)	__builtin_expect((_x), 1)
-#endif
-#if !defined UNLIKELY
-# define UNLIKELY(_x)	__builtin_expect((_x), 0)
-#endif	/* !UNLIKELY */
-#if !defined UNUSED
-# define UNUSED(_x)	__attribute__((unused)) _x
-#endif	/* !UNUSED */
+#if !defined STATIC_GUTS
+# define FDECL		extern
+# define FDEFU
+#else  /* STATIC_GUTS */
+# define FDECL		static
+# define FDEFU		static
+#endif	/* !STATIC_GUTS */
 
-FDEFU cty_t
-gtype_in_col(char *cell, size_t clen)
-{
-	/* make sure we test the guys in order */
-	if (gtype_int_p(cell, clen) == 0) {
-		fputs("int\n", stderr);
-		return CTY_INT;
-	} else if (gtype_date_p(cell, clen) == 0) {
-		fputs("date\n", stderr);
-		return CTY_DAT;
-	} else if (gtype_flt_p(cell, clen) == 0) {
-		fputs("float\n", stderr);
-		return CTY_FLT;
-	} else if (gtype_na_p(cell, clen) == 0) {
-		fputs("n/a\n", stderr);
-		return CTY_NA;
-	} else {
-		fputs("unknown, string then\n", stderr);
-		return CTY_STR;
-	}
-}
+/**
+ * Predicate that checks for typical N/A cells. */
+FDECL int gtype_na_p(const char *cell, size_t clen);
 
-/* gtype.c ends here */
+#endif	/* INCLUDED_gtype_na_h_ */
