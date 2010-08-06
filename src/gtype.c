@@ -43,6 +43,7 @@
 /* get some predicates up n running */
 #include "gtype-int.h"
 #include "gtype-flt.h"
+#include "gtype-date.h"
 
 #define MAX_LINE_LEN	(512)
 #if !defined LIKELY
@@ -62,6 +63,9 @@ gtype_in_col(char *cell, size_t clen)
 	if (gtype_int_p(cell, clen) == 0) {
 		fputs("int\n", stderr);
 		return CTY_INT;
+	} else if (gtype_date_p(cell, clen) == 0) {
+		fputs("date\n", stderr);
+		return CTY_DAT;
 	} else if (gtype_flt_p(cell, clen) == 0) {
 		fputs("float\n", stderr);
 		return CTY_FLT;
