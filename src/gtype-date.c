@@ -74,14 +74,6 @@ gtype_date_p(const char *cell, size_t clen)
 	int max;
 	const char *p;
 
-	/* kludge to allow for escaped fields,
-	 * fucking bundesbank does it that way */
-	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
-		/* skip that funky escape character */
-		cell++;
-		/* also adapt the length accordingly */
-		clen -= 2;
-	}
 	/* initialise the mask */
 	msk = __ctx->msk ?: facc_get_lmsk(clen);
 	/* and the max value */

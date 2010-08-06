@@ -111,15 +111,6 @@ gtype_flt_p(const char *cell, size_t clen)
 	unsigned char li;
 	size_t i;
 
-	/* kludge to allow for escaped fields,
-	 * fucking bundesbank does it that way */
-	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
-		/* skip that funky escape character */
-		cell++;
-		/* also adapt the length accordingly */
-		clen -= 2;
-	}
-
 	/* set up allowed_once chars */
 	reset_allowed_once();
 	/* first character can be different from the rest */

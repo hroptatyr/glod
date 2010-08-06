@@ -65,14 +65,6 @@ gtype_na_p(const char *cell, size_t clen)
 {
 	uint32_t w;
 
-	/* kludge to allow for escaped fields,
-	 * fucking bundesbank does it that way */
-	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
-		/* skip that funky escape character */
-		cell++;
-		/* also adapt the length accordingly */
-		clen -= 2;
-	}
 	/* easy checks first */
 	if (clen == 0) {
 		/* could be interpreted as N/A */

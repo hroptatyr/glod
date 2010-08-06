@@ -60,6 +60,15 @@
 FDEFU cty_t
 gtype_in_col(char *cell, size_t clen)
 {
+	/* kludge to allow for escaped fields,
+	 * fucking bundesbank does it that way */
+	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
+		/* skip that funky escape character */
+		cell++;
+		/* also adapt the length accordingly */
+		clen -= 2;
+	}
+
 	/* make sure we test the guys in order */
 	if (gtype_int_p(cell, clen) == 0) {
 		fputs("int\n", stderr);
