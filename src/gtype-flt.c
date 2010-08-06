@@ -1,4 +1,4 @@
-/*** gtype.c -- guessing line oriented data formats
+/*** gtype-flt.c -- float cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,16 +35,9 @@
  *
  ***/
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include "gtype.h"
-/* get some predicates up n running */
-#include "gtype-int.h"
 #include "gtype-flt.h"
 
-#define MAX_LINE_LEN	(512)
 #if !defined LIKELY
 # define LIKELY(_x)	__builtin_expect((_x), 1)
 #endif
@@ -55,20 +48,98 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
-FDEFU cty_t
-gtype_in_col(char *cell, size_t clen)
+static unsigned char flt_allowed_1st[256] = {
+	['-'] = 1,
+	['+'] = 1,
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
+
+static unsigned char flt_allowed_once[256];
+
+static unsigned char flt_allowed_nxt[256] = {
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
+
+/* characters allowed in the end */
+static unsigned char flt_allowed_lst[256] = {
+	/* we spare the . here
+	 * only total idiots write stuff like "1." */
+	['%'] = 1,
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
+
+static void
+reset_allowed_once(void)
 {
-	/* make sure we test the guys in order */
-	if (gtype_int_p(cell, clen) == 0) {
-		fputs("int\n", stderr);
-		return CTY_INT;
-	} else if (gtype_flt_p(cell, clen) == 0) {
-		fputs("float\n", stderr);
-		return CTY_FLT;
-	} else {
-		fputs("unknown, string then\n", stderr);
-		return CTY_STR;
-	}
+	/* once and not first,
+	 * only idiots use syntax like ".23" */
+	flt_allowed_once['.'] = 1;
+	flt_allowed_once[','] = 1;
+	return;
 }
 
-/* gtype.c ends here */
+FDEFU int
+gtype_flt_p(const char *cell, size_t clen)
+{
+	unsigned char li;
+	size_t i;
+
+	/* kludge to allow for escaped fields,
+	 * fucking bundesbank does it that way */
+	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
+		/* skip that funky escape character */
+		cell++;
+		/* also adapt the length accordingly */
+		clen -= 2;
+	}
+
+	/* set up allowed_once chars */
+	reset_allowed_once();
+	/* first character can be different from the rest */
+	li = cell[0];
+	if (!flt_allowed_1st[li]) {
+		return -1;
+	}
+	for (li = cell[i = 1]; i < clen - 1; li = cell[++i]) {
+		if (flt_allowed_once[li]) {
+			flt_allowed_once[li] = 0;
+		} else if (!flt_allowed_nxt[li]) {
+			return -1;
+		}
+	}
+	/* check the last character separately */
+	li = cell[i];
+	if (!flt_allowed_lst[li]) {
+		return -1;
+	}
+	return 0;
+}
+
+/* gtype-flt.c ends here */

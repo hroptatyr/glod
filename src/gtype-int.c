@@ -1,4 +1,4 @@
-/*** gtype.c -- guessing line oriented data formats
+/*** gtype-int.h -- integer cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,16 +35,9 @@
  *
  ***/
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include "gtype.h"
-/* get some predicates up n running */
 #include "gtype-int.h"
-#include "gtype-flt.h"
 
-#define MAX_LINE_LEN	(512)
 #if !defined LIKELY
 # define LIKELY(_x)	__builtin_expect((_x), 1)
 #endif
@@ -55,20 +48,60 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
-FDEFU cty_t
-gtype_in_col(char *cell, size_t clen)
+static unsigned char allowed_1st[256] = {
+	['-'] = 1,
+	['+'] = 1,
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
+
+static unsigned char allowed_nxt[256] = {
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
+
+FDEFU int
+gtype_int_p(const char *cell, size_t clen)
 {
-	/* make sure we test the guys in order */
-	if (gtype_int_p(cell, clen) == 0) {
-		fputs("int\n", stderr);
-		return CTY_INT;
-	} else if (gtype_flt_p(cell, clen) == 0) {
-		fputs("float\n", stderr);
-		return CTY_FLT;
-	} else {
-		fputs("unknown, string then\n", stderr);
-		return CTY_STR;
+	unsigned char li;
+	size_t i;
+
+	/* kludge to allow for escaped fields,
+	 * fucking bundesbank does it that way */
+	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
+		/* skip that funky escape character */
+		cell++;
+		/* also adapt the length accordingly */
+		clen -= 2;
 	}
+
+	/* first character can be different from the rest */
+	li = cell[0];
+	if (!allowed_1st[li]) {
+		return -1;
+	}
+	for (li = cell[i = 1]; i < clen; li = cell[++i]) {
+		if (!allowed_nxt[li]) {
+			return -1;
+		}
+	}
+	return 0;
 }
 
-/* gtype.c ends here */
+/* gtype-int.c ends here */
