@@ -285,6 +285,10 @@ prchunk_rechunk(char dlm, int ncols)
 			? __ctx->loff[lno] - __ctx->loff[lno - 1] - 1
 			: __ctx->loff[lno];
 		while ((co = p - line) > llen) {
+			/* cope with these idiotic windows line feeds */
+			if (UNLIKELY(line[llen - 1] == '\r')) {
+				line[--llen] = '\0';
+			}
 			/* last column offset equals the length of the line */
 			set_col_off(lno, cno, llen);
 			/* get the new line */
