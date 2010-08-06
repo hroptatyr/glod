@@ -1,4 +1,4 @@
-/*** gsep.h -- guessing line oriented data formats
+/*** gtype-date.h -- date cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,10 +35,8 @@
  *
  ***/
 
-#if !defined INCLUDED_gsep_h_
-#define INCLUDED_gsep_h_
-
-#include <stdint.h>
+#if !defined INCLUDED_gtype_date_h_
+#define INCLUDED_gtype_date_h_
 
 #if !defined STATIC_GUTS
 # define FDECL		extern
@@ -48,32 +46,6 @@
 # define FDEFU		static
 #endif	/* !STATIC_GUTS */
 
-/**
- * Supported delimiters. */
-typedef enum {
-	DLM_UNK,
-	DLM_COMMA,
-	DLM_SEMICOLON,
-	DLM_TAB,
-	DLM_PIPE,
-	DLM_COLON,
-	DLM_DOT,
-	DLM_SPACE,
-	DLM_NUL,
-	NDLM
-} dlm_t;
+FDECL int gtype_date_p(const char *cell, size_t clen);
 
-typedef struct gsep_ctx_s *gsep_ctx_t;
-
-FDECL int gsep_in_line(char *line, size_t llen);
-FDECL dlm_t gsep_assess(void);
-
-FDECL void init_gsep(void);
-FDECL void free_gsep(void);
-
-/** return the number of occurrences of DLM per line. */
-FDECL int gsep_get_sep_cnt(dlm_t dlm);
-/** return the char representation of DLM. */
-FDECL char gsep_get_sep_char(dlm_t dlm);
-
-#endif	/* INCLUDED_gsep_h_ */
+#endif	/* INCLUDED_gtype_date_h_ */

@@ -1,10 +1,10 @@
-/*** gsep.h -- guessing line oriented data formats
+/*** strptime.h -- faster date parsing
  *
- * Copyright (C) 2010 Sebastian Freundt
+ * Copyright (C) 2009, 2010  Sebastian Freundt
  *
  * Author:  Sebastian Freundt <sebastian.freundt@ga-group.nl>
  *
- * This file is part of glod.
+ * This file is part of libffff.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,10 +35,10 @@
  *
  ***/
 
-#if !defined INCLUDED_gsep_h_
-#define INCLUDED_gsep_h_
+#if !defined INCLUDED_strptime_h_
+#define INCLUDED_strptime_h_
 
-#include <stdint.h>
+#include <time.h>
 
 #if !defined STATIC_GUTS
 # define FDECL		extern
@@ -48,32 +48,42 @@
 # define FDEFU		static
 #endif	/* !STATIC_GUTS */
 
+FDECL int
+glod_strptime(const char *buf, const char *fmt, struct tm *restrict tm);
+
+
 /**
- * Supported delimiters. */
-typedef enum {
-	DLM_UNK,
-	DLM_COMMA,
-	DLM_SEMICOLON,
-	DLM_TAB,
-	DLM_PIPE,
-	DLM_COLON,
-	DLM_DOT,
-	DLM_SPACE,
-	DLM_NUL,
-	NDLM
-} dlm_t;
+ * Return whether YEAR is a leap year. */
+static inline int __attribute__((always_inline))
+__leapp(int year)
+{
+#if 0
+	/* actually this is */
+	return (year % 4 == 0 && ((year % 100) || (year % 400 == 0)));
+#else
+	/* but our design range (1970 to 2099) has no bullshit years in it */
+	return (year % 4) == 0;
+#endif
+}
 
-typedef struct gsep_ctx_s *gsep_ctx_t;
+/**
+ * Return the number of leap years in [1970, YEAR). */
+static inline int __attribute__((always_inline))
+__nleap_years(int year)
+{
+	/* again, we (ab)use that our design range is 1970 to 2099 and
+	 * that it has no bullshit years in it */
+	return (year - 1970 + 1) / 4;
+}
 
-FDECL int gsep_in_line(char *line, size_t llen);
-FDECL dlm_t gsep_assess(void);
+#if defined INCL_TBLS
+/* data */
+static const unsigned short int __attribute__((unused)) __mon_yday[2][13] = {
+	/* Normal years.  */
+	{ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365 },
+	/* Leap years.  */
+	{ 0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366 }
+};
+#endif	/* INCL_TBLS */
 
-FDECL void init_gsep(void);
-FDECL void free_gsep(void);
-
-/** return the number of occurrences of DLM per line. */
-FDECL int gsep_get_sep_cnt(dlm_t dlm);
-/** return the char representation of DLM. */
-FDECL char gsep_get_sep_char(dlm_t dlm);
-
-#endif	/* INCLUDED_gsep_h_ */
+#endif	/* INCLUDED_strptime_h_ */

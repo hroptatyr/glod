@@ -1,4 +1,4 @@
-/*** gsep.h -- guessing line oriented data formats
+/*** gtype.c -- guessing line oriented data formats
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,45 +35,44 @@
  *
  ***/
 
-#if !defined INCLUDED_gsep_h_
-#define INCLUDED_gsep_h_
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdint.h>
+#include "gtype.h"
+/* get some predicates up n running */
+#include "gtype-int.h"
+#include "gtype-flt.h"
+#include "gtype-date.h"
 
-#if !defined STATIC_GUTS
-# define FDECL		extern
-# define FDEFU
-#else  /* STATIC_GUTS */
-# define FDECL		static
-# define FDEFU		static
-#endif	/* !STATIC_GUTS */
+#define MAX_LINE_LEN	(512)
+#if !defined LIKELY
+# define LIKELY(_x)	__builtin_expect((_x), 1)
+#endif
+#if !defined UNLIKELY
+# define UNLIKELY(_x)	__builtin_expect((_x), 0)
+#endif	/* !UNLIKELY */
+#if !defined UNUSED
+# define UNUSED(_x)	__attribute__((unused)) _x
+#endif	/* !UNUSED */
 
-/**
- * Supported delimiters. */
-typedef enum {
-	DLM_UNK,
-	DLM_COMMA,
-	DLM_SEMICOLON,
-	DLM_TAB,
-	DLM_PIPE,
-	DLM_COLON,
-	DLM_DOT,
-	DLM_SPACE,
-	DLM_NUL,
-	NDLM
-} dlm_t;
+FDEFU cty_t
+gtype_in_col(char *cell, size_t clen)
+{
+	/* make sure we test the guys in order */
+	if (gtype_int_p(cell, clen) == 0) {
+		fputs("int\n", stderr);
+		return CTY_INT;
+	} else if (gtype_date_p(cell, clen) == 0) {
+		fputs("date\n", stderr);
+		return CTY_DAT;
+	} else if (gtype_flt_p(cell, clen) == 0) {
+		fputs("float\n", stderr);
+		return CTY_FLT;
+	} else {
+		fputs("unknown, string then\n", stderr);
+		return CTY_STR;
+	}
+}
 
-typedef struct gsep_ctx_s *gsep_ctx_t;
-
-FDECL int gsep_in_line(char *line, size_t llen);
-FDECL dlm_t gsep_assess(void);
-
-FDECL void init_gsep(void);
-FDECL void free_gsep(void);
-
-/** return the number of occurrences of DLM per line. */
-FDECL int gsep_get_sep_cnt(dlm_t dlm);
-/** return the char representation of DLM. */
-FDECL char gsep_get_sep_char(dlm_t dlm);
-
-#endif	/* INCLUDED_gsep_h_ */
+/* gtype.c ends here */

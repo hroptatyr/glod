@@ -1,4 +1,4 @@
-/*** gsep.h -- guessing line oriented data formats
+/*** gtype-int.h -- integer cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,45 +35,73 @@
  *
  ***/
 
-#if !defined INCLUDED_gsep_h_
-#define INCLUDED_gsep_h_
+#include <stdlib.h>
+#include "gtype-int.h"
 
-#include <stdint.h>
+#if !defined LIKELY
+# define LIKELY(_x)	__builtin_expect((_x), 1)
+#endif
+#if !defined UNLIKELY
+# define UNLIKELY(_x)	__builtin_expect((_x), 0)
+#endif	/* !UNLIKELY */
+#if !defined UNUSED
+# define UNUSED(_x)	__attribute__((unused)) _x
+#endif	/* !UNUSED */
 
-#if !defined STATIC_GUTS
-# define FDECL		extern
-# define FDEFU
-#else  /* STATIC_GUTS */
-# define FDECL		static
-# define FDEFU		static
-#endif	/* !STATIC_GUTS */
+static unsigned char allowed_1st[256] = {
+	['-'] = 1,
+	['+'] = 1,
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
 
-/**
- * Supported delimiters. */
-typedef enum {
-	DLM_UNK,
-	DLM_COMMA,
-	DLM_SEMICOLON,
-	DLM_TAB,
-	DLM_PIPE,
-	DLM_COLON,
-	DLM_DOT,
-	DLM_SPACE,
-	DLM_NUL,
-	NDLM
-} dlm_t;
+static unsigned char allowed_nxt[256] = {
+	['0'] = 1,
+	['1'] = 1,
+	['2'] = 1,
+	['3'] = 1,
+	['4'] = 1,
+	['5'] = 1,
+	['6'] = 1,
+	['7'] = 1,
+	['8'] = 1,
+	['9'] = 1,
+};
 
-typedef struct gsep_ctx_s *gsep_ctx_t;
+FDEFU int
+gtype_int_p(const char *cell, size_t clen)
+{
+	unsigned char li;
+	size_t i;
 
-FDECL int gsep_in_line(char *line, size_t llen);
-FDECL dlm_t gsep_assess(void);
+	/* kludge to allow for escaped fields,
+	 * fucking bundesbank does it that way */
+	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
+		/* skip that funky escape character */
+		cell++;
+		/* also adapt the length accordingly */
+		clen -= 2;
+	}
 
-FDECL void init_gsep(void);
-FDECL void free_gsep(void);
+	/* first character can be different from the rest */
+	li = cell[0];
+	if (!allowed_1st[li]) {
+		return -1;
+	}
+	for (li = cell[i = 1]; i < clen; li = cell[++i]) {
+		if (!allowed_nxt[li]) {
+			return -1;
+		}
+	}
+	return 0;
+}
 
-/** return the number of occurrences of DLM per line. */
-FDECL int gsep_get_sep_cnt(dlm_t dlm);
-/** return the char representation of DLM. */
-FDECL char gsep_get_sep_char(dlm_t dlm);
-
-#endif	/* INCLUDED_gsep_h_ */
+/* gtype-int.c ends here */
