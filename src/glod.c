@@ -56,6 +56,12 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
+#if defined DEBUG_FLAG
+# define DBGOUT(args...)	fprintf(stderr, args)
+#else  /* !DEBUG_FLAG */
+# define DBGOUT(args...)
+#endif	/* DEBUG_FLAG */
+
 
 static dlm_t
 guess_sep(void)
@@ -79,12 +85,19 @@ guess_type(void)
 	size_t nl = prchunk_get_nlines();
 
 	for (size_t i = 0; i < nc; i++) {
+		cty_t t;
+
+		init_gtype_ctx();
 		fprintf(stderr, "guessing col %zu ... ", i);
 		for (size_t j = 0; j < nl; j++) {
 			char *cell;
 			size_t clen = prchunk_getcolno(&cell, j, i);
 			gtype_in_col(cell, clen);
 		}
+		/* make a verdict now */
+		t = gtype_get_type();
+		fprintf(stderr, "%d\n", t);
+		free_gtype_ctx();
 	}
 	return;
 }

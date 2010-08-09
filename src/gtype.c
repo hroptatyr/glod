@@ -57,8 +57,65 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
-FDEFU cty_t
-gtype_in_col(char *cell, size_t clen)
+#if defined DEBUG_FLAG
+# define DBGOUT(args...)	fprintf(stderr, args)
+#else  /* !DEBUG_FLAG */
+# define DBGOUT(args...)
+#endif	/* DEBUG_FLAG */
+
+struct gtype_ctx_s {
+	/* a counter for them different types per column,
+	 * we simply accept the majority verdict */
+	uint16_t cnt[NCTY];
+	/* number of lines */
+	size_t nl;
+};
+
+static int
+majorityp(gtype_ctx_t ctx, cty_t cty)
+{
+	if (ctx->cnt[cty] + ctx->cnt[CTY_NA] >
+	    (uint16_t)(0.98 * (double)ctx->nl)) {
+		return 1;
+	}
+	/* otherwise it's false */
+	return 0;
+}
+
+static cty_t
+assess_cnt(gtype_ctx_t ctx)
+{
+	/* make a verdict now */
+	if (majorityp(ctx, CTY_UNK)) {
+		/* should only happen if n/a is the majority */
+		return CTY_UNK;
+	} else if (majorityp(ctx, CTY_STR)) {
+		/* it's a string then */
+		return CTY_STR;
+	} else if (majorityp(ctx, CTY_INT)) {
+		if (ctx->cnt[CTY_FLT] == 0) {
+			/* it's only an int when there's no float */
+			return CTY_INT;
+		} else {
+			/* it's a float otherwise */
+			return CTY_FLT;
+		}
+	} else if (majorityp(ctx, CTY_FLT)) {
+		/* disregard ints and n/a's */
+		return CTY_FLT;
+	} else if (majorityp(ctx, CTY_DTM)) {
+		return CTY_DTM;
+	} else if (majorityp(ctx, CTY_DAT)) {
+		return CTY_DAT;
+	} else if (majorityp(ctx, CTY_TIM)) {
+		return CTY_TIM;
+	} else {
+		return CTY_UNK;
+	}
+}
+
+static cty_t
+__col_type(const char *cell, size_t clen)
 {
 	/* kludge to allow for escaped fields,
 	 * fucking bundesbank does it that way */
@@ -71,21 +128,54 @@ gtype_in_col(char *cell, size_t clen)
 
 	/* make sure we test the guys in order */
 	if (gtype_na_p(cell, clen) == 0) {
-		fputs("n/a\n", stderr);
+		DBGOUT("n/a\n");
 		return CTY_NA;
 	} else if (gtype_int_p(cell, clen) == 0) {
-		fputs("int\n", stderr);
+		DBGOUT("int\n");
 		return CTY_INT;
 	} else if (gtype_date_p(cell, clen) == 0) {
-		fputs("date\n", stderr);
+		DBGOUT("date\n");
 		return CTY_DAT;
 	} else if (gtype_flt_p(cell, clen) == 0) {
-		fputs("float\n", stderr);
+		DBGOUT("float\n");
 		return CTY_FLT;
 	} else {
-		fputs("unknown, string then\n", stderr);
+		DBGOUT("unknown, string then\n");
 		return CTY_STR;
 	}
+}
+
+
+static struct gtype_ctx_s __ctx[1];
+
+FDEFU cty_t
+gtype_in_col(const char *cell, size_t clen)
+{
+	cty_t ty = __col_type(cell, clen);
+	__ctx->cnt[ty]++;
+	__ctx->nl++;
+	return ty;
+}
+
+
+FDEFU void
+init_gtype_ctx(void)
+{
+	memset(__ctx, 0, sizeof(__ctx));
+	return;
+}
+
+FDEFU void
+free_gtype_ctx(void)
+{
+/* no-op */
+	return;
+}
+
+FDEFU cty_t
+gtype_get_type(void)
+{
+	return assess_cnt(__ctx);
 }
 
 /* gtype.c ends here */
