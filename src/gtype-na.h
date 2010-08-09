@@ -1,4 +1,4 @@
-/*** gtype-date.c -- date cell predicate
+/*** gtype-na.h -- n/a cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,75 +35,19 @@
  *
  ***/
 
-#include <stdlib.h>
-#include <time.h>
-#include <strings.h>
-#include "gtype-date.h"
+#if !defined INCLUDED_gtype_na_h_
+#define INCLUDED_gtype_na_h_
 
-#if !defined LIKELY
-# define LIKELY(_x)	__builtin_expect((_x), 1)
-#endif
-#if !defined UNLIKELY
-# define UNLIKELY(_x)	__builtin_expect((_x), 0)
-#endif	/* !UNLIKELY */
-#if !defined UNUSED
-# define UNUSED(_x)	__attribute__((unused)) _x
-#endif	/* !UNUSED */
+#if !defined STATIC_GUTS
+# define FDECL		extern
+# define FDEFU
+#else  /* STATIC_GUTS */
+# define FDECL		static
+# define FDEFU		static
+#endif	/* !STATIC_GUTS */
 
-/* our own strptime */
-#include "strptime.h"
+/**
+ * Predicate that checks for typical N/A cells. */
+FDECL int gtype_na_p(const char *cell, size_t clen);
 
-/* the format table */
-#include "date.tab"
-
-#define bmsk_t		long unsigned int
-#define ftbl		__facc_ftbl
-#define spec		__facc_spec
-
-typedef struct glodd_ctx_s {
-	bmsk_t msk;
-} *glodd_ctx_t;
-
-static struct glodd_ctx_s __ctx[1] = {{0}};
-
-FDECL int
-gtype_date_p(const char *cell, size_t clen)
-{
-	bmsk_t msk;
-	int i;
-	int max;
-	const char *p;
-
-	/* initialise the mask */
-	msk = __ctx->msk ?: facc_get_lmsk(clen);
-	/* and the max value */
-	max = clen < FACC_MAX_LENGTH ? (int)clen : FACC_MAX_LENGTH;
-
-	for (i = 0, p = cell; *p && i < max; p++, i++) {
-		if ((msk &= facc_get_bmsk(ftbl[i], *p)) == 0) {
-			break;
-		}
-	}
-
-	/* let the magic begin */
-	if (msk == 0 || clen == 0) {
-		return -1;
-	}
-	/* if the popcnt is 1, have a guess, this is retarculous here
-	 * but Oli needs it for the bundesbank crap */
-	if (LIKELY(__builtin_popcount(msk) == 1)) {
-		struct tm res[1] = {{0}};
-		char buf[64];
-		/* find out which bit was set, i.e. ffs() */
-		int j = ffs(msk) - 1;
-
-		/* parse the one occurence once we're here */
-		glod_strptime(cell, spec[j], res);
-		/* reformat? */
-		strftime(buf, sizeof(buf), "%Y-%m-%d\n", res);
-	}
-	__ctx->msk = msk;
-	return 0;
-}
-
-/* gtype-date.c ends here */
+#endif	/* INCLUDED_gtype_na_h_ */

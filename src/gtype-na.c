@@ -1,4 +1,4 @@
-/*** gtype-date.c -- date cell predicate
+/*** gtype-na.c -- n/a cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -36,9 +36,8 @@
  ***/
 
 #include <stdlib.h>
-#include <time.h>
-#include <strings.h>
-#include "gtype-date.h"
+#include <stdint.h>
+#include "gtype-na.h"
 
 #if !defined LIKELY
 # define LIKELY(_x)	__builtin_expect((_x), 1)
@@ -50,60 +49,42 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
-/* our own strptime */
-#include "strptime.h"
+/* we assume lil endian */
+/* NULL and null */
+static const uint32_t NULL1 = 0x4c4c554e;
+static const uint32_t NULL2 = 0x6c6c756e;
+/* N/A and n/a */
+static const uint32_t NA1 = 0x00412f4e;
+static const uint32_t NA2 = 0x00612f6e;
+/* #N/A and #n/a */
+static const uint32_t _NA1 = 0x412f4e23;
+static const uint32_t _NA2 = 0x612f6e23;
 
-/* the format table */
-#include "date.tab"
-
-#define bmsk_t		long unsigned int
-#define ftbl		__facc_ftbl
-#define spec		__facc_spec
-
-typedef struct glodd_ctx_s {
-	bmsk_t msk;
-} *glodd_ctx_t;
-
-static struct glodd_ctx_s __ctx[1] = {{0}};
-
-FDECL int
-gtype_date_p(const char *cell, size_t clen)
+FDEFU int
+gtype_na_p(const char *cell, size_t clen)
 {
-	bmsk_t msk;
-	int i;
-	int max;
-	const char *p;
+	uint32_t w;
 
-	/* initialise the mask */
-	msk = __ctx->msk ?: facc_get_lmsk(clen);
-	/* and the max value */
-	max = clen < FACC_MAX_LENGTH ? (int)clen : FACC_MAX_LENGTH;
-
-	for (i = 0, p = cell; *p && i < max; p++, i++) {
-		if ((msk &= facc_get_bmsk(ftbl[i], *p)) == 0) {
-			break;
-		}
-	}
-
-	/* let the magic begin */
-	if (msk == 0 || clen == 0) {
+	/* easy checks first */
+	if (clen == 0) {
+		/* could be interpreted as N/A */
+		return 0;
+	} else if (clen < 3) {
+		/* no patterns match that currently */
 		return -1;
 	}
-	/* if the popcnt is 1, have a guess, this is retarculous here
-	 * but Oli needs it for the bundesbank crap */
-	if (LIKELY(__builtin_popcount(msk) == 1)) {
-		struct tm res[1] = {{0}};
-		char buf[64];
-		/* find out which bit was set, i.e. ffs() */
-		int j = ffs(msk) - 1;
-
-		/* parse the one occurence once we're here */
-		glod_strptime(cell, spec[j], res);
-		/* reformat? */
-		strftime(buf, sizeof(buf), "%Y-%m-%d\n", res);
+	/* check 4 bytes at a time */
+	switch (*((uint32_t*)cell)) {
+	case NULL1:
+	case NULL2:
+	case NA1:
+	case NA2:
+	case _NA1:
+	case _NA2:
+		return 0;
+	default:
+		return -1;
 	}
-	__ctx->msk = msk;
-	return 0;
 }
 
-/* gtype-date.c ends here */
+/* gtype-na.c ends here */

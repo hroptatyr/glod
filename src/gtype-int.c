@@ -82,15 +82,6 @@ gtype_int_p(const char *cell, size_t clen)
 	unsigned char li;
 	size_t i;
 
-	/* kludge to allow for escaped fields,
-	 * fucking bundesbank does it that way */
-	if (UNLIKELY(cell[0] == '"' && cell[clen - 1] == '"')) {
-		/* skip that funky escape character */
-		cell++;
-		/* also adapt the length accordingly */
-		clen -= 2;
-	}
-
 	/* first character can be different from the rest */
 	li = cell[0];
 	if (!allowed_1st[li]) {

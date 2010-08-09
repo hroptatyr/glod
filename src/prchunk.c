@@ -82,6 +82,44 @@ struct prch_ctx_s {
 
 static struct prch_ctx_s __ctx[1] = {{0}};
 
+static inline void
+set_loff(uint32_t lno, off32_t off)
+{
+	__ctx->loff[lno] = off;
+	__ctx->loff[lno] <<= 1;
+	return;
+}
+
+static inline off32_t
+get_loff(uint32_t lno)
+{
+	off32_t res = __ctx->loff[lno];
+	return res >> 1;
+}
+
+/* return 0 if not \r terminated, 1 otherwise */
+static inline int
+lftermdp(uint32_t lno)
+{
+	return __ctx->loff[lno] & 1;
+}
+
+static inline void
+set_lftermd(uint32_t lno)
+{
+	__ctx->loff[lno] |= 1;
+	return;
+}
+
+static inline size_t
+get_llen(uint32_t lno)
+{
+	if (UNLIKELY(lno == 0)) {
+		return get_loff(0) - lftermdp(0);
+	}
+	return get_loff(lno) - lftermdp(lno) - get_loff(lno - 1) - 1;
+}
+
 
 /* internal operations */
 FDEFU int
@@ -147,7 +185,12 @@ yield2:
 			p = bno;
 		}
 		/* massage our status structures */
-		__ctx->loff[__ctx->lno] = p - __ctx->buf;
+		set_loff(__ctx->lno, p - __ctx->buf);
+		if (UNLIKELY(p[-1] == '\r')) {
+			/* oh god, when is this nightmare gonna end */
+			p[-1] = '\0';
+			set_lftermd(__ctx->lno);
+		}
 		*p = '\0';
 		off = ++p;
 		/* count it as line and check if we need more */
@@ -208,14 +251,14 @@ prchunk_getlineno(char **p, int lno)
 {
 	if (UNLIKELY(lno <= 0)) {
 		*p = __ctx->buf;
-		return __ctx->loff[0];
+		return get_llen(0);
 	} else if (UNLIKELY(lno >= prchunk_get_nlines())) {
 		*p = NULL;
 		return 0;
 	}
 	/* likely case last, what bollocks */
-	*p = __ctx->buf + __ctx->loff[lno - 1] + 1;
-	return __ctx->loff[lno] - __ctx->loff[lno - 1] - 1;
+	*p = __ctx->buf + get_loff(lno - 1) + 1;
+	return get_llen(lno);
 }
 
 FDEFU size_t
@@ -281,14 +324,12 @@ prchunk_rechunk(char dlm, int ncols)
 	rsz = bno - off;
 	while ((p = memchr(off, dlm, rsz)) != NULL) {
 		size_t co;
-		size_t llen = lno
-			? __ctx->loff[lno] - __ctx->loff[lno - 1] - 1
-			: __ctx->loff[lno];
+		size_t llen = get_llen(lno);
 		while ((co = p - line) > llen) {
 			/* last column offset equals the length of the line */
 			set_col_off(lno, cno, llen);
 			/* get the new line */
-			line = __ctx->buf + __ctx->loff[lno++] + 1;
+			line = __ctx->buf + get_loff(lno++) + 1;
 			cno = 0;
 		}
 		/* store the offset of the column within the line */
@@ -299,7 +340,7 @@ prchunk_rechunk(char dlm, int ncols)
 		rsz = bno - off;
 	}
 	/* last column offset equals the length of the line */
-	rsz = __ctx->loff[lno] - __ctx->loff[lno - 1] - 1;
+	rsz = get_llen(lno);
 	set_col_off(lno, cno, rsz);
 	return;
 }
