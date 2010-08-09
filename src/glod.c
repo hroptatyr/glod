@@ -56,6 +56,16 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
+#if defined DEBUG_FLAG
+# define DBGOUT(args...)	fprintf(stderr, args)
+#else  /* !DEBUG_FLAG */
+# define DBGOUT(args...)
+#endif	/* DEBUG_FLAG */
+
+typedef struct glod_ctx_s {
+	cty_t tv[MAX_LINE_LEN / 2];
+} *glod_ctx_t;
+
 
 static dlm_t
 guess_sep(void)
@@ -72,19 +82,75 @@ guess_sep(void)
 	return gsep_assess();
 }
 
+static int
+majorityp(uint16_t cnt[], size_t nl, cty_t cty)
+{
+	if (cnt[cty] + cnt[CTY_NA] > (uint16_t)(0.98 * (double)nl)) {
+		return 1;
+	}
+	/* otherwise it's false */
+	return 0;
+}
+
+static cty_t
+assess_cnt(uint16_t cnt[], size_t nl)
+{
+	for (cty_t i = CTY_UNK; i < NCTY; i++) {
+		fprintf(stderr, "colty %u: %hu\n", i, cnt[i]);
+	}
+
+	/* make a verdict now */
+	if (majorityp(cnt, nl, CTY_UNK)) {
+		/* should only happen if n/a is the majority */
+		return CTY_UNK;
+	} else if (majorityp(cnt, nl, CTY_STR)) {
+		/* it's a string then */
+		return CTY_STR;
+	} else if (majorityp(cnt, nl, CTY_INT)) {
+		if (cnt[CTY_FLT] == 0) {
+			/* it's only an int when there's no float */
+			return CTY_INT;
+		} else {
+			/* it's a float otherwise */
+			return CTY_FLT;
+		}
+	} else if (majorityp(cnt, nl - cnt[CTY_INT], CTY_FLT)) {
+		/* disregard ints and n/a's */
+		return CTY_FLT;
+	} else if (majorityp(cnt, nl, CTY_DTM)) {
+		return CTY_DTM;
+	} else if (majorityp(cnt, nl, CTY_DAT)) {
+		return CTY_DAT;
+	} else if (majorityp(cnt, nl, CTY_TIM)) {
+		return CTY_TIM;
+	} else {
+		return CTY_UNK;
+	}
+}
+
 static void
 guess_type(void)
 {
+	static struct glod_ctx_s res[1];
 	size_t nc = prchunk_get_ncols();
 	size_t nl = prchunk_get_nlines();
 
+	memset(res, 0, sizeof(*res));
 	for (size_t i = 0; i < nc; i++) {
+		/* a counter for them different types per column,
+		 * we simply accept the majority verdict */
+		uint16_t cnt[NCTY] = {0};
+
 		fprintf(stderr, "guessing col %zu ... ", i);
 		for (size_t j = 0; j < nl; j++) {
 			char *cell;
 			size_t clen = prchunk_getcolno(&cell, j, i);
-			gtype_in_col(cell, clen);
+			cty_t ty = gtype_in_col(cell, clen);
+			cnt[ty]++;
 		}
+		/* make a verdict now */
+		res->tv[i] = assess_cnt(cnt, nl);
+		fprintf(stderr, "%d\n", res->tv[i]);
 	}
 	return;
 }
