@@ -57,6 +57,12 @@
 # define UNUSED(_x)	__attribute__((unused)) _x
 #endif	/* !UNUSED */
 
+#if defined DEBUG_FLAG
+# define DBGOUT(args...)	fprintf(stderr, args)
+#else  /* !DEBUG_FLAG */
+# define DBGOUT(args...)
+#endif	/* DEBUG_FLAG */
+
 FDEFU cty_t
 gtype_in_col(char *cell, size_t clen)
 {
@@ -71,19 +77,19 @@ gtype_in_col(char *cell, size_t clen)
 
 	/* make sure we test the guys in order */
 	if (gtype_na_p(cell, clen) == 0) {
-		fputs("n/a\n", stderr);
+		DBGOUT("n/a\n");
 		return CTY_NA;
 	} else if (gtype_int_p(cell, clen) == 0) {
-		fputs("int\n", stderr);
+		DBGOUT("int\n");
 		return CTY_INT;
 	} else if (gtype_date_p(cell, clen) == 0) {
-		fputs("date\n", stderr);
+		DBGOUT("date\n");
 		return CTY_DAT;
 	} else if (gtype_flt_p(cell, clen) == 0) {
-		fputs("float\n", stderr);
+		DBGOUT("float\n");
 		return CTY_FLT;
 	} else {
-		fputs("unknown, string then\n", stderr);
+		DBGOUT("unknown, string then\n");
 		return CTY_STR;
 	}
 }
