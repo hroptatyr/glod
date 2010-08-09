@@ -61,6 +61,13 @@ typedef enum {
 	NCTY
 } cty_t;
 
-FDECL cty_t gtype_in_col(char *cell, size_t clen);
+typedef struct gtype_ctx_s *gtype_ctx_t;
+
+FDECL cty_t gtype_in_col(const char *cell, size_t clen);
+
+FDECL void init_gtype_ctx(void);
+FDECL void free_gtype_ctx(void);
+
+FDECL cty_t gtype_get_type(void);
 
 #endif	/* INCLUDED_gtype_h_ */
