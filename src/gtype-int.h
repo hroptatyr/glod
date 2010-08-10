@@ -48,4 +48,8 @@
 
 FDECL int gtype_int_p(const char *cell, size_t clen);
 
+/* subtype non-sense */
+FDECL void *gtype_int_get_subdup(void);
+FDEFU void gtype_int_free_subdup(void *dup);
+
 #endif	/* INCLUDED_gtype_int_h_ */

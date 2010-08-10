@@ -76,6 +76,8 @@ typedef struct glod_ctx_s {
 	size_t nc;
 	/* number of lines */
 	size_t nl;
+	/* subtype array */
+	void *stv[MAX_LINE_LEN / 2];
 } *glod_ctx_t;
 
 
@@ -109,6 +111,7 @@ guess_type(glod_ctx_t ctx)
 		}
 		/* make a verdict now */
 		ctx->tv[i] = gtype_get_type();
+		ctx->stv[i] = gtype_get_subdup();
 		free_gtype_ctx();
 	}
 	return;
@@ -127,7 +130,7 @@ ofmt_sql(glod_ctx_t ctx)
 			fputs("TEXT,\n", stdout);
 			break;
 		case CTY_DAT:
-			fputs("DATE,\n", stdout);
+			fprintf(stdout, "DATE, -- %s\n", ctx->stv[i]);
 			break;
 		case CTY_INT:
 			fputs("INTEGER,\n", stdout);

@@ -70,4 +70,8 @@ FDECL void free_gtype_ctx(void);
 
 FDECL cty_t gtype_get_type(void);
 
+/* subtype non-sense */
+FDECL void *gtype_get_subdup(void);
+FDEFU void gtype_free_subdup(void *dup);
+
 #endif	/* INCLUDED_gtype_h_ */

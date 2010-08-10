@@ -68,7 +68,9 @@ struct gtype_ctx_s {
 	 * we simply accept the majority verdict */
 	uint16_t cnt[NCTY];
 	/* number of lines */
-	size_t nl;
+	unsigned int nl;
+	/* final decision */
+	cty_t ass;
 };
 
 static int
@@ -175,7 +177,41 @@ free_gtype_ctx(void)
 FDEFU cty_t
 gtype_get_type(void)
 {
-	return assess_cnt(__ctx);
+	if (__ctx->ass != CTY_UNK) {
+		return __ctx->ass;
+	}
+	return __ctx->ass = assess_cnt(__ctx);
+}
+
+/* subtype non-sense */
+FDECL void*
+gtype_get_subdup(void)
+{
+	switch (gtype_get_type()) {
+	case CTY_UNK:
+	default:
+		return NULL;
+	case CTY_INT:
+	case CTY_FLT:
+		return NULL;
+	case CTY_DAT:
+		return gtype_date_get_subdup();
+	}
+}
+
+FDEFU void
+gtype_free_subdup(void *dup)
+{
+	switch (gtype_get_type()) {
+	case CTY_UNK:
+	default:
+		return;
+	case CTY_INT:
+	case CTY_FLT:
+		return;
+	case CTY_DAT:
+		return gtype_date_free_subdup(dup);
+	}
 }
 
 /* gtype.c ends here */
