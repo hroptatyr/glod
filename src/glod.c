@@ -62,9 +62,16 @@
 # define DBGOUT(args...)
 #endif	/* DEBUG_FLAG */
 
+typedef enum {
+	OFMT_UNK,
+	OFMT_SQL,
+	NOFMT
+} ofmt_t;
+
 typedef struct glod_ctx_s {
 	cty_t tv[MAX_LINE_LEN / 2];
 	int fd;
+	ofmt_t of;
 } *glod_ctx_t;
 
 
@@ -136,12 +143,27 @@ guess_type(glod_ctx_t ctx)
 static int
 parse_cmdline(glod_ctx_t ctx, int argc, char *argv[])
 {
+	char *file = NULL;
+
 	/* wipe our context so we start with a clean slate */
 	memset(ctx, 0, sizeof(*ctx));
 
-	if (argc <= 1) {
+	/* quick iteration over argv */
+	for (char **p = argv + 1; *p; p++) {
+		if (strcmp(*p, "--help") == 0 ||
+		    strcmp(*p, "-h") == 0) {
+			return -1;
+		} else if (strcmp(*p, "--sql") == 0) {
+			ctx->of = OFMT_SQL;
+		} else {
+			/* should be the file then innit? */
+			file = *p;
+		}
+	}
+
+	if (file == NULL) {
 		ctx->fd = STDIN_FILENO;
-	} else if ((ctx->fd = open(argv[1], O_RDONLY)) < 0) {
+	} else if ((ctx->fd = open(file, O_RDONLY)) < 0) {
 		return -1;
 	}
 	return 0;
