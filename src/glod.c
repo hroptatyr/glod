@@ -62,6 +62,10 @@
 # define DBGOUT(args...)
 #endif	/* DEBUG_FLAG */
 
+typedef struct glod_ctx_s {
+	cty_t tv[MAX_LINE_LEN / 2];
+} *glod_ctx_t;
+
 
 static dlm_t
 guess_sep(void)
@@ -83,22 +87,45 @@ guess_type(void)
 {
 	size_t nc = prchunk_get_ncols();
 	size_t nl = prchunk_get_nlines();
+	struct glod_ctx_s res[1] = {CTY_UNK};
 
 	for (size_t i = 0; i < nc; i++) {
-		cty_t t;
-
 		init_gtype_ctx();
-		fprintf(stderr, "guessing col %zu ... ", i);
 		for (size_t j = 0; j < nl; j++) {
 			char *cell;
 			size_t clen = prchunk_getcolno(&cell, j, i);
 			gtype_in_col(cell, clen);
 		}
 		/* make a verdict now */
-		t = gtype_get_type();
-		fprintf(stderr, "%d\n", t);
+		res->tv[i] = gtype_get_type();
 		free_gtype_ctx();
 	}
+
+	/* assume sql mode */
+	fputs("CREATE TABLE @TBL@ (\n", stdout);
+	for (size_t i = 0; i < nc; i++) {
+		fprintf(stdout, "  c%zu ", i);
+		switch (res->tv[i]) {
+		case CTY_UNK:
+		default:
+			fputs("TEXT,\n", stdout);
+			break;
+		case CTY_DAT:
+			fputs("DATE,\n", stdout);
+			break;
+		case CTY_INT:
+			fputs("INTEGER,\n", stdout);
+			break;
+		case CTY_FLT:
+			fputs("DECIMAL(18,9),\n", stdout);
+			break;
+		case CTY_STR:
+			fputs("VARCHAR(x),\n", stdout);
+			break;
+		}
+	}
+	fputs("  CONSTRAINT 1 = 1\n", stdout);
+	fputs(");\n", stdout);
 	return;
 }
 
