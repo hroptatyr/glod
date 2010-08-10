@@ -72,6 +72,10 @@ typedef struct glod_ctx_s {
 	cty_t tv[MAX_LINE_LEN / 2];
 	int fd;
 	ofmt_t of;
+	/* number of cols */
+	size_t nc;
+	/* number of lines */
+	size_t nl;
 } *glod_ctx_t;
 
 
@@ -93,12 +97,12 @@ guess_sep(glod_ctx_t UNUSED(ctx))
 static void
 guess_type(glod_ctx_t ctx)
 {
-	size_t nc = prchunk_get_ncols();
-	size_t nl = prchunk_get_nlines();
+	ctx->nc = prchunk_get_ncols();
+	ctx->nl = prchunk_get_nlines();
 
-	for (size_t i = 0; i < nc; i++) {
+	for (size_t i = 0; i < ctx->nc; i++) {
 		init_gtype_ctx();
-		for (size_t j = 0; j < nl; j++) {
+		for (size_t j = 0; j < ctx->nl; j++) {
 			char *cell;
 			size_t clen = prchunk_getcolno(&cell, j, i);
 			gtype_in_col(cell, clen);
@@ -107,10 +111,15 @@ guess_type(glod_ctx_t ctx)
 		ctx->tv[i] = gtype_get_type();
 		free_gtype_ctx();
 	}
+	return;
+}
 
+static void
+ofmt_sql(glod_ctx_t ctx)
+{
 	/* assume sql mode */
 	fputs("CREATE TABLE @TBL@ (\n", stdout);
-	for (size_t i = 0; i < nc; i++) {
+	for (size_t i = 0; i < ctx->nc; i++) {
 		fprintf(stdout, "  c%zu ", i);
 		switch (ctx->tv[i]) {
 		case CTY_UNK:
@@ -222,6 +231,15 @@ main(int argc, char *argv[])
 
 		/* now go over all columns and guess their type */
 		guess_type(ctx);
+		break;
+	}
+	/* print our humble results */
+	switch (ctx->of) {
+	case OFMT_UNK:
+	default:
+		break;
+	case OFMT_SQL:
+		ofmt_sql(ctx);
 		break;
 	}
 
