@@ -62,9 +62,25 @@
 # define DBGOUT(args...)
 #endif	/* DEBUG_FLAG */
 
+typedef enum {
+	OFMT_UNK,
+	OFMT_SQL,
+	NOFMT
+} ofmt_t;
+
+typedef struct glod_ctx_s {
+	cty_t tv[MAX_LINE_LEN / 2];
+	int fd;
+	ofmt_t of;
+	/* number of cols */
+	size_t nc;
+	/* number of lines */
+	size_t nl;
+} *glod_ctx_t;
+
 
 static dlm_t
-guess_sep(void)
+guess_sep(glod_ctx_t UNUSED(ctx))
 {
 	char *line;
 	size_t llen;
@@ -79,41 +95,120 @@ guess_sep(void)
 }
 
 static void
-guess_type(void)
+guess_type(glod_ctx_t ctx)
 {
-	size_t nc = prchunk_get_ncols();
-	size_t nl = prchunk_get_nlines();
+	ctx->nc = prchunk_get_ncols();
+	ctx->nl = prchunk_get_nlines();
 
-	for (size_t i = 0; i < nc; i++) {
-		cty_t t;
-
+	for (size_t i = 0; i < ctx->nc; i++) {
 		init_gtype_ctx();
-		fprintf(stderr, "guessing col %zu ... ", i);
-		for (size_t j = 0; j < nl; j++) {
+		for (size_t j = 0; j < ctx->nl; j++) {
 			char *cell;
 			size_t clen = prchunk_getcolno(&cell, j, i);
 			gtype_in_col(cell, clen);
 		}
 		/* make a verdict now */
-		t = gtype_get_type();
-		fprintf(stderr, "%d\n", t);
+		ctx->tv[i] = gtype_get_type();
 		free_gtype_ctx();
 	}
+	return;
+}
+
+static void
+ofmt_sql(glod_ctx_t ctx)
+{
+	/* assume sql mode */
+	fputs("CREATE TABLE @TBL@ (\n", stdout);
+	for (size_t i = 0; i < ctx->nc; i++) {
+		fprintf(stdout, "  c%zu ", i);
+		switch (ctx->tv[i]) {
+		case CTY_UNK:
+		default:
+			fputs("TEXT,\n", stdout);
+			break;
+		case CTY_DAT:
+			fputs("DATE,\n", stdout);
+			break;
+		case CTY_INT:
+			fputs("INTEGER,\n", stdout);
+			break;
+		case CTY_FLT:
+			fputs("DECIMAL(18,9),\n", stdout);
+			break;
+		case CTY_STR:
+			fputs("VARCHAR(x),\n", stdout);
+			break;
+		}
+	}
+	fputs("  CONSTRAINT 1 = 1\n", stdout);
+	fputs(");\n", stdout);
+	return;
+}
+
+
+/**
+ * Parse the command line and populate the context structure.
+ * Return 0 upon success and -1 upon failure. */
+static int
+parse_cmdline(glod_ctx_t ctx, int argc, char *argv[])
+{
+	char *file = NULL;
+
+	/* wipe our context so we start with a clean slate */
+	memset(ctx, 0, sizeof(*ctx));
+
+	/* quick iteration over argv */
+	for (char **p = argv + 1; *p; p++) {
+		if (strcmp(*p, "--help") == 0 ||
+		    strcmp(*p, "-h") == 0) {
+			return -1;
+		} else if (strcmp(*p, "--sql") == 0) {
+			ctx->of = OFMT_SQL;
+		} else {
+			/* should be the file then innit? */
+			file = *p;
+		}
+	}
+
+	if (file == NULL) {
+		ctx->fd = STDIN_FILENO;
+	} else if ((ctx->fd = open(file, O_RDONLY)) < 0) {
+		return -1;
+	}
+	return 0;
+}
+
+static void
+free_glod_ctx(glod_ctx_t ctx)
+{
+	close(ctx->fd);
+	return;
+}
+
+static void
+usage(void)
+{
+	fputs("\
+Usage: glod [OPTIONS] [CSVFILE]\n\
+\n\
+Output options:\n\
+--sql	Produce a CREATE TABLE statement for sql databases\n\
+\n", stdout);
 	return;
 }
 
 int
 main(int argc, char *argv[])
 {
-	int fd;
+	struct glod_ctx_s ctx[1];
 
-	if (argc <= 1) {
-		fd = STDIN_FILENO;
-	} else if ((fd = open(argv[1], O_RDONLY)) < 0) {
+	/* before everything else parse parameters and set up our context */
+	if (parse_cmdline(ctx, argc, argv) < 0) {
+		usage();
 		return 1;
 	}
 	/* get all of prchunk's resources sorted */
-	init_prchunk(fd);
+	init_prchunk(ctx->fd);
 
 	/* process all lines, try and guess the separator */
 	while (!(prchunk_fill() < 0)) {
@@ -124,7 +219,7 @@ main(int argc, char *argv[])
 		/* (re)initialise our own context */
 		init_gsep();
 		/* now process every line in the buffer */
-		if ((sep = guess_sep()) == DLM_UNK) {
+		if ((sep = guess_sep(ctx)) == DLM_UNK) {
 			break;
 		}
 
@@ -135,7 +230,16 @@ main(int argc, char *argv[])
 		prchunk_rechunk(sepc, nco);
 
 		/* now go over all columns and guess their type */
-		guess_type();
+		guess_type(ctx);
+		break;
+	}
+	/* print our humble results */
+	switch (ctx->of) {
+	case OFMT_UNK:
+	default:
+		break;
+	case OFMT_SQL:
+		ofmt_sql(ctx);
 		break;
 	}
 
@@ -144,7 +248,7 @@ main(int argc, char *argv[])
 	/* get rid of prchunk's resources */
 	free_prchunk();
 	/* and out */
-	close(fd);
+	free_glod_ctx(ctx);
 	return 0;
 }
 
