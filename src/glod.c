@@ -64,11 +64,12 @@
 
 typedef struct glod_ctx_s {
 	cty_t tv[MAX_LINE_LEN / 2];
+	int fd;
 } *glod_ctx_t;
 
 
 static dlm_t
-guess_sep(void)
+guess_sep(glod_ctx_t UNUSED(ctx))
 {
 	char *line;
 	size_t llen;
@@ -83,11 +84,10 @@ guess_sep(void)
 }
 
 static void
-guess_type(void)
+guess_type(glod_ctx_t ctx)
 {
 	size_t nc = prchunk_get_ncols();
 	size_t nl = prchunk_get_nlines();
-	struct glod_ctx_s res[1] = {CTY_UNK};
 
 	for (size_t i = 0; i < nc; i++) {
 		init_gtype_ctx();
@@ -97,7 +97,7 @@ guess_type(void)
 			gtype_in_col(cell, clen);
 		}
 		/* make a verdict now */
-		res->tv[i] = gtype_get_type();
+		ctx->tv[i] = gtype_get_type();
 		free_gtype_ctx();
 	}
 
@@ -105,7 +105,7 @@ guess_type(void)
 	fputs("CREATE TABLE @TBL@ (\n", stdout);
 	for (size_t i = 0; i < nc; i++) {
 		fprintf(stdout, "  c%zu ", i);
-		switch (res->tv[i]) {
+		switch (ctx->tv[i]) {
 		case CTY_UNK:
 		default:
 			fputs("TEXT,\n", stdout);
@@ -129,18 +129,55 @@ guess_type(void)
 	return;
 }
 
+
+/**
+ * Parse the command line and populate the context structure.
+ * Return 0 upon success and -1 upon failure. */
+static int
+parse_cmdline(glod_ctx_t ctx, int argc, char *argv[])
+{
+	/* wipe our context so we start with a clean slate */
+	memset(ctx, 0, sizeof(*ctx));
+
+	if (argc <= 1) {
+		ctx->fd = STDIN_FILENO;
+	} else if ((ctx->fd = open(argv[1], O_RDONLY)) < 0) {
+		return -1;
+	}
+	return 0;
+}
+
+static void
+free_glod_ctx(glod_ctx_t ctx)
+{
+	close(ctx->fd);
+	return;
+}
+
+static void
+usage(void)
+{
+	fputs("\
+Usage: glod [OPTIONS] [CSVFILE]\n\
+\n\
+Output options:\n\
+--sql	Produce a CREATE TABLE statement for sql databases\n\
+\n", stdout);
+	return;
+}
+
 int
 main(int argc, char *argv[])
 {
-	int fd;
+	struct glod_ctx_s ctx[1];
 
-	if (argc <= 1) {
-		fd = STDIN_FILENO;
-	} else if ((fd = open(argv[1], O_RDONLY)) < 0) {
+	/* before everything else parse parameters and set up our context */
+	if (parse_cmdline(ctx, argc, argv) < 0) {
+		usage();
 		return 1;
 	}
 	/* get all of prchunk's resources sorted */
-	init_prchunk(fd);
+	init_prchunk(ctx->fd);
 
 	/* process all lines, try and guess the separator */
 	while (!(prchunk_fill() < 0)) {
@@ -151,7 +188,7 @@ main(int argc, char *argv[])
 		/* (re)initialise our own context */
 		init_gsep();
 		/* now process every line in the buffer */
-		if ((sep = guess_sep()) == DLM_UNK) {
+		if ((sep = guess_sep(ctx)) == DLM_UNK) {
 			break;
 		}
 
@@ -162,7 +199,7 @@ main(int argc, char *argv[])
 		prchunk_rechunk(sepc, nco);
 
 		/* now go over all columns and guess their type */
-		guess_type();
+		guess_type(ctx);
 		break;
 	}
 
@@ -171,7 +208,7 @@ main(int argc, char *argv[])
 	/* get rid of prchunk's resources */
 	free_prchunk();
 	/* and out */
-	close(fd);
+	free_glod_ctx(ctx);
 	return 0;
 }
 
