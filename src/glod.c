@@ -45,6 +45,9 @@
 #include "gsep.h"
 #include "gtype.h"
 
+/* to access date's subtypes */
+#include "gtype-date.h"
+
 #define MAX_LINE_LEN	(512)
 #if !defined LIKELY
 # define LIKELY(_x)	__builtin_expect((_x), 1)
@@ -129,9 +132,11 @@ ofmt_sql(glod_ctx_t ctx)
 		default:
 			fputs("TEXT,\n", stdout);
 			break;
-		case CTY_DAT:
-			fprintf(stdout, "DATE, -- %s\n", ctx->stv[i]);
+		case CTY_DAT: {
+			gtype_date_sub_t dsub = ctx->stv[i];
+			fprintf(stdout, "DATE, -- %s\n", dsub->spec);
 			break;
+		}
 		case CTY_INT:
 			fputs("INTEGER,\n", stdout);
 			break;

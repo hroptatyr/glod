@@ -93,12 +93,22 @@ get_spec_id(void)
 	return -1;
 }
 
-static const char*
+static const char* __attribute__((unused))
 get_spec(void)
 {
 	int id = get_spec_id();
 	if (LIKELY(id >= 0)) {
 		return spec[id];
+	}
+	return NULL;
+}
+
+static gtype_date_sub_t
+get_spec_as_sub(void)
+{
+	int id = get_spec_id();
+	if (LIKELY(id >= 0)) {
+		return (void*)(spec + id);
 	}
 	return NULL;
 }
@@ -131,14 +141,14 @@ gtype_date_p(const char *cell, size_t clen)
 	return 0;
 }
 
-FDEFU void*
+FDEFU gtype_date_sub_t
 gtype_date_get_subdup(void)
 {
-	return (void*)get_spec();
+	return get_spec_as_sub();
 }
 
 FDEFU void
-gtype_date_free_subdup(void *UNUSED(dup))
+gtype_date_free_subdup(gtype_date_sub_t UNUSED(dup))
 {
 	return;
 }

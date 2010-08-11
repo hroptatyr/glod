@@ -49,7 +49,13 @@
 FDECL int gtype_date_p(const char *cell, size_t clen);
 
 /* subtype non-sense */
-FDECL void *gtype_date_get_subdup(void);
-FDEFU void gtype_date_free_subdup(void *dup);
+typedef struct gtype_date_sub_s *gtype_date_sub_t;
+
+FDECL gtype_date_sub_t gtype_date_get_subdup(void);
+FDEFU void gtype_date_free_subdup(gtype_date_sub_t);
+
+struct gtype_date_sub_s {
+	const char *spec;
+};
 
 #endif	/* INCLUDED_gtype_date_h_ */
