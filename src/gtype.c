@@ -45,6 +45,7 @@
 #include "gtype-flt.h"
 #include "gtype-date.h"
 #include "gtype-na.h"
+#include "gtype-str.h"
 
 #define MAX_LINE_LEN	(512)
 #if !defined LIKELY
@@ -160,6 +161,27 @@ gtype_in_col(const char *cell, size_t clen)
 }
 
 
+/* we mimick CTY_STR here as it's a super fall through */
+static gtype_str_sub_t
+gtype_str_get_subdup(void)
+{
+	return NULL;
+}
+
+static void
+gtype_str_free_subdup(gtype_str_sub_t UNUSED(dup))
+{
+	return;
+}
+
+FDECL int
+gtype_str_p(const char *UNUSED(cell), size_t UNUSED(clen))
+{
+	/* everything is a string */
+	return 1;
+}
+
+
 FDEFU void
 init_gtype_ctx(void)
 {
@@ -196,6 +218,8 @@ gtype_get_subdup(void)
 		return NULL;
 	case CTY_DAT:
 		return gtype_date_get_subdup();
+	case CTY_STR:
+		return gtype_str_get_subdup();
 	}
 }
 
@@ -210,7 +234,11 @@ gtype_free_subdup(void *dup)
 	case CTY_FLT:
 		return;
 	case CTY_DAT:
-		return gtype_date_free_subdup(dup);
+		gtype_date_free_subdup(dup);
+		return;
+	case CTY_STR:
+		gtype_str_free_subdup(dup);
+		return;
 	}
 }
 
