@@ -143,9 +143,13 @@ ofmt_sql(glod_ctx_t ctx)
 		case CTY_FLT:
 			fputs("DECIMAL(18,9),\n", stdout);
 			break;
-		case CTY_STR:
-			fputs("VARCHAR(x),\n", stdout);
+		case CTY_STR: {
+			/* hard-coded cruft */
+			void *tmp = ctx->stv[i];
+			size_t str_sub = (long unsigned int)tmp >> 1;
+			fprintf(stdout, "VARCHAR(%zu),\n", str_sub);
 			break;
+		}
 		}
 	}
 	fputs("  CONSTRAINT 1 = 1\n", stdout);

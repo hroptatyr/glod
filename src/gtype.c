@@ -72,6 +72,8 @@ struct gtype_ctx_s {
 	unsigned int nl;
 	/* final decision */
 	cty_t ass;
+	/* max length over all cells */
+	size_t max_clen;
 };
 
 static int
@@ -157,6 +159,9 @@ gtype_in_col(const char *cell, size_t clen)
 	cty_t ty = __col_type(cell, clen);
 	__ctx->cnt[ty]++;
 	__ctx->nl++;
+	if (UNLIKELY(__ctx->max_clen < clen)) {
+		__ctx->max_clen = clen;
+	}
 	return ty;
 }
 
@@ -165,7 +170,9 @@ gtype_in_col(const char *cell, size_t clen)
 static gtype_str_sub_t
 gtype_str_get_subdup(void)
 {
-	return NULL;
+	/* actually i'm relcutant to malloc a gtype_str_sub here just
+	 * to pass on an integer, so screw that */
+	return (void*)(long unsigned int)(__ctx->max_clen << 1 | 1);
 }
 
 static void
