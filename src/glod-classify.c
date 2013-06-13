@@ -51,10 +51,13 @@
 #include "nifty.h"
 #include "mem.h"
 
+typedef struct classifier_s *classifier_t;
+
 struct classifier_s {
 	const char *name;
 	/** Return the number qualifying characters in BUF (of size LEN). */
 	unsigned int(*classify)(const char *buf, size_t len);
+	unsigned int cache;
 };
 
 #define DEFCLASSIFIER(name, buf, len)		\
@@ -62,6 +65,31 @@ static unsigned int				\
 cls_##name(const char *buf, size_t len)
 
 #define REFCLASSIFIER(name)	(struct classifier_s){#name, cls_##name}
+
+#define CLASSIFIER(name, b, z)	cls_##name(b, z)
+
+#define CHECK_CACHE(b, z)				\
+	static struct {					\
+		const char *lbuf;			\
+		size_t llen;				\
+		unsigned int lres;			\
+	} cache;					\
+							\
+	if (UNLIKELY(b == NULL)) {			\
+		/* cache invalidation */		\
+		cache.lbuf = NULL;			\
+		cache.llen = 0U;			\
+		cache.lres = 0U;			\
+	} else if (cache.lbuf != b || cache.llen != z)
+
+#define CACHE(b, z, res)			\
+	(					\
+		cache.lbuf = b,			\
+		cache.llen = z,			\
+		cache.lres = (res)		\
+	)
+
+#define YIELD_CACHE(b, z)	cache.lres
 
 
 static void
@@ -82,21 +110,53 @@ error(int eno, const char *fmt, ...)
 }
 
 
+static unsigned int
+classify(classifier_t c, const char *buf, size_t len)
+{
+	return c->classify(buf, len);
+}
+
+static void
+invalidate(classifier_t c)
+{
+	c->classify(NULL, 0U);
+	return;
+}
+
 DEFCLASSIFIER(uinteger, b, z)
 {
-	unsigned int res = 0U;
+	CHECK_CACHE(b, z) {
+		unsigned int res = 0U;
 
-	for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-		if (*bp >= L'0' && *bp <= L'9') {
-			res++;
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			if (*bp >= '0' && *bp <= '9') {
+				res++;
+			}
 		}
+		CACHE(b, z, res);
 	}
-	return res;
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(integer, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int res = CLASSIFIER(uinteger, b, z);
+
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			if (*bp == '-') {
+				res++;
+			}
+		}
+		CACHE(b, z, res);
+	}
+	return YIELD_CACHE(b, z);
 }
 
 
 static struct classifier_s clsfs[] = {
 	REFCLASSIFIER(uinteger),
+	REFCLASSIFIER(integer),
 };
 static uint8_t clsfu[countof(clsfs)];
 #define MAX_CAPACITY	((sizeof(*clsfu) << CHAR_BIT) - 1)
@@ -156,16 +216,17 @@ static void
 rs_stat(void)
 {
 	for (size_t i = 0; i < countof(clsfs); i++) {
+		invalidate(clsfs + i);
 		clsfu[i] = 0U;
 	}
 	return;
 }
 
 static void
-linestat(const char *line, size_t llen)
+classify_line(const char *line, size_t llen)
 {
 	for (size_t i = 0; i < countof(clsfs); i++) {
-		unsigned int r = clsfs[i].classify(line, llen);
+		unsigned int r = classify(clsfs + i, line, llen);
 
 		if (UNLIKELY(r > MAX_CAPACITY)) {
 			clsfu[i] = MAX_CAPACITY;
@@ -181,7 +242,7 @@ static int linewisep;
 static int graphp;
 
 static int
-classify(const char *file)
+classify_file(const char *file)
 {
 	int res = 0;
 	int fd;
@@ -207,7 +268,7 @@ classify(const char *file)
 
 	/* get a total overview */
 	if (!linewisep) {
-		linestat(mp, mz);
+		classify_line(mp, mz);
 		if (graphp) {
 			pr_stat_gr();
 		} else {
@@ -225,7 +286,7 @@ classify(const char *file)
 		}
 		lz = eol - x;
 		printf("line %zu\t%zu\n", ++lno, lz);
-		linestat(x, lz);
+		classify_line(x, lz);
 		if (graphp) {
 			pr_stat_gr();
 		} else {
@@ -276,7 +337,7 @@ main(int argc, char *argv[])
 
 	/* run stats on that one file */
 	with (const char *file = argi->inputs[0]) {
-		if ((res = classify(file)) < 0) {
+		if ((res = classify_file(file)) < 0) {
 			error(errno, "Error: processing `%s' failed", file);
 		}
 	}
