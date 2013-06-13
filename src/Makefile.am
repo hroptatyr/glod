@@ -60,11 +60,16 @@ facc_SOURCES = facc.c ftab.h
 BUILT_SOURCES += date.tab
 
 noinst_LIBRARIES += libglod.a
-libglod_a_SOURCES = prchunk.c prchunk.h gsep.c gsep.h gtype.c gtype.h
+libglod_a_SOURCES =
+libglod_a_SOURCES += prchunk.c prchunk.h
+libglod_a_SOURCES += gsep.c gsep.h
+libglod_a_SOURCES += gtype.c gtype.h
 libglod_a_SOURCES += gtype-int.c gtype-int.h
 libglod_a_SOURCES += gtype-flt.c gtype-flt.h
-libglod_a_SOURCES += gtype-date.c gtype-date.h strptime.c strptime.h
+libglod_a_SOURCES += gtype-date.c gtype-date.h
+libglod_a_SOURCES += strptime.c strptime.h
 libglod_a_SOURCES += gtype-na.c gtype-na.h
+libglod_a_SOURCES += gtype-str.h
 
 bin_PROGRAMS += glod
 glod_SOURCES = glod.c
