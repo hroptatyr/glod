@@ -53,7 +53,6 @@ CLEANFILES =
 
 CLEANFILES += version.c
 EXTRA_DIST += version.c.in
-noinst_HEADERS += version.h
 
 noinst_PROGRAMS += facc
 facc_SOURCES = facc.c ftab.h
@@ -72,6 +71,7 @@ libglod_a_SOURCES += gtype-date.c gtype-date.h
 libglod_a_SOURCES += strptime.c strptime.h
 libglod_a_SOURCES += gtype-na.c gtype-na.h
 libglod_a_SOURCES += gtype-str.h
+libglod_a_SOURCES += version.c version.h
 
 bin_PROGRAMS += glod
 glod_SOURCES = glod.c
