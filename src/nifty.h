@@ -1,10 +1,10 @@
-/*** prchunk.h -- guessing line oriented data formats
+/*** nifty.h -- generally handy macroes
  *
- * Copyright (C) 2010-2013 Sebastian Freundt
+ * Copyright (C) 2009-2013 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
- * This file is part of glod.
+ * This file is part of uterus.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,36 +35,30 @@
  *
  ***/
 
-#if !defined INCLUDED_prchunk_h_
-#define INCLUDED_prchunk_h_
+#if !defined INCLUDED_nifty_h_
+#define INCLUDED_nifty_h_
 
-#if !defined STATIC_GUTS
-# define FDECL		extern
-# define FDEFU
-#else  /* STATIC_GUTS */
-# define FDECL		static
-# define FDEFU		static
-#endif	/* !STATIC_GUTS */
+#if !defined LIKELY
+# define LIKELY(_x)	__builtin_expect((_x), 1)
+#endif	/* !LIKELY */
+#if !defined UNLIKELY
+# define UNLIKELY(_x)	__builtin_expect((_x), 0)
+#endif	/* UNLIKELY */
 
-typedef struct prch_ctx_s *prch_ctx_t;
+#if !defined UNUSED
+# define UNUSED(_x)	_x __attribute__((unused))
+#endif	/* !UNUSED */
 
-#define PRCHUNK_EOL	'\0'
+#if !defined ALGN
+# define ALGN(_x, to)	_x __attribute__((aligned(to)))
+#endif	/* !ALGN */
 
-/* non-reentrant! */
-FDECL prch_ctx_t init_prchunk(int fd);
-FDECL void free_prchunk(prch_ctx_t);
+#if !defined countof
+# define countof(x)	(sizeof(x) / sizeof(*x))
+#endif	/* !countof */
 
-FDECL int prchunk_fill(prch_ctx_t ctx);
+#if !defined with
+# define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
+#endif	/* !with */
 
-FDECL size_t prchunk_get_nlines(prch_ctx_t);
-FDECL size_t prchunk_get_ncols(prch_ctx_t);
-
-FDECL size_t prchunk_getlineno(prch_ctx_t ctx, char **p, int lno);
-FDECL size_t prchunk_getline(prch_ctx_t ctx, char **p);
-FDECL void prchunk_reset(prch_ctx_t ctx);
-FDECL int prchunk_haslinep(prch_ctx_t ctx);
-
-FDECL void prchunk_rechunk(prch_ctx_t ctx, char delim, int ncols);
-FDECL size_t prchunk_getcolno(prch_ctx_t ctx, char **p, int lno, int cno);
-
-#endif	/* INCLUDED_prchunk_h_ */
+#endif	/* INCLUDED_nifty_h_ */
