@@ -182,7 +182,7 @@ static int graphp;
 static int
 charstat(const char *file)
 {
-	int res;
+	int res = 0;
 	int fd;
 	struct stat st;
 	size_t mz;
