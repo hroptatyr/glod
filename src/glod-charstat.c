@@ -77,21 +77,25 @@ error(int eno, const char *fmt, ...)
 static struct charstat_s stats;
 
 static void
-linestat(const char *line, size_t llen)
-{
-	for (const char *lp = line, *const ep = line + llen; lp < ep; lp++) {
-		if (LIKELY(*lp >= 0 && *lp < 128)) {
-			if (LIKELY(stats.occ[*lp] < MAX_CAPACITY)) {
-				stats.occ[*lp]++;
-			}
-		}
-	}
-	return;
-}
-
-static void
 pr_stat(void)
 {
+	for (size_t i = 0; i < 32; i++) {
+		unsigned int occ = (unsigned int)stats.occ[i];
+		char fill = ' ';
+
+		switch (occ) {
+		default:
+		case 0:
+			/* skip the line altogether */
+			break;
+		case MAX_CAPACITY:
+			fill = '>';
+		case 1 ... MAX_CAPACITY - 1:;
+			char c = (char)(i + 64);
+			fprintf(stdout, "'^%c'\t%c%u\n", c, fill, occ);
+			break;
+		}
+	}
 	for (size_t i = 32; i < countof(stats.occ) - 1; i++) {
 		unsigned int occ = (unsigned int)stats.occ[i];
 		char fill = ' ';
@@ -114,7 +118,7 @@ pr_stat(void)
 static void
 pr_stat_gr(void)
 {
-	for (size_t i = 32; i < countof(stats.occ) - 1; i++) {
+	for (size_t i = 0; i < countof(stats.occ) - 1; i++) {
 		unsigned int occ = (unsigned int)stats.occ[i];
 	
 		switch (occ) {
@@ -128,7 +132,12 @@ pr_stat_gr(void)
 			/* normalise to 80 chars (plus initial \t) */
 			n = occ * 71U / MAX_CAPACITY;
 			fputc('\'', stdout);
-			fputc(i, stdout);
+			if (UNLIKELY(i < 32)) {
+				fputc('^', stdout);
+				fputc(i + 64, stdout);
+			} else {
+				fputc(i, stdout);
+			}
 			fputc('\'', stdout);
 			fputc('\t', stdout);
 			for (size_t k = 0; k < n; k++) {
@@ -144,6 +153,30 @@ pr_stat_gr(void)
 	return;
 }
 
+static void
+rs_stat(void)
+{
+	for (size_t i = 0; i < countof(stats.occ); i++) {
+		stats.occ[i] = 0U;
+	}
+	return;
+}
+
+static void
+linestat(const char *line, size_t llen)
+{
+	for (const char *lp = line, *const ep = line + llen; lp < ep; lp++) {
+		if (LIKELY(*lp >= 0 && *lp < 128)) {
+			if (LIKELY(stats.occ[*lp] < MAX_CAPACITY)) {
+				stats.occ[*lp]++;
+			}
+		}
+	}
+	return;
+}
+
+static int linewisep;
+
 static int
 charstat(const char *file)
 {
@@ -152,6 +185,8 @@ charstat(const char *file)
 	struct stat st;
 	size_t mz;
 	void *mp;
+	/* in case of linewise mode */
+	size_t lno;
 
 	if ((fd = open(file, O_RDONLY)) < 0) {
 		return -1;
@@ -168,8 +203,23 @@ charstat(const char *file)
 	}
 
 	/* get a total overview */
-	linestat(mp, mz);
-	pr_stat_gr();
+	if (!linewisep) {
+		linestat(mp, mz);
+		pr_stat_gr();
+		goto unmp;
+	}
+	/* otherwise find the lines first */
+	lno = 0U;
+	for (const char *x = mp, *eol, *const ex = x + mz;; x = eol + 1) {
+		if (UNLIKELY((eol = memchr(x, '\n', ex - x)) == NULL)) {
+			break;
+		}
+		printf("line %zu\n", ++lno);
+		linestat(x, eol - x);
+		pr_stat_gr();
+		rs_stat();
+		putc('\n', stdout);
+	}
 unmp:
 	res += munmap(mp, mz);
 clos:	     
@@ -201,6 +251,10 @@ main(int argc, char *argv[])
 		glod_parser_print_help();
 		res = 1;
 		goto out;
+	}
+
+	if (argi->linewise_given) {
+		linewisep = 1;
 	}
 
 	/* run stats on that one file */
