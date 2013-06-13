@@ -45,6 +45,9 @@
 #include "gsep.h"
 #include "gtype.h"
 
+/* to access date's subtypes */
+#include "gtype-date.h"
+
 #define MAX_LINE_LEN	(512)
 #if !defined LIKELY
 # define LIKELY(_x)	__builtin_expect((_x), 1)
@@ -76,6 +79,8 @@ typedef struct glod_ctx_s {
 	size_t nc;
 	/* number of lines */
 	size_t nl;
+	/* subtype array */
+	void *stv[MAX_LINE_LEN / 2];
 } *glod_ctx_t;
 
 
@@ -109,6 +114,7 @@ guess_type(glod_ctx_t ctx)
 		}
 		/* make a verdict now */
 		ctx->tv[i] = gtype_get_type();
+		ctx->stv[i] = gtype_get_subdup();
 		free_gtype_ctx();
 	}
 	return;
@@ -126,18 +132,24 @@ ofmt_sql(glod_ctx_t ctx)
 		default:
 			fputs("TEXT,\n", stdout);
 			break;
-		case CTY_DAT:
-			fputs("DATE,\n", stdout);
+		case CTY_DAT: {
+			gtype_date_sub_t dsub = ctx->stv[i];
+			fprintf(stdout, "DATE, -- %s\n", dsub->spec);
 			break;
+		}
 		case CTY_INT:
 			fputs("INTEGER,\n", stdout);
 			break;
 		case CTY_FLT:
 			fputs("DECIMAL(18,9),\n", stdout);
 			break;
-		case CTY_STR:
-			fputs("VARCHAR(x),\n", stdout);
+		case CTY_STR: {
+			/* hard-coded cruft */
+			void *tmp = ctx->stv[i];
+			size_t str_sub = (long unsigned int)tmp >> 1;
+			fprintf(stdout, "VARCHAR(%zu),\n", str_sub);
 			break;
+		}
 		}
 	}
 	fputs("  CONSTRAINT 1 = 1\n", stdout);

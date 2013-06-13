@@ -66,6 +66,53 @@ typedef struct glodd_ctx_s {
 
 static struct glodd_ctx_s __ctx[1] = {{0}};
 
+#if 0
+static void
+bla(void)
+{
+	if (LIKELY(__builtin_popcount(msk) == 1)) {
+		struct tm res[1] = {{0}};
+		char buf[64];
+		/* find out which bit was set, i.e. ffs() */
+		int j = ffs(msk) - 1;
+
+		/* parse the one occurence once we're here */
+		glod_strptime(cell, spec[j], res);
+		/* reformat? */
+		strftime(buf, sizeof(buf), "%Y-%m-%d\n", res);
+	}
+}
+#endif	/* 0 */
+
+static int
+get_spec_id(void)
+{
+	if (LIKELY(__builtin_popcount(__ctx->msk) == 1)) {
+		return ffs(__ctx->msk) - 1;
+	}
+	return -1;
+}
+
+static const char* __attribute__((unused))
+get_spec(void)
+{
+	int id = get_spec_id();
+	if (LIKELY(id >= 0)) {
+		return spec[id];
+	}
+	return NULL;
+}
+
+static gtype_date_sub_t
+get_spec_as_sub(void)
+{
+	int id = get_spec_id();
+	if (LIKELY(id >= 0)) {
+		return (void*)(spec + id);
+	}
+	return NULL;
+}
+
 FDECL int
 gtype_date_p(const char *cell, size_t clen)
 {
@@ -89,21 +136,21 @@ gtype_date_p(const char *cell, size_t clen)
 	if (msk == 0 || clen == 0) {
 		return -1;
 	}
-	/* if the popcnt is 1, have a guess, this is retarculous here
-	 * but Oli needs it for the bundesbank crap */
-	if (LIKELY(__builtin_popcount(msk) == 1)) {
-		struct tm res[1] = {{0}};
-		char buf[64];
-		/* find out which bit was set, i.e. ffs() */
-		int j = ffs(msk) - 1;
-
-		/* parse the one occurence once we're here */
-		glod_strptime(cell, spec[j], res);
-		/* reformat? */
-		strftime(buf, sizeof(buf), "%Y-%m-%d\n", res);
-	}
+	/* just save the mask for the next run */
 	__ctx->msk = msk;
 	return 0;
+}
+
+FDEFU gtype_date_sub_t
+gtype_date_get_subdup(void)
+{
+	return get_spec_as_sub();
+}
+
+FDEFU void
+gtype_date_free_subdup(gtype_date_sub_t UNUSED(dup))
+{
+	return;
 }
 
 /* gtype-date.c ends here */

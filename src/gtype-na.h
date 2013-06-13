@@ -50,4 +50,8 @@
  * Predicate that checks for typical N/A cells. */
 FDECL int gtype_na_p(const char *cell, size_t clen);
 
+/* subtype non-sense */
+FDECL void *gtype_na_get_subdup(void);
+FDEFU void gtype_na_free_subdup(void *dup);
+
 #endif	/* INCLUDED_gtype_na_h_ */

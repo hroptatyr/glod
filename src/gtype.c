@@ -45,6 +45,7 @@
 #include "gtype-flt.h"
 #include "gtype-date.h"
 #include "gtype-na.h"
+#include "gtype-str.h"
 
 #define MAX_LINE_LEN	(512)
 #if !defined LIKELY
@@ -68,7 +69,11 @@ struct gtype_ctx_s {
 	 * we simply accept the majority verdict */
 	uint16_t cnt[NCTY];
 	/* number of lines */
-	size_t nl;
+	unsigned int nl;
+	/* final decision */
+	cty_t ass;
+	/* max length over all cells */
+	size_t max_clen;
 };
 
 static int
@@ -154,7 +159,33 @@ gtype_in_col(const char *cell, size_t clen)
 	cty_t ty = __col_type(cell, clen);
 	__ctx->cnt[ty]++;
 	__ctx->nl++;
+	if (UNLIKELY(__ctx->max_clen < clen)) {
+		__ctx->max_clen = clen;
+	}
 	return ty;
+}
+
+
+/* we mimick CTY_STR here as it's a super fall through */
+static gtype_str_sub_t
+gtype_str_get_subdup(void)
+{
+	/* actually i'm relcutant to malloc a gtype_str_sub here just
+	 * to pass on an integer, so screw that */
+	return (void*)(long unsigned int)(__ctx->max_clen << 1 | 1);
+}
+
+static void
+gtype_str_free_subdup(gtype_str_sub_t UNUSED(dup))
+{
+	return;
+}
+
+FDECL int
+gtype_str_p(const char *UNUSED(cell), size_t UNUSED(clen))
+{
+	/* everything is a string */
+	return 1;
 }
 
 
@@ -175,7 +206,47 @@ free_gtype_ctx(void)
 FDEFU cty_t
 gtype_get_type(void)
 {
-	return assess_cnt(__ctx);
+	if (__ctx->ass != CTY_UNK) {
+		return __ctx->ass;
+	}
+	return __ctx->ass = assess_cnt(__ctx);
+}
+
+/* subtype non-sense */
+FDECL void*
+gtype_get_subdup(void)
+{
+	switch (gtype_get_type()) {
+	case CTY_UNK:
+	default:
+		return NULL;
+	case CTY_INT:
+	case CTY_FLT:
+		return NULL;
+	case CTY_DAT:
+		return gtype_date_get_subdup();
+	case CTY_STR:
+		return gtype_str_get_subdup();
+	}
+}
+
+FDEFU void
+gtype_free_subdup(void *dup)
+{
+	switch (gtype_get_type()) {
+	case CTY_UNK:
+	default:
+		return;
+	case CTY_INT:
+	case CTY_FLT:
+		return;
+	case CTY_DAT:
+		gtype_date_free_subdup(dup);
+		return;
+	case CTY_STR:
+		gtype_str_free_subdup(dup);
+		return;
+	}
 }
 
 /* gtype.c ends here */

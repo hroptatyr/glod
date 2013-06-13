@@ -1,4 +1,4 @@
-/*** gtype-date.h -- date cell predicate
+/*** gtype-str.h -- string cell predicate
  *
  * Copyright (C) 2010 Sebastian Freundt
  *
@@ -35,8 +35,8 @@
  *
  ***/
 
-#if !defined INCLUDED_gtype_date_h_
-#define INCLUDED_gtype_date_h_
+#if !defined INCLUDED_gtype_str_h_
+#define INCLUDED_gtype_str_h_
 
 #if !defined STATIC_GUTS
 # define FDECL		extern
@@ -46,16 +46,17 @@
 # define FDEFU		static
 #endif	/* !STATIC_GUTS */
 
-FDECL int gtype_date_p(const char *cell, size_t clen);
+FDECL int gtype_str_p(const char *cell, size_t clen);
 
 /* subtype non-sense */
-typedef struct gtype_date_sub_s *gtype_date_sub_t;
+typedef struct gtype_str_sub_s *gtype_str_sub_t;
 
-FDECL gtype_date_sub_t gtype_date_get_subdup(void);
-FDEFU void gtype_date_free_subdup(gtype_date_sub_t);
+FDECL gtype_str_sub_t gtype_str_get_subdup(void);
+FDEFU void gtype_str_free_subdup(gtype_str_sub_t);
 
-struct gtype_date_sub_s {
-	const char *spec;
+struct gtype_str_sub_s {
+	/* denotes the maximum length over all strings encountered */
+	size_t len;
 };
 
 #endif	/* INCLUDED_gtype_date_h_ */
