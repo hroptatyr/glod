@@ -1,6 +1,6 @@
 ### Makefile.am -- glod src/ make file
 ##
-## Copyright (C) 2010 Sebastian Freundt
+## Copyright (C) 2010-2013 Sebastian Freundt
 ##
 ## Author:  Sebastian Freundt <hroptatyr@fresse.org>
 ##
@@ -34,35 +34,64 @@
 ## IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
 ###
+include $(top_builddir)/version.mk
 
-AM_CPPFLAGS = -D_POSIX_C_SOURCE=201001L -D_GNU_SOURCE
-AM_LDFLAGS = -static
-AM_CFLAGS = -msse2 -mssse3
+AM_CFLAGS = $(EXTRA_CFLAGS)
+AM_CPPFLAGS = -D_GNU_SOURCE -D_POSIX_C_SOURCE=201001L -D_XOPEN_SOURCE=800 -D_BSD_SOURCE
+AM_LDFLAGS = $(XCCLDFLAGS) -static
 
 bin_PROGRAMS =
-bin_PROGRAMS += glod
 noinst_PROGRAMS =
+lib_LIBRARIES =
+noinst_LIBRARIES =
+pkglib_LIBRARIES =
+noinst_HEADERS =
+pkginclude_HEADERS =
+BUILT_SOURCES =
+EXTRA_DIST = $(BUILT_SOURCES)
+CLEANFILES = 
+
+CLEANFILES += version.c
+EXTRA_DIST += version.c.in
+noinst_HEADERS += version.h
+
 noinst_PROGRAMS += facc
-noinst_LIBRARIES = libglod.a
-
 facc_SOURCES = facc.c ftab.h
-BUILT_SOURCES = date.tab
-CLEANFILES = $(BUILT_SOURCES)
+BUILT_SOURCES += date.tab
 
+noinst_LIBRARIES += libglod.a
 libglod_a_SOURCES = prchunk.c prchunk.h gsep.c gsep.h gtype.c gtype.h
 libglod_a_SOURCES += gtype-int.c gtype-int.h
 libglod_a_SOURCES += gtype-flt.c gtype-flt.h
 libglod_a_SOURCES += gtype-date.c gtype-date.h strptime.c strptime.h
 libglod_a_SOURCES += gtype-na.c gtype-na.h
 
+bin_PROGRAMS += glod
 glod_SOURCES = glod.c
 glod_LDADD = libglod.a
 
+version.c: version.c.in $(top_builddir)/version.mk
+	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
+
+## for dist or dist check we need binaries, so help2man can work
+dist-hook: $(bin_PROGRAMS)
+
+
+## rule for our own compiler
 %.tab: $(top_srcdir)/tmpl/%.tmpl facc
 	./facc $< $@
 
-# 
-# Help the developers get nice post-processed source files
+## gengetopt rule with sed hack to avoid using VERSION and config.h
+## depend on Makefile.am to survive a git pull
+%.c %.h: %.ggo Makefile.am
+	$(AM_V_GEN) gengetopt -l -i $< -F $* \
+	&& sed \
+	  -e 's,config.h,version.h,g' \
+	  -e 's,\(.*\)_PARSER_VERSION VERSION,\1_PARSER_VERSION $(PACKAGE)_version_string,g' \
+	  $*.h >$*.h-t \
+	&& mv $*.h-t $*.h
+
+## Help the developers get nice post-processed source files
 
 ## Create preprocessor output (debugging purposes only)
 .c.i:
@@ -70,5 +99,4 @@ glod_LDADD = libglod.a
 
 ## Create assembler output (debugging purposes only)
 .c.s:
-	$(COMPILE) -S -c $(cflags) $<
-
+	$(COMPILE) -S -c $(AM_CFLAGS) $<

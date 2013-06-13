@@ -1,6 +1,6 @@
 ### Makefile.am -- glod master make file
 ##
-## Copyright (C) 2010 Sebastian Freundt
+## Copyright (C) 2010-2013 Sebastian Freundt
 ##
 ## Author:  Sebastian Freundt <hroptatyr@fresse.org>
 ##
@@ -34,10 +34,26 @@
 ## IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
 ###
+include $(top_builddir)/version.mk
 
 ## overcome NLS stupidity, who needs more than 1 language anyway?
 LANG = C
 LC_ALL = C
 
-SUBDIRS = src
+ACLOCAL_AMFLAGS = -I m4
 
+SUBDIRS =
+SUBDIRS += src
+
+EXTRA_DIST =
+DISTCLEANFILES =
+
+EXTRA_DIST += git-version-gen
+
+DISTCLEANFILES += version.mk
+
+dist-hook:
+	echo $(VERSION) > $(distdir)/version \
+	&& touch -r $(top_builddir)/version.mk $(distdir)/version
+
+## Makefile.am ends here
