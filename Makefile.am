@@ -52,6 +52,9 @@ EXTRA_DIST += git-version-gen
 
 DISTCLEANFILES += version.mk
 
+## stuff from the tmpl/ dir
+EXTRA_DIST += tmpl/date.tmpl
+
 dist-hook:
 	echo $(VERSION) > $(distdir)/version \
 	&& touch -r $(top_builddir)/version.mk $(distdir)/version
