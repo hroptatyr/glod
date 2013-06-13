@@ -51,9 +51,6 @@ FDECL int gtype_str_p(const char *cell, size_t clen);
 /* subtype non-sense */
 typedef struct gtype_str_sub_s *gtype_str_sub_t;
 
-FDECL gtype_str_sub_t gtype_str_get_subdup(void);
-FDEFU void gtype_str_free_subdup(gtype_str_sub_t);
-
 struct gtype_str_sub_s {
 	/* denotes the maximum length over all strings encountered */
 	size_t len;
