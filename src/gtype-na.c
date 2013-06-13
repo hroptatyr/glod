@@ -63,8 +63,6 @@
 FDEFU int
 gtype_na_p(const char *cell, size_t clen)
 {
-	uint32_t w;
-
 	/* easy checks first */
 	if (clen == 0) {
 		/* could be interpreted as N/A */
@@ -74,7 +72,7 @@ gtype_na_p(const char *cell, size_t clen)
 		return -1;
 	}
 	/* check 4 bytes at a time */
-	switch (*((uint32_t*)cell)) {
+	switch (*((const uint32_t*)cell)) {
 	case NULL1:
 	case NULL2:
 	case NA1:
