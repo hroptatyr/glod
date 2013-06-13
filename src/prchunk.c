@@ -1,8 +1,8 @@
 /*** prchunk.c -- guessing line oriented data formats
  *
- * Copyright (C) 2010 Sebastian Freundt
+ * Copyright (C) 2010-2013 Sebastian Freundt
  *
- * Author:  Sebastian Freundt <sebastian.freundt@ga-group.nl>
+ * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
  * This file is part of glod.
  *
@@ -35,27 +35,29 @@
  *
  ***/
 
+#define PRCHUNK_C
+#include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdint.h>
+#if defined HAVE_SYS_TYPES_H
+/* for ssize_t */
+# include <sys/types.h>
+#endif	/* HAVE_SYS_TYPES_H */
 #include <sys/mman.h>
+#include "nifty.h"
+#include "mem.h"
 #include "prchunk.h"
-
-#if !defined LIKELY
-# define LIKELY(_x)	__builtin_expect((_x), 1)
-#endif
-#if !defined UNLIKELY
-# define UNLIKELY(_x)	__builtin_expect((_x), 0)
-#endif	/* !UNLIKELY */
-#if !defined UNUSED
-# define UNUSED(_x)	__attribute__((unused)) _x
-#endif	/* !UNUSED */
 
 #define MAX_NLINES	(16384)
 #define MAX_LLEN	(1024)
+
+#if defined __INTEL_COMPILER
+# pragma warning(disable: 981)
+#endif	/* __INTEL_COMPILER */
 
 typedef uint32_t off32_t;
 typedef uint16_t off16_t;
@@ -83,47 +85,49 @@ struct prch_ctx_s {
 static struct prch_ctx_s __ctx[1] = {{0}};
 
 static inline void
-set_loff(uint32_t lno, off32_t off)
+set_loff(prch_ctx_t ctx, uint32_t lno, off32_t off)
 {
-	__ctx->loff[lno] = off;
-	__ctx->loff[lno] <<= 1;
+	ctx->loff[lno] = off;
+	ctx->loff[lno] <<= 1;
 	return;
 }
 
 static inline off32_t
-get_loff(uint32_t lno)
+get_loff(prch_ctx_t ctx, uint32_t lno)
 {
-	off32_t res = __ctx->loff[lno];
+	off32_t res = ctx->loff[lno];
 	return res >> 1;
 }
 
 /* return 0 if not \r terminated, 1 otherwise */
 static inline int
-lftermdp(uint32_t lno)
+lftermdp(prch_ctx_t ctx, uint32_t lno)
 {
-	return __ctx->loff[lno] & 1;
+	return ctx->loff[lno] & 1;
 }
 
 static inline void
-set_lftermd(uint32_t lno)
+set_lftermd(prch_ctx_t ctx, uint32_t lno)
 {
-	__ctx->loff[lno] |= 1;
+	ctx->loff[lno] |= 1;
 	return;
 }
 
 static inline size_t
-get_llen(uint32_t lno)
+get_llen(prch_ctx_t ctx, uint32_t lno)
 {
 	if (UNLIKELY(lno == 0)) {
-		return get_loff(0) - lftermdp(0);
+		return get_loff(ctx, 0) - lftermdp(ctx, 0);
 	}
-	return get_loff(lno) - lftermdp(lno) - get_loff(lno - 1) - 1;
+	return get_loff(ctx, lno) -
+		lftermdp(ctx, lno) -
+		get_loff(ctx, lno - 1) - 1;
 }
 
 
 /* internal operations */
 FDEFU int
-prchunk_fill(void)
+prchunk_fill(prch_ctx_t ctx)
 {
 /* this is a coroutine consisting of a line counter yielding the number of
  * lines read so far and a reader yielding a buffer fill and the number of
@@ -131,26 +135,30 @@ prchunk_fill(void)
 #define CHUNK_SIZE	(4096)
 #define YIELD(x)	goto yield##x
 	int res = 0;
-	char *off = __ctx->buf + 0;
-	char *bno = __ctx->buf + __ctx->bno;
+	char *off = ctx->buf + 0;
+	char *bno = ctx->buf + ctx->bno;
 	ssize_t nrd;
 
 	/* initial work, reset the line counters et al */
-	__ctx->lno = 0;
+	ctx->lno = 0;
 	/* we just memcpy() the left over stuff to the front and restart
 	 * from there, someone left us a note in __ctx with the left
 	 * over offset */
 	/* normally we'd use memmove() but we know there's little chance
 	 * for overlapping regions */
-	if (UNLIKELY(__ctx->bno == 0)) {
+	if (UNLIKELY(ctx->bno == 0)) {
 		/* do nothing */
 		;
-	} else if (LIKELY(__ctx->bno > __ctx->off)) {
-		size_t rsz = __ctx->bno - __ctx->off;
+	} else if (LIKELY(ctx->bno > ctx->off)) {
+		size_t rsz = ctx->bno - ctx->off;
 		/* move the top RSZ bytes to the beginning */
-		memcpy(__ctx->buf, __ctx->buf + __ctx->off, rsz);
-		__ctx->bno = rsz;
-		bno = __ctx->buf + rsz;
+		memcpy(ctx->buf, ctx->buf + ctx->off, rsz);
+		ctx->bno = rsz;
+		bno = ctx->buf + rsz;
+	} else if (UNLIKELY(ctx->bno == ctx->off)) {
+		/* what are the odds? just reset the counters */
+		ctx->bno = 0;
+		bno = ctx->buf;
 	} else {
 		/* the user didn't see the end of the file */
 		return -1;
@@ -158,7 +166,7 @@ prchunk_fill(void)
 
 yield1:
 	/* read CHUNK_SIZE bytes */
-	bno += (nrd = read(__ctx->fd, bno, CHUNK_SIZE));
+	bno += (nrd = read(ctx->fd, bno, CHUNK_SIZE));
 	/* if we came from yield2 then off == __ctx->bno, and if we
 	 * read 0 or less bytes then off >= __ctx->bno + nrd, so we
 	 * can simply use that compact expression if the buffer has no
@@ -167,7 +175,11 @@ yield1:
 	 * has been called, then off would be 0 and __ctx->bno would be
 	 * the buffer filled so far, if no more bytes could be read then
 	 * we'd proceed processing them (off < __ctx->bno + nrd */
-	if (LIKELY(off < bno || off == __ctx->buf)) {
+	if (UNLIKELY(nrd <= 0 && off == ctx->buf)) {
+		/* special case, we worked our arses off and nothing's
+		 * in the pipe line so just fuck off here */
+		return -1;
+	} else if (LIKELY(off < bno || off == ctx->buf)) {
 		YIELD(2);
 	}
 	/* proceed to exit */
@@ -185,16 +197,16 @@ yield2:
 			p = bno;
 		}
 		/* massage our status structures */
-		set_loff(__ctx->lno, p - __ctx->buf);
+		set_loff(ctx, ctx->lno, p - ctx->buf);
 		if (UNLIKELY(p[-1] == '\r')) {
 			/* oh god, when is this nightmare gonna end */
-			p[-1] = '\0';
-			set_lftermd(__ctx->lno);
+			p[-1] = PRCHUNK_EOL;
+			set_lftermd(ctx, ctx->lno);
 		}
-		*p = '\0';
+		*p = PRCHUNK_EOL;
 		off = ++p;
 		/* count it as line and check if we need more */
-		if (++__ctx->lno >= MAX_NLINES) {
+		if (++ctx->lno >= MAX_NLINES) {
 			YIELD(3);
 		}
 	}
@@ -202,9 +214,9 @@ yield2:
 yield3:
 	/* need clean up, something like unread(),
 	 * in particular leave a note in __ctx with the left over offset */
-	__ctx->lno_cur = 0;
-	__ctx->off = off - __ctx->buf;
-	__ctx->bno = bno - __ctx->buf;
+	ctx->lno_cur = 0;
+	ctx->off = off - ctx->buf;
+	ctx->bno = bno - ctx->buf;
 #undef YIELD
 #undef CHUNK_SIZE
 	return res;
@@ -212,28 +224,35 @@ yield3:
 
 
 /* public operations */
-FDEFU void
+FDEFU prch_ctx_t
 init_prchunk(int fd)
 {
-#define MAP_MEM		(MAP_ANONYMOUS | MAP_PRIVATE)
-#define PROT_MEM	(PROT_READ | PROT_WRITE)
 #define MAP_LEN		(MAX_NLINES * MAX_LLEN)
-	__ctx->buf = mmap(NULL, MAP_LEN, PROT_MEM, MAP_MEM, 0, 0);
-	__ctx->fd = fd;
-	/* give advice about our read pattern */
-	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+	__ctx->buf = mmap(NULL, MAP_LEN, PROT_MEM, MAP_MEM, -1, 0);
+	if (__ctx->buf == MAP_FAILED) {
+		return NULL;
+	}
 
 	/* bit of space for the rechunker */
-	__ctx->soff = mmap(NULL,MAP_LEN, PROT_MEM, MAP_MEM, 0, 0);
-	return;
+	__ctx->soff = mmap(NULL, MAP_LEN, PROT_MEM, MAP_MEM, -1, 0);
+	if (__ctx->soff == MAP_FAILED) {
+		return NULL;
+	}
+
+	__ctx->fd = fd;
+#if defined POSIX_FADV_SEQUENTIAL
+	/* give advice about our read pattern */
+	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif	/* POSIX_FADV_SEQUENTIAL */
+	return __ctx;
 }
 
 FDEFU void
-free_prchunk(void)
+free_prchunk(prch_ctx_t ctx)
 {
-	if (LIKELY(__ctx->buf != 0)) {
-		munmap(__ctx->buf, MAP_LEN);
-		__ctx->buf = NULL;
+	if (LIKELY(ctx->buf != NULL)) {
+		munmap(ctx->buf, MAP_LEN);
+		ctx->buf = NULL;
 	}
 	return;
 }
@@ -241,64 +260,70 @@ free_prchunk(void)
 
 /* accessors/iterators/et al. */
 FDEFU size_t
-prchunk_get_nlines(void)
+prchunk_get_nlines(prch_ctx_t ctx)
 {
-	return __ctx->lno;
+	return ctx->lno;
 }
 
 FDEFU size_t
-prchunk_getlineno(char **p, int lno)
+prchunk_getlineno(prch_ctx_t ctx, char **p, int lno)
 {
 	if (UNLIKELY(lno <= 0)) {
-		*p = __ctx->buf;
-		return get_llen(0);
-	} else if (UNLIKELY(lno >= prchunk_get_nlines())) {
+		*p = ctx->buf;
+		return get_llen(ctx, 0);
+	} else if (UNLIKELY((size_t)lno >= prchunk_get_nlines(ctx))) {
 		*p = NULL;
 		return 0;
 	}
 	/* likely case last, what bollocks */
-	*p = __ctx->buf + get_loff(lno - 1) + 1;
-	return get_llen(lno);
+	*p = ctx->buf + get_loff(ctx, lno - 1) + 1;
+	return get_llen(ctx, lno);
 }
 
 FDEFU size_t
-prchunk_getline(char **p)
+prchunk_getline(prch_ctx_t ctx, char **p)
 {
-	return prchunk_getlineno(p, __ctx->lno_cur++);
+	return prchunk_getlineno(ctx, p, ctx->lno_cur++);
 }
 
 FDEFU void
-prchunk_reset(void)
+prchunk_reset(prch_ctx_t ctx)
 {
-	__ctx->lno_cur = 0;
+	ctx->lno_cur = 0;
 	return;
+}
+
+FDEFU int
+prchunk_haslinep(prch_ctx_t ctx)
+{
+	return ctx->lno_cur < ctx->lno;
 }
 
 
 static inline void
-set_ncols(size_t ncols)
+set_ncols(prch_ctx_t ctx, size_t ncols)
 {
-	__ctx->cno = ncols;
+	ctx->cno = ncols;
 	return;
 }
 
 FDEFU size_t
-prchunk_get_ncols(void)
+prchunk_get_ncols(prch_ctx_t ctx)
 {
-	return __ctx->cno;
+	return ctx->cno;
 }
 
 static inline void
-set_col_off(size_t lno, size_t cno, off16_t off)
+set_col_off(prch_ctx_t ctx, size_t lno, size_t cno, size_t off)
 {
-	__ctx->soff[lno * prchunk_get_ncols() + cno] = off;
+	ctx->soff[lno * prchunk_get_ncols(ctx) + cno] = (off16_t)off;
 	return;
 }
 
 static inline off16_t
-get_col_off(size_t lno, size_t cno)
+get_col_off(prch_ctx_t ctx, size_t lno, size_t cno)
 {
-	return __ctx->soff[lno * prchunk_get_ncols() + cno];
+	return ctx->soff[lno * prchunk_get_ncols(ctx) + cno];
 }
 
 /* rechunker, chop the lines into smaller bits
@@ -307,7 +332,7 @@ get_col_off(size_t lno, size_t cno)
  * Store the offsets into __ctx->soff and bugger off leaving a \0
  * where the delimiter was. */
 FDEFU void
-prchunk_rechunk(char dlm, int ncols)
+prchunk_rechunk(prch_ctx_t ctx, char dlm, int ncols)
 {
 /* very naive implementation, we prefer prchunk_rechunk_by_dstfld()
  * where a distance histogram demarks possible places */
@@ -316,51 +341,51 @@ prchunk_rechunk(char dlm, int ncols)
 	char *line;
 	char *off;
 	char *p;
-	char *bno = __ctx->buf + __ctx->off;
+	char *bno = ctx->buf + ctx->off;
 	size_t rsz;
 
-	set_ncols(ncols);
-	off = line = __ctx->buf;
+	set_ncols(ctx, ncols);
+	off = line = ctx->buf;
 	rsz = bno - off;
 	while ((p = memchr(off, dlm, rsz)) != NULL) {
 		size_t co;
-		size_t llen = get_llen(lno);
+		size_t llen = get_llen(ctx, lno);
 		while ((co = p - line) > llen) {
 			/* last column offset equals the length of the line */
-			set_col_off(lno, cno, llen);
+			set_col_off(ctx, lno, cno, llen);
 			/* get the new line */
-			line = __ctx->buf + get_loff(lno++) + 1;
+			line = ctx->buf + get_loff(ctx, lno++) + 1;
 			cno = 0;
 		}
 		/* store the offset of the column within the line */
-		set_col_off(lno, cno++, co);
+		set_col_off(ctx, lno, cno++, co);
 		/* prepare the counters for the next round */
-		*p = '\0';
+		*p = PRCHUNK_EOL;
 		off = ++p;
 		rsz = bno - off;
 	}
 	/* last column offset equals the length of the line */
-	rsz = get_llen(lno);
-	set_col_off(lno, cno, rsz);
+	rsz = get_llen(ctx, lno);
+	set_col_off(ctx, lno, cno, rsz);
 	return;
 }
 
 FDEFU size_t
-prchunk_getcolno(char **p, int lno, int cno)
+prchunk_getcolno(prch_ctx_t ctx, char **p, int lno, int cno)
 {
 	size_t co1, co2;
 
-	if (UNLIKELY(cno >= prchunk_get_ncols())) {
+	if (UNLIKELY(cno < 0 || (size_t)cno >= prchunk_get_ncols(ctx))) {
 		*p = NULL;
 		return 0;
 	}
-	(void)prchunk_getlineno(p, lno);
-	if (UNLIKELY(cno <= 0)) {
-		return get_col_off(lno, 0);
+	(void)prchunk_getlineno(ctx, p, lno);
+	if (UNLIKELY(cno == 0)) {
+		return get_col_off(ctx, lno, 0);
 	}
 	/* likely case last */
-	co1 = get_col_off(lno, cno);
-	co2 = get_col_off(lno, cno - 1);
+	co1 = get_col_off(ctx, lno, cno);
+	co2 = get_col_off(ctx, lno, cno - 1);
 	*p += co2 + 1;
 	return co1 - co2 - 1;
 }
@@ -371,6 +396,7 @@ int
 main(int argc, char *argv[])
 {
 	int fd;
+	prch_ctx_t ctx;
 
 	if (argc <= 1) {
 		fd = STDIN_FILENO;
@@ -378,19 +404,22 @@ main(int argc, char *argv[])
 		return 1;
 	}
 	/* get our prchunk up n running */
-	init_prchunk(fd);
+	if ((ctx = init_prchunk(fd)) == NULL) {
+		perror("ctx NULL");
+		return 1;
+	}
 	/* fill the buffer */
-	while (!(prchunk_fill() < 0)) {
+	while (!(prchunk_fill(ctx) < 0)) {
 		char *l[1];
 		size_t llen;
 		int i = 0;
 
-		while ((llen = prchunk_getline(l))) {
+		while ((llen = prchunk_getline(ctx, l))) {
 			fprintf(stderr, "%d (%zu) %s\n", i++, llen, l[0]);
 		}
 	}
 	/* and out */
-	free_prchunk();
+	free_prchunk(ctx);
 	close(fd);
 	return 0;
 }

@@ -1,10 +1,10 @@
-/*** gtype-str.h -- string cell predicate
+/*** nifty.h -- generally handy macroes
  *
- * Copyright (C) 2010 Sebastian Freundt
+ * Copyright (C) 2009-2013 Sebastian Freundt
  *
- * Author:  Sebastian Freundt <sebastian.freundt@ga-group.nl>
+ * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
- * This file is part of glod.
+ * This file is part of uterus.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,25 +35,30 @@
  *
  ***/
 
-#if !defined INCLUDED_gtype_str_h_
-#define INCLUDED_gtype_str_h_
+#if !defined INCLUDED_nifty_h_
+#define INCLUDED_nifty_h_
 
-#if !defined STATIC_GUTS
-# define FDECL		extern
-# define FDEFU
-#else  /* STATIC_GUTS */
-# define FDECL		static
-# define FDEFU		static
-#endif	/* !STATIC_GUTS */
+#if !defined LIKELY
+# define LIKELY(_x)	__builtin_expect((_x), 1)
+#endif	/* !LIKELY */
+#if !defined UNLIKELY
+# define UNLIKELY(_x)	__builtin_expect((_x), 0)
+#endif	/* UNLIKELY */
 
-FDECL int gtype_str_p(const char *cell, size_t clen);
+#if !defined UNUSED
+# define UNUSED(_x)	_x __attribute__((unused))
+#endif	/* !UNUSED */
 
-/* subtype non-sense */
-typedef struct gtype_str_sub_s *gtype_str_sub_t;
+#if !defined ALGN
+# define ALGN(_x, to)	_x __attribute__((aligned(to)))
+#endif	/* !ALGN */
 
-struct gtype_str_sub_s {
-	/* denotes the maximum length over all strings encountered */
-	size_t len;
-};
+#if !defined countof
+# define countof(x)	(sizeof(x) / sizeof(*x))
+#endif	/* !countof */
 
-#endif	/* INCLUDED_gtype_date_h_ */
+#if !defined with
+# define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
+#endif	/* !with */
+
+#endif	/* INCLUDED_nifty_h_ */

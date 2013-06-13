@@ -81,16 +81,19 @@ typedef struct glod_ctx_s {
 	size_t nl;
 	/* subtype array */
 	void *stv[MAX_LINE_LEN / 2];
+
+	/* chunker */
+	prch_ctx_t prch;
 } *glod_ctx_t;
 
 
 static dlm_t
-guess_sep(glod_ctx_t UNUSED(ctx))
+guess_sep(glod_ctx_t ctx)
 {
 	char *line;
 	size_t llen;
 
-	while ((llen = prchunk_getline(&line))) {
+	while ((llen = prchunk_getline(ctx->prch, &line))) {
 		/* just process the line */
 		if (gsep_in_line(line, llen) < 0) {
 			return DLM_UNK;
@@ -102,14 +105,14 @@ guess_sep(glod_ctx_t UNUSED(ctx))
 static void
 guess_type(glod_ctx_t ctx)
 {
-	ctx->nc = prchunk_get_ncols();
-	ctx->nl = prchunk_get_nlines();
+	ctx->nc = prchunk_get_ncols(ctx->prch);
+	ctx->nl = prchunk_get_nlines(ctx->prch);
 
 	for (size_t i = 0; i < ctx->nc; i++) {
 		init_gtype_ctx();
 		for (size_t j = 0; j < ctx->nl; j++) {
 			char *cell;
-			size_t clen = prchunk_getcolno(&cell, j, i);
+			size_t clen = prchunk_getcolno(ctx->prch, &cell, j, i);
 			gtype_in_col(cell, clen);
 		}
 		/* make a verdict now */
@@ -220,10 +223,10 @@ main(int argc, char *argv[])
 		return 1;
 	}
 	/* get all of prchunk's resources sorted */
-	init_prchunk(ctx->fd);
+	ctx->prch = init_prchunk(ctx->fd);
 
 	/* process all lines, try and guess the separator */
-	while (!(prchunk_fill() < 0)) {
+	while (!(prchunk_fill(ctx->prch) < 0)) {
 		dlm_t sep;
 		int nco;
 		char sepc;
@@ -239,7 +242,7 @@ main(int argc, char *argv[])
 		nco = gsep_get_sep_cnt(sep) + 1;
 		sepc = gsep_get_sep_char(sep);
 		fprintf(stderr, "sep '%c'  #cols %d\n", sepc, nco);
-		prchunk_rechunk(sepc, nco);
+		prchunk_rechunk(ctx->prch, sepc, nco);
 
 		/* now go over all columns and guess their type */
 		guess_type(ctx);
@@ -258,7 +261,7 @@ main(int argc, char *argv[])
 	/* kick the sep guesser */
 	free_gsep();
 	/* get rid of prchunk's resources */
-	free_prchunk();
+	free_prchunk(ctx->prch);
 	/* and out */
 	free_glod_ctx(ctx);
 	return 0;
