@@ -83,6 +83,12 @@ glod_charstat_SOURCES += glod-charstat-clo.h glod-charstat-clo.ggo
 glod_charstat_LDADD = libglod.a
 BUILT_SOURCES += glod-charstat-clo.c glod-charstat-clo.h
 
+bin_PROGRAMS += glod-classify
+glod_classify_SOURCES = glod-classify.c
+glod_classify_SOURCES += glod-classify-clo.h glod-classify-clo.ggo
+glod_classify_LDADD = libglod.a
+BUILT_SOURCES += glod-classify-clo.c glod-classify-clo.h
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
