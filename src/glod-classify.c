@@ -153,10 +153,130 @@ DEFCLASSIFIER(integer, b, z)
 	return YIELD_CACHE(b, z);
 }
 
+DEFCLASSIFIER(decimal, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int res = CLASSIFIER(integer, b, z);
+
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			if (*bp == '.') {
+				res++;
+			}
+		}
+		CACHE(b, z, res);
+	}
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(expfloat, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int res = CLASSIFIER(uinteger, b, z);
+
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			switch (*bp) {
+			case 'e':
+			case 'E':
+			case '+':
+			case '-':
+			case '.':
+				res++;
+			default:
+				break;
+			}
+		}
+		CACHE(b, z, res);
+	}
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(date, b, z)
+{
+	CHECK_CACHE(b, z) {
+		CACHE(b, z, CLASSIFIER(integer, b, z));
+	}
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(hexint, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int res = CLASSIFIER(uinteger, b, z);
+
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			if ((*bp >= 'a' && *bp <= 'f') ||
+			    (*bp >= 'A' && *bp <= 'F')) {
+				res++;
+			}
+		}
+		CACHE(b, z, res);
+	}
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(hspace, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int res = 0U;
+
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			switch (*bp) {
+			case ' ':
+			case '\t':
+			case '\r':
+			case '\b':
+				res++;
+			default:
+				break;
+			}
+		}
+		CACHE(b, z, res);
+	}
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(vspace, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int res = 0U;
+
+		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
+			switch (*bp) {
+			case '\n':
+			case '\v':
+			case '\f':
+				res++;
+			default:
+				break;
+			}
+		}
+		CACHE(b, z, res);
+	}
+	return YIELD_CACHE(b, z);
+}
+
+DEFCLASSIFIER(space, b, z)
+{
+	CHECK_CACHE(b, z) {
+		unsigned int h = CLASSIFIER(hspace, b, z);
+		unsigned int v = CLASSIFIER(vspace, b, z);
+
+		CACHE(b, z, h + v);
+	}
+	return YIELD_CACHE(b, z);
+}
+
 
 static struct classifier_s clsfs[] = {
 	REFCLASSIFIER(uinteger),
 	REFCLASSIFIER(integer),
+	REFCLASSIFIER(decimal),
+	REFCLASSIFIER(expfloat),
+	REFCLASSIFIER(date),
+	REFCLASSIFIER(hexint),
+	REFCLASSIFIER(hspace),
+	REFCLASSIFIER(vspace),
+	REFCLASSIFIER(space),
 };
 static uint8_t clsfu[countof(clsfs)];
 #define MAX_CAPACITY	((sizeof(*clsfu) << CHAR_BIT) - 1)
