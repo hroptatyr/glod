@@ -51,14 +51,14 @@
 
 /* we assume lil endian */
 /* NULL and null */
-static const uint32_t NULL1 = 0x4c4c554e;
-static const uint32_t NULL2 = 0x6c6c756e;
+#define NULL1	0x4c4c554eU
+#define NULL2	0x6c6c756eU
 /* N/A and n/a */
-static const uint32_t NA1 = 0x00412f4e;
-static const uint32_t NA2 = 0x00612f6e;
+#define NA1	0x00412f4eU
+#define NA2	0x00612f6eU
 /* #N/A and #n/a */
-static const uint32_t _NA1 = 0x412f4e23;
-static const uint32_t _NA2 = 0x612f6e23;
+#define _NA1	0x412f4e23U
+#define _NA2	0x612f6e23U
 
 FDEFU int
 gtype_na_p(const char *cell, size_t clen)
