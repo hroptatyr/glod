@@ -83,8 +83,9 @@ dist-hook: $(bin_PROGRAMS)
 
 
 ## rule for our own compiler
-%.tab: $(top_srcdir)/tmpl/%.tmpl facc
-	./facc $< $@
+%.tab: $(top_srcdir)/tmpl/%.tmpl
+	$(MAKE) $(AM_MAKEFLAGS) facc$(EXEEXT)
+	$(AM_V_GEN) $(builddir)/facc$(EXEEXT) $< $@ || $(RM) $@
 
 ## gengetopt rule with sed hack to avoid using VERSION and config.h
 ## depend on Makefile.am to survive a git pull
