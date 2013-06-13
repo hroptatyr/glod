@@ -6,3 +6,7 @@ description "Obtain some basic stats about the characters in FILE."
 option "linewise" -
 	"Instead of given a total view on the file, return stats for each line."
 	optional
+
+option "graph" -
+	"Return an ASCII graph of the character distribution."
+	optional

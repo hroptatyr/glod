@@ -175,7 +175,9 @@ linestat(const char *line, size_t llen)
 	return;
 }
 
+
 static int linewisep;
+static int graphp;
 
 static int
 charstat(const char *file)
@@ -205,7 +207,11 @@ charstat(const char *file)
 	/* get a total overview */
 	if (!linewisep) {
 		linestat(mp, mz);
-		pr_stat_gr();
+		if (graphp) {
+			pr_stat_gr();
+		} else {
+			pr_stat();
+		}
 		goto unmp;
 	}
 	/* otherwise find the lines first */
@@ -216,7 +222,11 @@ charstat(const char *file)
 		}
 		printf("line %zu\n", ++lno);
 		linestat(x, eol - x);
-		pr_stat_gr();
+		if (graphp) {
+			pr_stat_gr();
+		} else {
+			pr_stat();
+		}
 		rs_stat();
 		putc('\n', stdout);
 	}
@@ -255,6 +265,9 @@ main(int argc, char *argv[])
 
 	if (argi->linewise_given) {
 		linewisep = 1;
+	}
+	if (argi->graph_given) {
+		graphp = 1;
 	}
 
 	/* run stats on that one file */
