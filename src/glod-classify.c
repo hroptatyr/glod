@@ -110,6 +110,30 @@ error(int eno, const char *fmt, ...)
 }
 
 
+static uint8_t chars[128U];
+#define CHARS_CAPACITY	((sizeof(*chars) << CHAR_BIT) - 1)
+
+static void
+up_chars(const char *line, size_t llen)
+{
+	for (const char *lp = line, *const ep = line + llen; lp < ep; lp++) {
+		if (LIKELY(*lp >= 0 && *lp < 128)) {
+			if (LIKELY(chars[*lp] < CHARS_CAPACITY)) {
+				chars[*lp]++;
+			}
+		}
+	}
+	return;
+}
+
+static void
+rs_chars(void)
+{
+	memset(chars, 0, sizeof(chars));
+	return;
+}
+
+
 static unsigned int
 classify(classifier_t c, const char *buf, size_t len)
 {
@@ -126,13 +150,17 @@ invalidate(classifier_t c)
 DEFCLASSIFIER(uinteger, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res = 0U;
-
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if (*bp >= '0' && *bp <= '9') {
-				res++;
-			}
-		}
+		unsigned int res =
+			chars['0'] +
+			chars['1'] +
+			chars['2'] +
+			chars['3'] +
+			chars['4'] +
+			chars['5'] +
+			chars['6'] +
+			chars['7'] +
+			chars['8'] +
+			chars['9'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -143,11 +171,7 @@ DEFCLASSIFIER(integer, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if (*bp == '-') {
-				res++;
-			}
-		}
+		res += chars['-'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -158,11 +182,7 @@ DEFCLASSIFIER(decimal, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(integer, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if (*bp == '.') {
-				res++;
-			}
-		}
+		res += chars['.'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -173,18 +193,9 @@ DEFCLASSIFIER(expfloat, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			switch (*bp) {
-			case 'e':
-			case 'E':
-			case '+':
-			case '-':
-			case '.':
-				res++;
-			default:
-				break;
-			}
-		}
+		res += chars['e'] + chars['E'] +
+			chars['+'] + chars['-'] +
+			chars['.'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -203,12 +214,12 @@ DEFCLASSIFIER(hexint, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if ((*bp >= 'a' && *bp <= 'f') ||
-			    (*bp >= 'A' && *bp <= 'F')) {
-				res++;
-			}
-		}
+		res += chars['a'] + chars['A'] +
+			chars['b'] + chars['B'] +
+			chars['c'] + chars['C'] +
+			chars['d'] + chars['D'] +
+			chars['e'] + chars['E'] +
+			chars['f'] + chars['F'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -217,19 +228,12 @@ DEFCLASSIFIER(hexint, b, z)
 DEFCLASSIFIER(hspace, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res = 0U;
+		unsigned int res =
+			chars[' '] +
+			chars['\b'] +
+			chars['\r'] +
+			chars['\t'];
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			switch (*bp) {
-			case ' ':
-			case '\t':
-			case '\r':
-			case '\b':
-				res++;
-			default:
-				break;
-			}
-		}
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -238,18 +242,11 @@ DEFCLASSIFIER(hspace, b, z)
 DEFCLASSIFIER(vspace, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res = 0U;
+		unsigned int res =
+			chars['\f'] +
+			chars['\n'] +
+			chars['\v'];
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			switch (*bp) {
-			case '\n':
-			case '\v':
-			case '\f':
-				res++;
-			default:
-				break;
-			}
-		}
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -408,16 +405,20 @@ pr_cdl(void)
 static void
 rs_stat(void)
 {
+	rs_chars();
+
 	for (size_t i = 0; i < countof(clsfs); i++) {
 		invalidate(clsfs + i);
-		clsfu[i] = 0U;
 	}
+	memset(clsfu, 0, sizeof(clsfu));
 	return;
 }
 
 static void
 classify_line(const char *line, size_t llen)
 {
+	up_chars(line, llen);
+
 	for (size_t i = 0; i < countof(clsfs); i++) {
 		unsigned int r = classify(clsfs + i, line, llen);
 
