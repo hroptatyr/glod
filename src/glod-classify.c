@@ -51,6 +51,8 @@
 #include "nifty.h"
 #include "mem.h"
 
+#include <assert.h>
+
 typedef uint8_t bucket_t;
 
 typedef struct classifier_s *classifier_t;
@@ -114,6 +116,12 @@ error(int eno, const char *fmt, ...)
 
 static bucket_t chars[128U];
 #define CHARS_CAPACITY	((sizeof(*chars) << CHAR_BIT) - 1)
+static struct {
+	bucket_t o;
+	bucket_t h;
+	bucket_t l;
+	bucket_t c;
+} chars_cdl[128U];
 
 static void
 up_chars(const char *line, size_t llen)
@@ -132,6 +140,84 @@ static void
 rs_chars(void)
 {
 	memset(chars, 0, sizeof(chars));
+	return;
+}
+
+static void
+cdl_chars(size_t UNUSED(lno))
+{
+/* accumulate chars into a candle */
+	for (size_t i = 0; i < countof(chars); i++) {
+		bucket_t u = chars[i];
+
+		if (UNLIKELY(!u && !chars_cdl[i].c)) {
+			/* skip this result altogether */
+			continue;
+		}
+		if (UNLIKELY(!chars_cdl[i].o)) {
+			chars_cdl[i].o = u;
+			chars_cdl[i].h = u;
+			chars_cdl[i].l = u;
+		} else if (u > chars_cdl[i].h) {
+			chars_cdl[i].h = u;
+		} else if (u < chars_cdl[i].l) {
+			chars_cdl[i].l = u;
+		}
+		/* always store the close */
+		chars_cdl[i].c = u;
+	}
+	return;
+}
+
+static void
+cdl_pr_chars(void)
+{
+	for (size_t i = 0; i < countof(chars); i++) {
+		unsigned int ui_o = chars_cdl[i].o;
+		unsigned int ui_h = chars_cdl[i].h;
+		unsigned int ui_l = chars_cdl[i].l;
+		unsigned int ui_c = chars_cdl[i].c;
+
+		if (!ui_h && !ui_l) {
+			/* h >= o,c >= l */
+			assert(!ui_o && !ui_c);
+			/* skip */
+			continue;
+		}
+
+		fputc('\'', stdout);
+		if (i < 32) {
+			fputc('^', stdout);
+			i += 64;
+		}
+		fputc((int)i, stdout);
+		fputc('\'', stdout);
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_o);
+		if (ui_o == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_h);
+		if (ui_h == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_l);
+		if (ui_l == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_c);
+		if (ui_c == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\n', stdout);
+	}
 	return;
 }
 
@@ -365,7 +451,7 @@ cdl_stat(size_t UNUSED(lno))
 }
 
 static void
-pr_cdl(void)
+cdl_pr_stat(void)
 {
 	for (size_t i = 0; i < countof(clsfs); i++) {
 		unsigned int ui;
@@ -485,10 +571,14 @@ classify_file(const char *file)
 		lz = eol - x;
 		classify_line(x, lz);
 
+		/* inc the line number counter */
+		lno++;
+
 		if (candlep) {
-			cdl_stat(++lno);
+			cdl_chars(lno);
+			cdl_stat(lno);
 		} else {
-			printf("line %zu\t%zu\n", ++lno, lz);
+			printf("line %zu\t%zu\n", lno, lz);
 			if (graphp) {
 				pr_stat_gr();
 			} else {
@@ -500,7 +590,8 @@ classify_file(const char *file)
 	}
 
 	if (candlep) {
-		pr_cdl();
+		cdl_pr_chars();
+		cdl_pr_stat();
 	}
 unmp:
 	res += munmap(mp, mz);
