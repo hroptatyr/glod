@@ -51,6 +51,10 @@
 #include "nifty.h"
 #include "mem.h"
 
+#include <assert.h>
+
+typedef uint8_t bucket_t;
+
 typedef struct classifier_s *classifier_t;
 
 struct classifier_s {
@@ -110,6 +114,114 @@ error(int eno, const char *fmt, ...)
 }
 
 
+static bucket_t chars[128U];
+#define CHARS_CAPACITY	((sizeof(*chars) << CHAR_BIT) - 1)
+static struct {
+	bucket_t o;
+	bucket_t h;
+	bucket_t l;
+	bucket_t c;
+} chars_cdl[128U];
+
+static void
+up_chars(const char *line, size_t llen)
+{
+	for (const char *lp = line, *const ep = line + llen; lp < ep; lp++) {
+		if (LIKELY(*lp >= 0 && *lp < 128)) {
+			if (LIKELY(chars[*lp] < CHARS_CAPACITY)) {
+				chars[*lp]++;
+			}
+		}
+	}
+	return;
+}
+
+static void
+rs_chars(void)
+{
+	memset(chars, 0, sizeof(chars));
+	return;
+}
+
+static void
+cdl_chars(size_t UNUSED(lno))
+{
+/* accumulate chars into a candle */
+	for (size_t i = 0; i < countof(chars); i++) {
+		bucket_t u = chars[i];
+
+		if (UNLIKELY(!u && !chars_cdl[i].c)) {
+			/* skip this result altogether */
+			continue;
+		}
+		if (UNLIKELY(!chars_cdl[i].o)) {
+			chars_cdl[i].o = u;
+			chars_cdl[i].h = u;
+			chars_cdl[i].l = u;
+		} else if (u > chars_cdl[i].h) {
+			chars_cdl[i].h = u;
+		} else if (u < chars_cdl[i].l) {
+			chars_cdl[i].l = u;
+		}
+		/* always store the close */
+		chars_cdl[i].c = u;
+	}
+	return;
+}
+
+static void
+cdl_pr_chars(void)
+{
+	for (size_t i = 0; i < countof(chars); i++) {
+		unsigned int ui_o = chars_cdl[i].o;
+		unsigned int ui_h = chars_cdl[i].h;
+		unsigned int ui_l = chars_cdl[i].l;
+		unsigned int ui_c = chars_cdl[i].c;
+
+		if (!ui_h && !ui_l) {
+			/* h >= o,c >= l */
+			assert(!ui_o && !ui_c);
+			/* skip */
+			continue;
+		}
+
+		fputc('\'', stdout);
+		if (i < 32) {
+			fputc('^', stdout);
+			i += 64;
+		}
+		fputc((int)i, stdout);
+		fputc('\'', stdout);
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_o);
+		if (ui_o == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_h);
+		if (ui_h == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_l);
+		if (ui_l == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		fprintf(stdout, "%u", ui_c);
+		if (ui_c == CHARS_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\n', stdout);
+	}
+	return;
+}
+
+
 static unsigned int
 classify(classifier_t c, const char *buf, size_t len)
 {
@@ -126,13 +238,17 @@ invalidate(classifier_t c)
 DEFCLASSIFIER(uinteger, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res = 0U;
-
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if (*bp >= '0' && *bp <= '9') {
-				res++;
-			}
-		}
+		unsigned int res =
+			chars['0'] +
+			chars['1'] +
+			chars['2'] +
+			chars['3'] +
+			chars['4'] +
+			chars['5'] +
+			chars['6'] +
+			chars['7'] +
+			chars['8'] +
+			chars['9'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -143,11 +259,7 @@ DEFCLASSIFIER(integer, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if (*bp == '-') {
-				res++;
-			}
-		}
+		res += chars['-'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -158,11 +270,7 @@ DEFCLASSIFIER(decimal, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(integer, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if (*bp == '.') {
-				res++;
-			}
-		}
+		res += chars['.'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -173,18 +281,9 @@ DEFCLASSIFIER(expfloat, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			switch (*bp) {
-			case 'e':
-			case 'E':
-			case '+':
-			case '-':
-			case '.':
-				res++;
-			default:
-				break;
-			}
-		}
+		res += chars['e'] + chars['E'] +
+			chars['+'] + chars['-'] +
+			chars['.'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -203,12 +302,12 @@ DEFCLASSIFIER(hexint, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			if ((*bp >= 'a' && *bp <= 'f') ||
-			    (*bp >= 'A' && *bp <= 'F')) {
-				res++;
-			}
-		}
+		res += chars['a'] + chars['A'] +
+			chars['b'] + chars['B'] +
+			chars['c'] + chars['C'] +
+			chars['d'] + chars['D'] +
+			chars['e'] + chars['E'] +
+			chars['f'] + chars['F'];
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -217,19 +316,12 @@ DEFCLASSIFIER(hexint, b, z)
 DEFCLASSIFIER(hspace, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res = 0U;
+		unsigned int res =
+			chars[' '] +
+			chars['\b'] +
+			chars['\r'] +
+			chars['\t'];
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			switch (*bp) {
-			case ' ':
-			case '\t':
-			case '\r':
-			case '\b':
-				res++;
-			default:
-				break;
-			}
-		}
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -238,18 +330,11 @@ DEFCLASSIFIER(hspace, b, z)
 DEFCLASSIFIER(vspace, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res = 0U;
+		unsigned int res =
+			chars['\f'] +
+			chars['\n'] +
+			chars['\v'];
 
-		for (const char *bp = b, *const ep = b + z; bp < ep; bp++) {
-			switch (*bp) {
-			case '\n':
-			case '\v':
-			case '\f':
-				res++;
-			default:
-				break;
-			}
-		}
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -278,10 +363,17 @@ static struct classifier_s clsfs[] = {
 	REFCLASSIFIER(vspace),
 	REFCLASSIFIER(space),
 };
-static uint8_t clsfu[countof(clsfs)];
+static bucket_t clsfu[countof(clsfs)];
 #define MAX_CAPACITY	((sizeof(*clsfu) << CHAR_BIT) - 1)
-#define AS_CLSFU(x)	((uint8_t)(x))
+#define AS_CLSFU(x)	((bucket_t)(x))
 #define GET_CLSFU(x)	((unsigned int)(x))
+
+static struct {
+	bucket_t o;
+	bucket_t h;
+	bucket_t l;
+	bucket_t c;
+} clsfu_cdl[countof(clsfs)];
 
 static void
 pr_stat(void)
@@ -333,18 +425,88 @@ pr_stat_gr(void)
 }
 
 static void
-rs_stat(void)
+cdl_stat(size_t UNUSED(lno))
+{
+/* accumulate stats into candle */
+	for (size_t i = 0; i < countof(clsfs); i++) {
+		bucket_t u = clsfu[i];
+
+		if (UNLIKELY(!u && !clsfu_cdl[i].c)) {
+			/* skip this result altogether */
+			continue;
+		}
+		if (UNLIKELY(!clsfu_cdl[i].o)) {
+			clsfu_cdl[i].o = u;
+			clsfu_cdl[i].h = u;
+			clsfu_cdl[i].l = u;
+		} else if (u > clsfu_cdl[i].h) {
+			clsfu_cdl[i].h = u;
+		} else if (u < clsfu_cdl[i].l) {
+			clsfu_cdl[i].l = u;
+		}
+		/* always store the close */
+		clsfu_cdl[i].c = u;
+	}
+	return;
+}
+
+static void
+cdl_pr_stat(void)
 {
 	for (size_t i = 0; i < countof(clsfs); i++) {
-		invalidate(clsfs + i);
-		clsfu[i] = 0U;
+		unsigned int ui;
+
+		fputs(clsfs[i].name, stdout);
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].o);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].h);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].l);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].c);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\n', stdout);
 	}
+	return;
+}
+
+static void
+rs_stat(void)
+{
+	rs_chars();
+
+	for (size_t i = 0; i < countof(clsfs); i++) {
+		invalidate(clsfs + i);
+	}
+	memset(clsfu, 0, sizeof(clsfu));
 	return;
 }
 
 static void
 classify_line(const char *line, size_t llen)
 {
+	up_chars(line, llen);
+
 	for (size_t i = 0; i < countof(clsfs); i++) {
 		unsigned int r = classify(clsfs + i, line, llen);
 
@@ -360,6 +522,7 @@ classify_line(const char *line, size_t llen)
 
 static int linewisep;
 static int graphp;
+static int candlep;
 
 static int
 classify_file(const char *file)
@@ -404,16 +567,31 @@ classify_file(const char *file)
 		if (UNLIKELY((eol = memchr(x, '\n', ex - x)) == NULL)) {
 			break;
 		}
+		/* do classify */
 		lz = eol - x;
-		printf("line %zu\t%zu\n", ++lno, lz);
 		classify_line(x, lz);
-		if (graphp) {
-			pr_stat_gr();
+
+		/* inc the line number counter */
+		lno++;
+
+		if (candlep) {
+			cdl_chars(lno);
+			cdl_stat(lno);
 		} else {
-			pr_stat();
+			printf("line %zu\t%zu\n", lno, lz);
+			if (graphp) {
+				pr_stat_gr();
+			} else {
+				pr_stat();
+			}
+			putc('\n', stdout);
 		}
 		rs_stat();
-		putc('\n', stdout);
+	}
+
+	if (candlep) {
+		cdl_pr_chars();
+		cdl_pr_stat();
 	}
 unmp:
 	res += munmap(mp, mz);
@@ -448,8 +626,11 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	if (argi->linewise_given) {
+	if (argi->linewise_given || argi->candle_given) {
 		linewisep = 1;
+		if (argi->candle_given) {
+			candlep = 1;
+		}
 	}
 	if (argi->graph_given) {
 		graphp = 1;
