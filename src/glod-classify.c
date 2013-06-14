@@ -150,17 +150,12 @@ invalidate(classifier_t c)
 DEFCLASSIFIER(uinteger, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res =
-			chars['0'] +
-			chars['1'] +
-			chars['2'] +
-			chars['3'] +
-			chars['4'] +
-			chars['5'] +
-			chars['6'] +
-			chars['7'] +
-			chars['8'] +
-			chars['9'];
+		unsigned int res = 0U;
+
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, "0123456789")) && bp < ebp;
+		     res++, bp++);
+
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -171,7 +166,9 @@ DEFCLASSIFIER(integer, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		res += chars['-'];
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, "-")) && bp < ebp;
+		     res++, bp++);
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -182,7 +179,9 @@ DEFCLASSIFIER(decimal, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(integer, b, z);
 
-		res += chars['.'];
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, ".")) && bp < ebp;
+		     res++, bp++);
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -193,9 +192,9 @@ DEFCLASSIFIER(expfloat, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		res += chars['e'] + chars['E'] +
-			chars['+'] + chars['-'] +
-			chars['.'];
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, "eE+-.")) && bp < ebp;
+		     res++, bp++);
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -214,12 +213,9 @@ DEFCLASSIFIER(hexint, b, z)
 	CHECK_CACHE(b, z) {
 		unsigned int res = CLASSIFIER(uinteger, b, z);
 
-		res += chars['a'] + chars['A'] +
-			chars['b'] + chars['B'] +
-			chars['c'] + chars['C'] +
-			chars['d'] + chars['D'] +
-			chars['e'] + chars['E'] +
-			chars['f'] + chars['F'];
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, "abcdefABCDEF")) && bp < ebp;
+		     res++, bp++);
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -228,12 +224,11 @@ DEFCLASSIFIER(hexint, b, z)
 DEFCLASSIFIER(hspace, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res =
-			chars[' '] +
-			chars['\b'] +
-			chars['\r'] +
-			chars['\t'];
+		unsigned int res = 0U;
 
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, " \b\r\t")) && bp < ebp;
+		     res++, bp++);
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
@@ -242,11 +237,11 @@ DEFCLASSIFIER(hspace, b, z)
 DEFCLASSIFIER(vspace, b, z)
 {
 	CHECK_CACHE(b, z) {
-		unsigned int res =
-			chars['\f'] +
-			chars['\n'] +
-			chars['\v'];
+		unsigned int res = 0U;
 
+		for (const char *bp = b, *const ebp = bp + z;
+		     (bp = strpbrk(bp, "\f\n\v")) && bp < ebp;
+		     res++, bp++);
 		CACHE(b, z, res);
 	}
 	return YIELD_CACHE(b, z);
