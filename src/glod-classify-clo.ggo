@@ -10,3 +10,7 @@ option "linewise" -
 option "graph" -
 	"Return an ASCII graph of the character distribution."
 	optional
+
+option "candle" -
+	"Return an OHLCV candle."
+	optional

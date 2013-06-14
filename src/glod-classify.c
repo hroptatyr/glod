@@ -283,6 +283,13 @@ static uint8_t clsfu[countof(clsfs)];
 #define AS_CLSFU(x)	((uint8_t)(x))
 #define GET_CLSFU(x)	((unsigned int)(x))
 
+static struct {
+	uint8_t o;
+	uint8_t h;
+	uint8_t l;
+	uint8_t c;
+} clsfu_cdl[countof(clsfs)];
+
 static void
 pr_stat(void)
 {
@@ -333,6 +340,72 @@ pr_stat_gr(void)
 }
 
 static void
+cdl_stat(size_t UNUSED(lno))
+{
+/* accumulate stats into candle */
+	for (size_t i = 0; i < countof(clsfs); i++) {
+		uint8_t u = clsfu[i];
+
+		if (UNLIKELY(!u && !clsfu_cdl[i].c)) {
+			/* skip this result altogether */
+			continue;
+		}
+		if (UNLIKELY(!clsfu_cdl[i].o)) {
+			clsfu_cdl[i].o = u;
+			clsfu_cdl[i].h = u;
+			clsfu_cdl[i].l = u;
+		} else if (u > clsfu_cdl[i].h) {
+			clsfu_cdl[i].h = u;
+		} else if (u < clsfu_cdl[i].l) {
+			clsfu_cdl[i].l = u;
+		}
+		/* always store the close */
+		clsfu_cdl[i].c = u;
+	}
+	return;
+}
+
+static void
+pr_cdl(void)
+{
+	for (size_t i = 0; i < countof(clsfs); i++) {
+		unsigned int ui;
+
+		fputs(clsfs[i].name, stdout);
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].o);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].h);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].l);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\t', stdout);
+
+		ui = GET_CLSFU(clsfu_cdl[i].c);
+		fprintf(stdout, "%u", ui);
+		if (ui == MAX_CAPACITY) {
+			fputc('+', stdout);
+		}
+		fputc('\n', stdout);
+	}
+	return;
+}
+
+static void
 rs_stat(void)
 {
 	for (size_t i = 0; i < countof(clsfs); i++) {
@@ -360,6 +433,7 @@ classify_line(const char *line, size_t llen)
 
 static int linewisep;
 static int graphp;
+static int candlep;
 
 static int
 classify_file(const char *file)
@@ -404,16 +478,26 @@ classify_file(const char *file)
 		if (UNLIKELY((eol = memchr(x, '\n', ex - x)) == NULL)) {
 			break;
 		}
+		/* do classify */
 		lz = eol - x;
-		printf("line %zu\t%zu\n", ++lno, lz);
 		classify_line(x, lz);
-		if (graphp) {
-			pr_stat_gr();
+
+		if (candlep) {
+			cdl_stat(++lno);
 		} else {
-			pr_stat();
+			printf("line %zu\t%zu\n", ++lno, lz);
+			if (graphp) {
+				pr_stat_gr();
+			} else {
+				pr_stat();
+			}
+			putc('\n', stdout);
 		}
 		rs_stat();
-		putc('\n', stdout);
+	}
+
+	if (candlep) {
+		pr_cdl();
 	}
 unmp:
 	res += munmap(mp, mz);
@@ -448,8 +532,11 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	if (argi->linewise_given) {
+	if (argi->linewise_given || argi->candle_given) {
 		linewisep = 1;
+		if (argi->candle_given) {
+			candlep = 1;
+		}
 	}
 	if (argi->graph_given) {
 		graphp = 1;
