@@ -51,6 +51,8 @@
 #include "nifty.h"
 #include "mem.h"
 
+typedef uint8_t bucket_t;
+
 typedef struct classifier_s *classifier_t;
 
 struct classifier_s {
@@ -110,7 +112,7 @@ error(int eno, const char *fmt, ...)
 }
 
 
-static uint8_t chars[128U];
+static bucket_t chars[128U];
 #define CHARS_CAPACITY	((sizeof(*chars) << CHAR_BIT) - 1)
 
 static void
@@ -275,16 +277,16 @@ static struct classifier_s clsfs[] = {
 	REFCLASSIFIER(vspace),
 	REFCLASSIFIER(space),
 };
-static uint8_t clsfu[countof(clsfs)];
+static bucket_t clsfu[countof(clsfs)];
 #define MAX_CAPACITY	((sizeof(*clsfu) << CHAR_BIT) - 1)
-#define AS_CLSFU(x)	((uint8_t)(x))
+#define AS_CLSFU(x)	((bucket_t)(x))
 #define GET_CLSFU(x)	((unsigned int)(x))
 
 static struct {
-	uint8_t o;
-	uint8_t h;
-	uint8_t l;
-	uint8_t c;
+	bucket_t o;
+	bucket_t h;
+	bucket_t l;
+	bucket_t c;
 } clsfu_cdl[countof(clsfs)];
 
 static void
@@ -341,7 +343,7 @@ cdl_stat(size_t UNUSED(lno))
 {
 /* accumulate stats into candle */
 	for (size_t i = 0; i < countof(clsfs); i++) {
-		uint8_t u = clsfu[i];
+		bucket_t u = clsfu[i];
 
 		if (UNLIKELY(!u && !clsfu_cdl[i].c)) {
 			/* skip this result altogether */
