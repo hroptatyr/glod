@@ -604,8 +604,8 @@ clos:
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
 #endif	/* __INTEL_COMPILER */
-#include "glod-classify-clo.h"
-#include "glod-classify-clo.c"
+#include "glod-classify.h"
+#include "glod-classify.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
 #endif	/* __INTEL_COMPILER */

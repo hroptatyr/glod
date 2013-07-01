@@ -79,15 +79,15 @@ glod_LDADD = libglod.a
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
-glod_charstat_SOURCES += glod-charstat-clo.h glod-charstat-clo.ggo
+glod_charstat_SOURCES += glod-charstat.ggo
 glod_charstat_LDADD = libglod.a
-BUILT_SOURCES += glod-charstat-clo.c glod-charstat-clo.h
+BUILT_SOURCES += glod-charstat.x glod-charstat.h
 
 bin_PROGRAMS += glod-classify
 glod_classify_SOURCES = glod-classify.c
-glod_classify_SOURCES += glod-classify-clo.h glod-classify-clo.ggo
+glod_classify_SOURCES += glod-classify.ggo
 glod_classify_LDADD = libglod.a
-BUILT_SOURCES += glod-classify-clo.c glod-classify-clo.h
+BUILT_SOURCES += glod-classify.x glod-classify.h
 
 
 version.c: version.c.in $(top_builddir)/version.mk
@@ -104,8 +104,8 @@ dist-hook: $(bin_PROGRAMS)
 
 ## gengetopt rule with sed hack to avoid using VERSION and config.h
 ## depend on Makefile.am to survive a git pull
-%.c %.h: %.ggo Makefile.am
-	$(AM_V_GEN) gengetopt -l -i $< -F $* \
+%.x %.h: %.ggo Makefile.am
+	$(AM_V_GEN) gengetopt -l -c x -i $< -F $* \
 	&& sed \
 	  -e 's,config.h,version.h,g' \
 	  -e 's,\(.*\)_PARSER_VERSION VERSION,\1_PARSER_VERSION $(PACKAGE)_version_string,g' \
