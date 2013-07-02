@@ -1,0 +1,8 @@
+args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
+package "glod-alert"
+usage "glod-alert [OPTIONS...] -f ALERT-FILE [FILE]..."
+description "Mark up FILEs with alerts according to rules in ALERT-FILE."
+
+option "alert-file" f
+	"Use FILE for alert rules."
+	string typestr="FILE"

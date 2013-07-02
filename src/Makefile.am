@@ -90,6 +90,12 @@ glod_classify_SOURCES += glod-classify.ggo
 glod_classify_LDADD = libglod.a
 BUILT_SOURCES += glod-classify.x glod-classify.h
 
+bin_PROGRAMS += glod-alert
+glod_alert_SOURCES = glod-alert.c
+glod_alert_SOURCES += glod-alert.ggo
+glod_alert_LDADD = libglod.a
+BUILT_SOURCES += glod-alert.x glod-alert.h
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
