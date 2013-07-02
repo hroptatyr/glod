@@ -37,7 +37,9 @@
 #if !defined INCLUDED_fops_h_
 #define INCLUDED_fops_h_
 
+#include <unistd.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 
