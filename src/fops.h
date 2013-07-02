@@ -38,6 +38,7 @@
 #define INCLUDED_fops_h_
 
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <sys/mman.h>
 
 typedef struct glodf_s glodf_t;
