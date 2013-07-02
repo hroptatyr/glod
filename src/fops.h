@@ -41,10 +41,16 @@
 #include <sys/mman.h>
 
 typedef struct glodf_s glodf_t;
+typedef struct glodfn_s glodfn_t;
 
 struct glodf_s {
 	size_t z;
 	void *d;
+};
+
+struct glodfn_s {
+	int fd;
+	struct glodf_s fb;
 };
 
 static inline glodf_t
@@ -62,6 +68,39 @@ static inline int
 munmap_fd(glodf_t map)
 {
 	return munmap(map.d, map.z);
+}
+
+static __attribute__((unused)) glodfn_t
+mmap_fn(const char *fn, int flags)
+{
+	struct stat st;
+	glodfn_t res;
+
+	if ((res.fd = open(fn, flags)) < 0) {
+		;
+	} else if (fstat(res.fd, &st) < 0) {
+		res.fb = (glodf_t){.z = 0U, .d = NULL};
+		goto clo;
+	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
+	clo:
+		close(res.fd);
+		res.fd = -1;
+	}
+	return res;
+}
+
+static __attribute__((unused)) int
+munmap_fn(glodfn_t f)
+{
+	int rc = 0;
+
+	if (f.fb.d != NULL) {
+		rc += munmap_fd(f.fb);
+	}
+	if (f.fd >= 0) {
+		rc += close(f.fd);
+	}
+	return rc;
 }
 
 #endif	/* INCLUDED_fops_h_ */
