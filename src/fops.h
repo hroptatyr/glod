@@ -1,6 +1,6 @@
-/*** nifty.h -- generally handy macroes
+/*** fops.h -- file operations
  *
- * Copyright (C) 2009-2013 Sebastian Freundt
+ * Copyright (C) 2013 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -34,30 +34,76 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_nifty_h_
-#define INCLUDED_nifty_h_
+#if !defined INCLUDED_fops_h_
+#define INCLUDED_fops_h_
 
-#if !defined LIKELY
-# define LIKELY(_x)	__builtin_expect((_x), 1)
-#endif	/* !LIKELY */
-#if !defined UNLIKELY
-# define UNLIKELY(_x)	__builtin_expect((_x), 0)
-#endif	/* UNLIKELY */
+#include <unistd.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 
-#if !defined UNUSED
-# define UNUSED(_x)	_x __attribute__((unused))
-#endif	/* !UNUSED */
+typedef struct glodf_s glodf_t;
+typedef struct glodfn_s glodfn_t;
 
-#if !defined ALGN
-# define ALGN(_x, to)	_x __attribute__((aligned(to)))
-#endif	/* !ALGN */
+struct glodf_s {
+	size_t z;
+	void *d;
+};
 
-#if !defined countof
-# define countof(x)	(sizeof(x) / sizeof(*x))
-#endif	/* !countof */
+struct glodfn_s {
+	int fd;
+	struct glodf_s fb;
+};
 
-#if !defined with
-# define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
-#endif	/* !with */
+static inline glodf_t
+mmap_fd(int fd, size_t fz)
+{
+	void *p;
 
-#endif	/* INCLUDED_nifty_h_ */
+	if ((p = mmap(NULL, fz, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
+		return (glodf_t){.z = 0U, .d = NULL};
+	}
+	return (glodf_t){.z = fz, .d = p};
+}
+
+static inline int
+munmap_fd(glodf_t map)
+{
+	return munmap(map.d, map.z);
+}
+
+static __attribute__((unused)) glodfn_t
+mmap_fn(const char *fn, int flags)
+{
+	struct stat st;
+	glodfn_t res;
+
+	if ((res.fd = open(fn, flags)) < 0) {
+		;
+	} else if (fstat(res.fd, &st) < 0) {
+		res.fb = (glodf_t){.z = 0U, .d = NULL};
+		goto clo;
+	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
+	clo:
+		close(res.fd);
+		res.fd = -1;
+	}
+	return res;
+}
+
+static __attribute__((unused)) int
+munmap_fn(glodfn_t f)
+{
+	int rc = 0;
+
+	if (f.fb.d != NULL) {
+		rc += munmap_fd(f.fb);
+	}
+	if (f.fd >= 0) {
+		rc += close(f.fd);
+	}
+	return rc;
+}
+
+#endif	/* INCLUDED_fops_h_ */
