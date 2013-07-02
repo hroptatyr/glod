@@ -62,6 +62,7 @@ noinst_LIBRARIES += libglod.a
 libglod_a_SOURCES =
 libglod_a_SOURCES += nifty.h
 libglod_a_SOURCES += mem.h
+libglod_a_SOURCES += fops.h
 libglod_a_SOURCES += prchunk.c prchunk.h
 libglod_a_SOURCES += gsep.c gsep.h
 libglod_a_SOURCES += gtype.c gtype.h
