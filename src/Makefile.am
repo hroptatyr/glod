@@ -82,25 +82,25 @@ bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
 glod_charstat_SOURCES += glod-charstat.ggo
 glod_charstat_LDADD = libglod.a
-BUILT_SOURCES += glod-charstat.x glod-charstat.h
+BUILT_SOURCES += glod-charstat.x glod-charstat.xh
 
 bin_PROGRAMS += glod-classify
 glod_classify_SOURCES = glod-classify.c
 glod_classify_SOURCES += glod-classify.ggo
 glod_classify_LDADD = libglod.a
-BUILT_SOURCES += glod-classify.x glod-classify.h
+BUILT_SOURCES += glod-classify.x glod-classify.xh
 
 bin_PROGRAMS += glod-alert
 glod_alert_SOURCES = glod-alert.c
 glod_alert_SOURCES += glod-alert.ggo
 glod_alert_LDADD = libglod.a
-BUILT_SOURCES += glod-alert.x glod-alert.h
+BUILT_SOURCES += glod-alert.x glod-alert.xh
 
 bin_PROGRAMS += glodcc
 glodcc_SOURCES = glodcc.c
 glodcc_SOURCES += glodcc.ggo
 glodcc_LDADD = libglod.a
-BUILT_SOURCES += glodcc.x glodcc.h
+BUILT_SOURCES += glodcc.x glodcc.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk
@@ -117,13 +117,13 @@ dist-hook: $(bin_PROGRAMS)
 
 ## gengetopt rule with sed hack to avoid using VERSION and config.h
 ## depend on Makefile.am to survive a git pull
-%.x %.h: %.ggo Makefile.am
-	$(AM_V_GEN) gengetopt -l -c x -i $< -F $* \
+%.x %.xh: %.ggo Makefile.am
+	$(AM_V_GEN) gengetopt -l -c x -H xh -i $< -F $* \
 	&& sed \
 	  -e 's,config.h,version.h,g' \
 	  -e 's,\(.*\)_PARSER_VERSION VERSION,\1_PARSER_VERSION $(PACKAGE)_version_string,g' \
-	  $*.h >$*.h-t \
-	&& mv $*.h-t $*.h
+	  $*.xh >$*.xh-t \
+	&& mv $*.xh-t $*.xh
 
 ## Help the developers get nice post-processed source files
 

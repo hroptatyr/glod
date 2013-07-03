@@ -140,7 +140,7 @@ cc1(const char *fn)
 # pragma warning (disable:593)
 # pragma warning (disable:181)
 #endif	/* __INTEL_COMPILER */
-#include "glodcc.h"
+#include "glodcc.xh"
 #include "glodcc.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)

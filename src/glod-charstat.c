@@ -241,7 +241,7 @@ clos:
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
 #endif	/* __INTEL_COMPILER */
-#include "glod-charstat.h"
+#include "glod-charstat.xh"
 #include "glod-charstat.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
