@@ -40,21 +40,45 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <limits.h>
+#include <assert.h>
 #include "nifty.h"
 #include "fops.h"
+#include "alrt.h"
 
 typedef uint_fast8_t amap_uint_t;
+#define AMAP_UINT_BITZ	(sizeof(amap_uint_t) * CHAR_BIT)
 
 typedef struct amap_s amap_t;
+typedef struct imap_s imap_t;
+typedef struct rmap_s rmap_t;
+typedef struct wpath_s wpath_t;
 
 /* alpha map to count chars */
 struct amap_s {
-	amap_uint_t m[128U / sizeof(amap_uint_t) / 8U];
+#define MAX_CAPACITY	((sizeof(amap_uint_t) << CHAR_BIT) - 1)
+	amap_uint_t m[128U];
+};
+
+struct imap_s {
+	/* number of characters with count > 0 */
+	size_t nchr;
+	/* the actual characters, descending */
+	unsigned char m[128U];
+};
+
+struct rmap_s {
+	amap_uint_t m[128U];
+};
+
+struct wpath_s {
+	size_t plen;
+	amap_uint_t *path;
 };
 
 
 static unsigned int
-amap_popcnt(amap_t am)
+uint_popcnt(amap_uint_t a[static 1], size_t na)
 {
 	static const uint_fast8_t __popcnt[] = {
 		0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4/*0x0f*/,
@@ -74,62 +98,306 @@ amap_popcnt(amap_t am)
 		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7/*0xef*/,
 		4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8/*0xff*/,
 	};
-	unsigned int sum = 0U;
+	register unsigned int sum = 0U;
 
-	for (const unsigned char *ap = am.m, *const ep = ap + sizeof(am.m);
-	     ap < ep; ap++) {
+	for (register const unsigned char *ap = a,
+		     *const ep = ap + na; ap < ep; ap++) {
 		sum += __popcnt[*ap];
 	}
 	return sum;
 }
 
+
+/* sorting */
+typedef struct {
+	uint_fast8_t im[8U];
+} imap8_t;
+
+static imap8_t
+sort8(const amap_uint_t cnt[static 8])
+{
+/* return an index map of CNT values in descending order */
+	imap8_t res = {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U};
+
+	static void swap(register int x, register int y)
+	{
+		uint_fast8_t z = res.im[y];
+		res.im[y] = res.im[x];
+		res.im[x] = z;
+		return;
+	}
+
+	static void cmpswap(register int x, register int y)
+	{
+		if (cnt[res.im[x]] < cnt[res.im[y]]) {
+			swap(x, y);
+		}
+		return;
+	}
+
+	/* batcher's graph of 8 inputs */
+	cmpswap(0, 4);
+	cmpswap(1, 5);
+	cmpswap(2, 6);
+	cmpswap(3, 7);
+	cmpswap(0, 2);
+	cmpswap(1, 3);
+	cmpswap(4, 6);
+	cmpswap(5, 7);
+	cmpswap(2, 4);
+	cmpswap(3, 5);
+	cmpswap(0, 1);
+	cmpswap(2, 3);
+	cmpswap(4, 5);
+	cmpswap(6, 7);
+	cmpswap(1, 4);
+	cmpswap(3, 6);
+	cmpswap(1, 2);
+	cmpswap(3, 4);
+	cmpswap(5, 6);
+	return res;
+}
+
+static imap_t
+mrg16(imap_t im, amap_t am)
+{
+	typedef size_t idx_t;
+	imap8_t i8;
+	struct mrg_s {
+		idx_t p[countof(am.m) / countof(i8.im)];
+	} mrg[1] = {0U};
+	imap_t res;
+
+	static amap_uint_t get_cnt(struct mrg_s *m, idx_t i)
+	{
+		idx_t mpi;
+
+		if (UNLIKELY((mpi = m->p[i]) >= countof(i8.im))) {
+			/* this merge run is done, return a low value */
+			return 0U;
+		}
+		return am.m[im.m[mpi + i * countof(i8.im)]];
+	}
+
+	static idx_t find_max(struct mrg_s *m)
+	{
+		idx_t res = countof(m->p);
+		amap_uint_t cnt = 0U;
+
+		for (size_t i = 0; i < countof(m->p); i++) {
+			amap_uint_t tmp = get_cnt(m, i);
+
+			if (tmp > cnt) {
+				/* found a bigger one */
+				res = i;
+				cnt = tmp;
+			}
+		}
+		return res;
+	}
+
+	static unsigned char find_next(struct mrg_s *m)
+	{
+		idx_t i = find_max(mrg);
+
+		if (UNLIKELY(i >= countof(m->p))) {
+			return '\0';
+		}
+		return im.m[m->p[i]++ + i * countof(i8.im)];
+	}
+
+	for (size_t i = 1; i < countof(res.m); i++) {
+		unsigned char nx = find_next(mrg);
+
+		if (UNLIKELY(!nx)) {
+			/* \nul should never occur often */
+			res.nchr = i;
+			break;
+		}
+		res.m[i] = nx;
+	}
+	return res;
+}
+
+static imap_t
+sort_amap(amap_t am)
+{
+/* return an index map I s.t. I[i] returns c when am[c] is the count */
+	imap_t tmp = {0U};
+	imap_t res = {0U};
+	imap8_t i8;
+
+	/* first up, sort chunks of 8 using a bose-nelson network */
+	for (size_t i = 0; i < countof(am.m); i += countof(i8.im)) {
+		i8 = sort8(am.m + i);
+
+		for (size_t j = 0; j < countof(i8.im); j++) {
+			tmp.m[i + j] = i + i8.im[j];
+		}
+	}
+	/* now do a 128U / 8U way merge */
+	res = mrg16(tmp, am);
+	return res;
+}
+
+static rmap_t
+rmap_from_imap(imap_t x)
+{
+	rmap_t res = {0U};
+
+	for (size_t i = 0; i < x.nchr; i++) {
+		unsigned char c = x.m[i];
+
+		res.m[c] = i;
+	}
+	return res;
+}
+
+
+/* word level */
+static inline void
+amap_word(amap_t *restrict res, alrt_word_t w)
+{
+	/* now traverse all words in this alert */
+	for (const unsigned char *bp = (const void*)w.w,
+		     *const ep = bp + w.z; bp < ep; bp++) {
+
+		/* count anything but \nul */
+		if (UNLIKELY(*bp == '\0')) {
+			/* don't count \nuls */
+			;
+		} else if (UNLIKELY(*bp >= countof(res->m))) {
+			/* ewww */
+			;
+		} else if (LIKELY(res->m[*bp] < MAX_CAPACITY)) {
+			res->m[*bp]++;
+		}
+	}
+	return;
+}
+
+static wpath_t
+cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
+{
+	static size_t pz;
+	static amap_uint_t *p;
+	size_t dpth = 0U;
+	size_t max_dpth = 0U;
+
+	for (const unsigned char *bp = (const void*)w.w,
+		     *const ep = bp + w.z; bp < ep; bp++, dpth += alphz) {
+
+		/* skip word separator \nul */
+		if (UNLIKELY(*bp == '\0')) {
+			/* store max_depth */
+			if (UNLIKELY(dpth > max_dpth)) {
+				max_dpth = dpth;
+			}
+			/* and reset depth */
+			dpth = 0U - alphz;
+		} else if (UNLIKELY(*bp >= countof(rm.m))) {
+			/* character out of range */
+			;
+		} else {
+			amap_uint_t rc = rm.m[*bp];
+			unsigned int d;
+			unsigned int r;
+
+			/* unless someone deleted that char off the amap?! :O */
+			assert(rc);
+			assert(rc < alphz * AMAP_UINT_BITZ);
+
+			if (UNLIKELY(dpth + alphz > pz)) {
+				pz = (((dpth + alphz) - 1U) / 64U + 1U) * 64U;
+				p = realloc(p, pz);
+			}
+
+			rc--;
+			d = rc / AMAP_UINT_BITZ;
+			r = rc % AMAP_UINT_BITZ;
+			p[d + dpth] |= (amap_uint_t)(1U << r);
+		}
+	}
+	return (wpath_t){.plen = max_dpth / alphz, .path = p};
+}
+
+
+/* alerts level */
 static amap_t
-cc_amap(const char *b, size_t z)
+amap_alrts(alrts_t a)
 {
 	amap_t res = {0U};
 
-	for (const char *bp = b, *const ep = bp + z; bp < ep; bp++) {
-		unsigned int d;
-		unsigned int r;
+	/* traverse all alerts */
+	for (size_t i = 0; i < a->nalrt; i++) {
+		alrt_t ai = a->alrt[i];
 
-		if (UNLIKELY(*bp == '\n')) {
-			/* don't count newlines */
-			continue;
-		}
-		/* set the *bp'th bit */
-		d = (unsigned char)*bp / (sizeof(amap_uint_t) * 8U);
-		r = (unsigned char)*bp % (sizeof(amap_uint_t) * 8U);
-
-		res.m[d] |= (amap_uint_t)(1U << r);
+		amap_word(&res, ai.w);
 	}
 	return res;
 }
 
 static void
-pr_amap(amap_t am)
+cc_alrts(alrts_t a, imap_t im)
 {
-	for (size_t i = 0; i < countof(am.m); i++) {
-		printf("%x", am.m[i]);
+	size_t alphz;
+	rmap_t rm;
+
+	if (UNLIKELY(im.nchr == 0U)) {
+		return;
 	}
-	puts("");
+	/* `invert' the imap */
+	rm = rmap_from_imap(im);
+	/* alphabet size in bytes */
+	alphz = (im.nchr - 1U) / AMAP_UINT_BITZ + 1U;
+
+	/* traverse all alerts */
+	for (size_t i = 0; i < a->nalrt; i++) {
+		alrt_t ai = a->alrt[i];
+		wpath_t wp;
+
+		printf("alrt[%zu]: ", i);
+		wp = cc_word(rm, ai.w, alphz);
+		for (size_t j = 0; j < wp.plen; j++) {
+			for (size_t k = 0; k < alphz; k++) {
+				printf("%02x", wp.path[j * alphz + k]);
+			}
+			putchar(' ');
+		}
+		putchar('\n');
+	}
+
+	printf("%s\n", im.m + 1U);
+	//printf("%u child nodes\n", uint_popcnt(mm, countof(mm)));
 	return;
 }
 
+
+/* file level */
 static int
 cc1(const char *fn)
 {
 	glodfn_t f;
+	alrts_t a;
 
+	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return -1;
+	} else if (UNLIKELY((a = glod_rd_alrts(f.fb.d, f.fb.z)) == NULL)) {
+		goto out;
 	}
 	/* otherwise just compile what we've got */
 	with (amap_t am) {
-		am = cc_amap(f.fb.d, f.fb.z);
-		pr_amap(am);
-		printf("%u\n", amap_popcnt(am));
-	}
+		imap_t im;
 
+		am = amap_alrts(a);
+		im = sort_amap(am);
+
+		/* now go through the alert words again and encode them */
+		cc_alrts(a, im);
+	}
+	glod_free_alrts(a);
+out:
 	/* and out are we */
 	(void)munmap_fn(f);
 	return 0;
