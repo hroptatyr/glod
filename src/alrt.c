@@ -42,6 +42,8 @@
 #include "alrt.h"
 #include "nifty.h"
 
+typedef size_t idx_t;
+
 
 static alrt_word_t
 snarf_word(const char *bp[static 1], const char *const ep)
@@ -105,14 +107,12 @@ glod_rd_alrts(const char *buf, size_t bsz)
 	struct cch_s {
 		size_t bsz;
 		char *buf;
-		size_t bb;
-		size_t bi;
+		idx_t bb;
+		idx_t bi;
 	};
 	/* words and yields caches */
-	struct wy_s {
-		struct cch_s w[1];
-		struct cch_s y[1];
-	} wy[1] = {0U};
+	struct cch_s w[1] = {0U};
+	struct cch_s y[1] = {0U};
 	/* context, 0 for words, and 1 for yields */
 	enum {
 		CTX_W,
@@ -138,7 +138,8 @@ glod_rd_alrts(const char *buf, size_t bsz)
 		return (alrt_word_t){.z = c->bi - c->bb, .w = c->buf + c->bb};
 	}
 
-	static struct alrts_s *append_alrt(struct alrts_s *c, struct wy_s *wy)
+	static struct alrts_s*
+		append_alrt(struct alrts_s *c, struct cch_s *w, struct cch_s *y)
 	{
 		if (UNLIKELY(c == NULL)) {
 			size_t iniz = 16U * sizeof(*c->alrt);
@@ -148,11 +149,11 @@ glod_rd_alrts(const char *buf, size_t bsz)
 			c = realloc(c, nu);
 		}
 		with (struct alrt_s *a = c->alrt + c->nalrt++) {
-			a->w = clone_cch(wy->w);
-			a->y = clone_cch(wy->y);
+			a->w = clone_cch(w);
+			a->y = clone_cch(y);
 		}
-		wy->w->bb = wy->w->bi;
-		wy->y->bb = wy->y->bi;
+		w->bb = w->bi;
+		y->bb = y->bi;
 		return c;
 	}
 
@@ -166,10 +167,10 @@ glod_rd_alrts(const char *buf, size_t bsz)
 			/* append the word to cch for now */
 			switch (ctx) {
 			case CTX_W:
-				append_cch(wy->w, x);
+				append_cch(w, x);
 				break;
 			case CTX_Y:
-				append_cch(wy->y, x);
+				append_cch(y, x);
 				break;
 			}
 			break;
@@ -190,7 +191,7 @@ glod_rd_alrts(const char *buf, size_t bsz)
 			break;
 		case '\n':
 			/* emit an alert */
-			append_alrt(res, wy);
+			res = append_alrt(res, w, y);
 			/* switch back to W mode */
 			ctx = CTX_W;
 			break;
@@ -212,9 +213,9 @@ glod_free_alrts(alrts_t a)
 	if (UNLIKELY((pa = deconst(a)) == NULL)) {
 		return;
 	}
-	for (size_t i = 0; i < pa->nalrt; i++) {
-		free_word(pa->alrt[i].w);
-		free_word(pa->alrt[i].y);
+	if (LIKELY(a->nalrt > 0U)) {
+		free_word(pa->alrt->w);
+		free_word(pa->alrt->y);
 	}
 	free(pa);
 	return;
