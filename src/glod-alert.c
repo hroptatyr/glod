@@ -358,7 +358,7 @@ wr_word(int fd, alrt_word_t w)
 # pragma warning (disable:593)
 # pragma warning (disable:181)
 #endif	/* __INTEL_COMPILER */
-#include "glod-alert.h"
+#include "glod-alert.xh"
 #include "glod-alert.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
