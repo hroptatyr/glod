@@ -60,4 +60,14 @@
 # define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
 #endif	/* !with */
 
+static inline void*
+deconst(const void *cp)
+{
+	union {
+		const void *c;
+		void *p;
+	} tmp = {cp};
+	return tmp.p;
+}
+
 #endif	/* INCLUDED_nifty_h_ */
