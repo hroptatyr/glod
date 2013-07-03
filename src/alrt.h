@@ -1,6 +1,6 @@
-/*** nifty.h -- generally handy macroes
+/*** alrt.h -- reading/writing glod alert files
  *
- * Copyright (C) 2009-2013 Sebastian Freundt
+ * Copyright (C) 2013 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -34,40 +34,37 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_nifty_h_
-#define INCLUDED_nifty_h_
+#if !defined INCLUDED_alrt_h_
+#define INCLUDED_alrt_h_
 
-#if !defined LIKELY
-# define LIKELY(_x)	__builtin_expect((_x), 1)
-#endif	/* !LIKELY */
-#if !defined UNLIKELY
-# define UNLIKELY(_x)	__builtin_expect((_x), 0)
-#endif	/* UNLIKELY */
+#include <stddef.h>
 
-#if !defined UNUSED
-# define UNUSED(_x)	_x __attribute__((unused))
-#endif	/* !UNUSED */
+typedef const struct alrts_s *alrts_t;
+typedef struct alrt_s alrt_t;
+typedef struct alrt_word_s alrt_word_t;
 
-#if !defined ALGN
-# define ALGN(_x, to)	_x __attribute__((aligned(to)))
-#endif	/* !ALGN */
+struct alrt_word_s {
+	size_t z;
+	const char *w;
+};
 
-#if !defined countof
-# define countof(x)	(sizeof(x) / sizeof(*x))
-#endif	/* !countof */
+struct alrt_s {
+	alrt_word_t w;
+	alrt_word_t y;
+};
 
-#if !defined with
-# define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
-#endif	/* !with */
+struct alrts_s {
+	size_t nalrt;
+	alrt_t alrt[];
+};
 
-static inline void*
-deconst(const void *cp)
-{
-	union {
-		const void *c;
-		void *p;
-	} tmp = {cp};
-	return tmp.p;
-}
+
+/**
+ * Read and return alerts from BUF (of size BSZ) in plain text form. */
+extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 
-#endif	/* INCLUDED_nifty_h_ */
+/**
+ * Free an alerts object. */
+extern void glod_free_alrts(alrts_t);
+
+#endif	/* INCLUDED_alrt_h_ */

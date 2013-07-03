@@ -50,6 +50,7 @@
 #include <errno.h>
 #include "nifty.h"
 #include "fops.h"
+#include "alrt.h"
 
 static sigset_t fatal_signal_set[1];
 static sigset_t empty_signal_set[1];
@@ -138,207 +139,22 @@ grep_alrt(int ina[static 2], int inb[static 2])
  * "WORD3" || \
  * "WORD4" -> ALRT3
  **/
-typedef const struct alrts_s *alrts_t;
-typedef struct alrt_s alrt_t;
-typedef struct alrt_word_s alrt_word_t;
-
-struct alrt_word_s {
-	size_t z;
-	const char *w;
-};
-
-struct alrt_s {
-	alrt_word_t w;
-	alrt_word_t y;
-};
-
-struct alrts_s {
-	size_t nalrt;
-	alrt_t alrt[];
-};
-
-static alrt_word_t
-snarf_word(const char *bp[static 1], const char *const ep)
-{
-	const char *wp;
-	int has_esc = 0;
-	alrt_word_t res;
-
-	for (wp = *bp; wp < ep; wp++) {
-		if (UNLIKELY(*wp == '"')) {
-			if (LIKELY(wp[-1] != '\\')) {
-				break;
-			}
-			/* otherwise de-escape */
-			has_esc = 1;
-		}
-	}
-	/* create the result */
-	res = (alrt_word_t){.z = wp - *bp, .w = *bp};
-	*bp = wp + 1U;
-
-	if (UNLIKELY(has_esc)) {
-		static char *word;
-		static size_t worz;
-		char *cp;
-
-		if (UNLIKELY(res.z > worz)) {
-			worz = (res.z / 64U + 1) * 64U;
-			word = realloc(word, worz);
-		}
-		memcpy(cp = word, res.w, res.z);
-		for (size_t x = res.z; x > 0; x--, res.w++) {
-			if ((*cp = *res.w) != '\\') {
-				cp++;
-			} else {
-				res.z--;
-			}
-		}
-		res.w = word;
-	}
-	return res;
-}
-
-static void
-free_word(alrt_word_t w)
-{
-	char *pw;
-
-	if (UNLIKELY((pw = (char*)w.w) == NULL)) {
-		return;
-	}
-	free(pw);
-	return;
-}
-
 static alrts_t
 snarf_alrt(const char *fn)
 {
 /* read alert rules from FN. */
-	struct cch_s {
-		size_t bsz;
-		char *buf;
-		size_t bi;
-	};
-	/* word cache */
-	static struct cch_s wc[1];
-	/* yield cache */
-	static struct cch_s yc[1];
 	glodfn_t f;
-	/* context, 0 for words, and 1 for yields */
-	enum {
-		CTX_W,
-		CTX_Y,
-	} ctx = CTX_W;
-	struct alrts_s *res[1] = {NULL};
-
-	static void append_cch(struct cch_s *c, alrt_word_t w)
-	{
-		if (UNLIKELY(c->bi + w.z >= c->bsz)) {
-			/* enlarge */
-			c->bsz = ((c->bi + w.z) / 64U + 1U) * 64U;
-			c->buf = realloc(c->buf, c->bsz);
-		}
-		memcpy(c->buf + c->bi, w.w, w.z);
-		c->buf[c->bi += w.z] = '\0';
-		c->bi++;
-		return;
-	}
-
-	static alrt_word_t clone_cch(struct cch_s *c)
-	{
-		char *w = malloc(c->bi);
-		memcpy(w, c->buf, c->bi);
-		return (alrt_word_t){.z = c->bi, .w = w};
-	}
-
-	static void append_alrt(
-		struct alrts_s **c, struct cch_s *w, struct cch_s *y)
-	{
-		if (UNLIKELY(*c == NULL)) {
-			size_t iniz = 16U * sizeof(*(*c)->alrt);
-			*c = malloc(iniz);
-		} else if (UNLIKELY(!((*c)->nalrt % 16U))) {
-			size_t nu = ((*c)->nalrt + 16U) * sizeof(*(*c)->alrt);
-			*c = realloc(*c, nu);
-		}
-		with (struct alrt_s *a = (*c)->alrt + (*c)->nalrt++) {
-			a->w = clone_cch(w);
-			a->y = clone_cch(y);
-		}
-		w->bi = 0U;
-		y->bi = 0U;
-		return;
-	}
+	alrts_t res;
 
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return NULL;
 	}
-	/* now go through the buffer looking for " escapes */
-	for (const char *bp = f.fb.d, *const ep = bp + f.fb.z; bp < ep;) {
-		switch (*bp++) {
-		case '"': {
-			/* we're inside a word */
-			alrt_word_t x = snarf_word(&bp, ep);
-
-			/* append the word to cch for now */
-			switch (ctx) {
-			case CTX_W:
-				append_cch(wc, x);
-				break;
-			case CTX_Y:
-				append_cch(yc, x);
-				break;
-			}
-			break;
-		}
-		case '-':
-			/* could be -> (yield) */
-			if (LIKELY(*bp == '>')) {
-				/* yay, yield oper */
-				ctx = CTX_Y;
-				bp++;
-			}
-			break;
-		case '\\':
-			if (UNLIKELY(*bp == '\n')) {
-				/* quoted newline, aka linebreak */
-				bp++;
-			}
-			break;
-		case '\n':
-			/* emit an alert */
-			append_alrt(res, wc, yc);
-			/* switch back to W mode */
-			ctx = CTX_W;
-			break;
-		case '|':
-		case '&':
-		default:
-			/* keep going */
-			break;
-		}
-	}
+	/* otherwise read what we've got */
+	res = glod_rd_alrts(f.fb.d, f.fb.z);
 
 	/* and out are we */
 	(void)munmap_fn(f);
-	return *res;
-}
-
-static void
-free_alrt(alrts_t a)
-{
-	struct alrts_s *pa;
-
-	if (UNLIKELY((pa = (struct alrts_s*)a) == NULL)) {
-		return;
-	}
-	for (size_t i = 0; i < pa->nalrt; i++) {
-		free_word(pa->alrt[i].w);
-		free_word(pa->alrt[i].y);
-	}
-	free(pa);
-	return;
+	return res;
 }
 
 static void
@@ -402,7 +218,7 @@ main(int argc, char *argv[])
 
 			wr_word(p_alrt[1], ai.w);
 		}
-		free_alrt(a);
+		glod_free_alrts(a);
 		close(p_alrt[1]);
 	}
 
