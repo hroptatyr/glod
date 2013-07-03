@@ -61,7 +61,7 @@ struct alrts_s {
 
 /**
  * Read and return alerts from BUF (of size BSZ) in plain text form. */
-extern alrts_t glod_rd_alrts(alrts_t, const char *buf, size_t bsz);
+extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 
 /**
  * Free an alerts object. */

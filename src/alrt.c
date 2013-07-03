@@ -99,7 +99,7 @@ free_word(alrt_word_t w)
 
 
 alrts_t
-glod_rd_alrts(alrts_t prev, const char *buf, size_t bsz)
+glod_rd_alrts(const char *buf, size_t bsz)
 {
 	/* we use one long string of words, and one long string of yields */
 	struct cch_s {
@@ -112,36 +112,13 @@ glod_rd_alrts(alrts_t prev, const char *buf, size_t bsz)
 	struct wy_s {
 		struct cch_s w[1];
 		struct cch_s y[1];
-	} wy[1];
+	} wy[1] = {0U};
 	/* context, 0 for words, and 1 for yields */
 	enum {
 		CTX_W,
 		CTX_Y,
 	} ctx = CTX_W;
-	struct alrts_s *res = deconst(prev);
-
-	static struct wy_s find_wy(alrts_t a)
-	{
-		struct wy_s res = {};
-
-		if (LIKELY(a == NULL)) {
-			return res;
-		}
-		/* the first alert should hold the beginning of the string */
-		res.w->buf = deconst(a->alrt->w.w);
-		res.y->buf = deconst(a->alrt->y.w);
-		for (size_t i = 0; i < a->nalrt; i++) {
-			res.w->bi += a->alrt[i].w.z;
-			res.y->bi += a->alrt[i].y.z;
-		}
-		/* make sure we continue where we stopped */
-		res.w->bb = res.w->bi;
-		res.y->bb = res.y->bi;
-		/* we know our resizing policy so fill in bsz too */
-		res.w->bsz = (res.w->bi / 64U + 1U) * 64U;
-		res.y->bsz = (res.y->bi / 64U + 1U) * 64U;
-		return res;
-	}
+	struct alrts_s *res = NULL;
 
 	static void append_cch(struct cch_s *c, alrt_word_t w)
 	{
@@ -179,8 +156,6 @@ glod_rd_alrts(alrts_t prev, const char *buf, size_t bsz)
 		return c;
 	}
 
-	/* kick off where we stopped */
-	*wy = find_wy(res);
 	/* now go through the buffer looking for " escapes */
 	for (const char *bp = buf, *const ep = buf + bsz; bp < ep;) {
 		switch (*bp++) {
