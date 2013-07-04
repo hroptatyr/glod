@@ -284,6 +284,16 @@ cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
 	size_t dpth = 0U;
 	size_t max_dpth = 0U;
 
+	static void check_size(size_t least)
+	{
+		if (UNLIKELY(least > pz)) {
+			pz = ((least - 1U) / 64U + 1U) * 64U;
+			p = realloc(p, pz);
+		}
+		return;
+	}
+
+	memset(p, 0, pz);
 	for (const unsigned char *bp = (const void*)w.w,
 		     *const ep = bp + w.z; bp < ep; bp++, dpth += alphz) {
 
@@ -293,6 +303,10 @@ cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
 			if (UNLIKELY(dpth > max_dpth)) {
 				max_dpth = dpth;
 			}
+			check_size(dpth + alphz);
+			/* add a \nul word and fuck off */
+			memset(p + dpth, 0, alphz);
+			break;
 			/* and reset depth */
 			dpth = 0U - alphz;
 		} else if (UNLIKELY(*bp >= countof(rm.m))) {
@@ -307,10 +321,7 @@ cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
 			assert(rc);
 			assert(rc < alphz * AMAP_UINT_BITZ);
 
-			if (UNLIKELY(dpth + alphz > pz)) {
-				pz = (((dpth + alphz) - 1U) / 64U + 1U) * 64U;
-				p = realloc(p, pz);
-			}
+			check_size(dpth + alphz);
 
 			rc--;
 			d = rc / AMAP_UINT_BITZ;
@@ -318,7 +329,7 @@ cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
 			p[d + dpth] |= (amap_uint_t)(1U << r);
 		}
 	}
-	return (wpath_t){.plen = max_dpth / alphz, .path = p};
+	return (wpath_t){.plen = max_dpth / alphz + 1U, .path = p};
 }
 
 
