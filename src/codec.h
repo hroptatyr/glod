@@ -1,4 +1,4 @@
-/*** alrt.h -- reading/writing glod alert files
+/*** codec.h -- word coders and decoders
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -34,61 +34,37 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_alrt_h_
-#define INCLUDED_alrt_h_
+#if !defined INCLUDED_codec_h_
+#define INCLUDED_codec_h_
 
 #include <stddef.h>
-#include "codec.h"
+#include <stdint.h>
 
-typedef const struct alrts_s *alrts_t;
-typedef const struct alrtscc_s *alrtscc_t;
+typedef uint_fast8_t amap_uint_t;
+#define AMAP_UINT_BITZ	(sizeof(amap_uint_t) * CHAR_BIT)
 
-typedef struct alrt_s alrt_t;
-typedef struct alrt_word_s alrt_word_t;
+typedef const amap_uint_t *word_t;
 
+typedef struct rmap_s rmap_t;
+typedef struct imap_s imap_t;
 
-struct alrt_word_s {
-	size_t z;
-	const char *w;
+struct rmap_s {
+	/* size of the alphabet in bytes,
+	 * that is the log2 of the largest character value */
+	amap_uint_t z;
+	amap_uint_t m[128U];
 };
 
-struct alrt_s {
-	alrt_word_t w;
-	alrt_word_t y;
+struct imap_s {
+	/* number of characters with count > 0 */
+	amap_uint_t nchr;
+	/* the actual characters, descending */
+	unsigned char m[128U];
 };
-
-struct alrts_s {
-	size_t nalrt;
-	alrt_t alrt[];
-};
-
-/* the compiled version of an alert */
-struct alrtscc_s {
-	/* depth of the trie, length of depth vector in bytes */
-	size_t depth;
-
-	/* reverse map char -> bit index */
-	rmap_t r;
-
-	/* normal map bit-index -> char */
-	imap_t m;
-
-	/* indices of children first,
-	 * then the actual trie (at D + DEPTH) */
-	const amap_uint_t d[];
-};
-
-
-/**
- * Read and return alerts from BUF (of size BSZ) in plain text form. */
-extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 
 /**
- * Free an alerts object. */
-extern void glod_free_alrts(alrts_t);
+ * Encode \nul terminated string S using the reverse map RM.
+ * Return a \nul terminated bit index vector. */
+extern word_t encode_word(rmap_t rm, const char *s);
 
-/**
- * Free a compiled alerts object. */
-extern void glod_free_alrtscc(alrtscc_t);
-
-#endif	/* INCLUDED_alrt_h_ */
+#endif	/* INCLUDED_codec_h_ */

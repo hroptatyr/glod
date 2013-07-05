@@ -1,4 +1,4 @@
-/*** alrt.h -- reading/writing glod alert files
+/*** codec.c -- word coders and decoders
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -34,61 +34,56 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_alrt_h_
-#define INCLUDED_alrt_h_
-
-#include <stddef.h>
+#if defined HAVE_CONFIG_H
+# include "config.h"
+#endif	/* HAVE_CONFIG_H */
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <limits.h>
+#include "nifty.h"
 #include "codec.h"
 
-typedef const struct alrts_s *alrts_t;
-typedef const struct alrtscc_s *alrtscc_t;
+word_t
+encode_word(rmap_t rm, const char *s)
+{
+	static size_t pz;
+	static amap_uint_t *p;
+	size_t i = 0;
 
-typedef struct alrt_s alrt_t;
-typedef struct alrt_word_s alrt_word_t;
+	static void check_size(size_t least)
+	{
+		if (UNLIKELY(least > pz)) {
+			pz = ((least - 1U) / 64U + 1U) * 64U;
+			p = realloc(p, pz);
+		}
+		return;
+	}
 
+	/* rinse the caches, and set up the path pointer */
+	memset(p, 0, pz);
+	/* traverse the word W and encode into bit indexes */
+	for (const unsigned char *bp = (const void*)s; *bp; bp++, i++) {
+		if (UNLIKELY(*bp >= countof(rm.m))) {
+			/* character out of range, we can't encode the word */
+			return NULL/*?*/;
+		}
 
-struct alrt_word_s {
-	size_t z;
-	const char *w;
-};
+		with (amap_uint_t rc = rm.m[*bp]) {
+			/* unless someone deleted that char off the amap?! :O */
+			assert(rc);
+			assert(rc < rm.z * AMAP_UINT_BITZ);
 
-struct alrt_s {
-	alrt_word_t w;
-	alrt_word_t y;
-};
+			check_size(i + 1U);
 
-struct alrts_s {
-	size_t nalrt;
-	alrt_t alrt[];
-};
+			p[i] = rc;
+		}
+	}
+	/* finish on a \nul */
+	check_size(i + 1U);
+	p[i] = 0U;
+	return (word_t)p;
+}
 
-/* the compiled version of an alert */
-struct alrtscc_s {
-	/* depth of the trie, length of depth vector in bytes */
-	size_t depth;
-
-	/* reverse map char -> bit index */
-	rmap_t r;
-
-	/* normal map bit-index -> char */
-	imap_t m;
-
-	/* indices of children first,
-	 * then the actual trie (at D + DEPTH) */
-	const amap_uint_t d[];
-};
-
-
-/**
- * Read and return alerts from BUF (of size BSZ) in plain text form. */
-extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
-
-/**
- * Free an alerts object. */
-extern void glod_free_alrts(alrts_t);
-
-/**
- * Free a compiled alerts object. */
-extern void glod_free_alrtscc(alrtscc_t);
-
-#endif	/* INCLUDED_alrt_h_ */
+/* codec.c ends here */

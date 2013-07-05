@@ -40,6 +40,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <fcntl.h>
@@ -47,13 +48,26 @@
 #include <sys/wait.h>
 #include <sys/sendfile.h>
 #include <string.h>
+#include <limits.h>
 #include <errno.h>
 #include "nifty.h"
 #include "fops.h"
 #include "alrt.h"
 
-static sigset_t fatal_signal_set[1];
-static sigset_t empty_signal_set[1];
+typedef const struct glaf_s *glaf_t;
+
+typedef const amap_uint_t *node_t;
+
+struct glaf_s {
+	/* depth of the trie, length of depth vector in bytes */
+	size_t depth;
+
+	/* reverse map char -> bit index */
+	rmap_t r;
+	/* indices of children first,
+	 * then the actual trie (at D + DEPTH) */
+	const amap_uint_t d[];
+};
 
 
 static void
@@ -73,100 +87,205 @@ error(const char *fmt, ...)
 	return;
 }
 
-
-static void
-block_sigs(void)
+static unsigned int
+uint_popcnt(const amap_uint_t a[static 1], size_t na)
 {
-	(void)sigprocmask(SIG_BLOCK, fatal_signal_set, (sigset_t*)NULL);
-	return;
-}
+	static const uint_fast8_t __popcnt[] = {
+#define B2(n)	n, n+1, n+1, n+2
+#define B4(n)	B2(n), B2(n+1), B2(n+1), B2(n+2)
+#define B6(n)	B4(n), B4(n+1), B4(n+1), B4(n+2)
+		B6(0), B6(1), B6(1), B6(2)
+	};
+	register unsigned int sum = 0U;
 
-static void
-unblock_sigs(void)
-{
-	sigprocmask(SIG_SETMASK, empty_signal_set, (sigset_t*)NULL);
-	return;
-}
-
-
-static pid_t
-grep_alrt(int ina[static 2], int inb[static 2])
-{
-/* connect grep to alerts on INA and beef on INB */
-	pid_t grep;
-
-	block_sigs();
-
-	switch ((grep = vfork())) {
-	case -1:
-		/* i am an error */
-		unblock_sigs();
-		break;
-
-	case 0:;
-		/* i am the child */
-		static char pfn[64];
-		static char *const grep_opt[] = {
-			"grep",
-			"-iowHFf", pfn, NULL,
-		};
-
-		unblock_sigs();
-
-		close(STDIN_FILENO);
-		dup2(*inb, STDIN_FILENO);
-		close(inb[1]);
-
-		snprintf(pfn, sizeof(pfn), "/dev/fd/%d", *ina);
-		close(ina[1]);
-
-		execvp("grep", grep_opt);
-		error("execlp failed");
-		_exit(EXIT_FAILURE);
-
-	default:
-		unblock_sigs();
-		close(ina[0]);
-		close(inb[0]);
-		break;
+	for (register const unsigned char *ap = a,
+		     *const ep = ap + na; ap < ep; ap++) {
+		sum += __popcnt[*ap];
 	}
-	return grep;
+	return sum;
 }
 
 
-/* alert file syntax:
- * "WORD1" && "WORD2" -> ALRT1 ALRT2
- * "WORD3" || \
- * "WORD4" -> ALRT3
- **/
-static alrts_t
-snarf_alrt(const char *fn)
+static glaf_t
+glod_rd_alrtscc(const char *buf, size_t bsz)
 {
-/* read alert rules from FN. */
+/* mock! */
+	static struct glaf_s res = {
+		.depth = 6U,
+		.r = {
+			.z = 1U,
+			.m = {
+				 ['A'] = 1U,
+				 ['D'] = 2U,
+				 ['E'] = 3U,
+				 ['G'] = 4U,
+				 ['L'] = 5U,
+				 ['S'] = 6U,
+				 ['T'] = 7U,
+			 },
+		},
+		.d = {
+			 1U, 2U, 2U, 2U, 1U, 1U,
+
+			 /* trie */
+			 /* build DEAG and STELLA */
+			 0b00100010,
+			 /* children of 'D' -> 'E' */
+			 0b00000100,
+			 /* children of 'S' -> 'T' */
+			 0b01000000,
+			 /* children of 'DE' -> 'A' */
+			 0b00000001,
+			 /* children of 'ST' -> 'E' */
+			 0b00000100,
+			 /* children of 'DEA' -> 'G' */
+			 0b00001000,
+			 /* children of 'STE' -> 'L' */
+			 0b00010000,
+			 /* children of 'DEAG' -> '\nul' */
+			 0b00000000,
+			 /* children of 'STEL' -> 'L' */
+			 0b00010000,
+			 /* children of 'STELL' -> 'A' */
+			 0b00000001,
+			 /* children of 'STELLA' -> '\nul' */
+			 0b00000000,
+		 },
+	};
+	return &res;
+}
+
+static void
+glod_free_alrtscc(glaf_t af)
+{
+	return;
+}
+
+static bool
+glaf_nd_has_p(const amap_uint_t nd[static 1], amap_uint_t idx)
+{
+	unsigned int d;
+	unsigned int r;
+
+	idx--;
+	d = idx / AMAP_UINT_BITZ;
+	r = idx % AMAP_UINT_BITZ;
+	return nd[d] & (1 << r);
+}
+
+static int
+glod_gr_alrtscc(glaf_t af, const char *buf, size_t bsz)
+{
+/* grep BUF of size BSZ for occurrences defined in AF. */
+	node_t curnd;
+	size_t curdp = 0U;
+
+	static node_t
+	find_node(const amap_uint_t n[static 1], size_t i, size_t dpth)
+	{
+		/* given bit index IDX, determine the number of set
+		 * less significant bits (the ones to the right) in n */
+		unsigned int d;
+		unsigned int r;
+		unsigned int pop = 0U;
+		amap_uint_t last;
+
+		i--;
+		d = i / AMAP_UINT_BITZ;
+		r = i % AMAP_UINT_BITZ;
+		if (d) {
+			pop += uint_popcnt(n, d - 1U);
+		}
+		last = (amap_uint_t)(n[d] & ((1 << r) - 1U));
+		pop += uint_popcnt(&last, 1U);
+		return n + dpth * af->r.z + pop;
+	}
+
+	static bool leafp(const amap_uint_t n[static 1])
+	{
+		/* see if the target node is empty */
+		for (size_t i = 0; i < af->r.z; i++) {
+			if (n[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static node_t root(void)
+	{
+		return af->d + af->depth;
+	}
+
+	printf("grepping %p (%zu) using %p\n", buf, bsz, af);
+	curnd = root();
+	for (const unsigned char *bp = (const unsigned char*)buf,
+		     *const ep = bp + bsz; bp < ep; bp++) {
+		amap_uint_t idx;
+
+		if (UNLIKELY(*bp > countof(af->r.m))) {
+			/* not doing weird chars atm */
+			goto reset;
+		} else if ((idx = af->r.m[*bp]) == 0U) {
+			/* not in the alphabet, dont bother */
+			goto reset;
+		} else if (!glaf_nd_has_p(curnd, idx)) {
+			/* not in the current node */
+			;
+		} else if (UNLIKELY(curdp >= af->depth)) {
+			/* must be a longer word than expected */
+		reset:
+			/* just reset the node ptr and the current depth
+			 * and start over */
+			curnd = root();
+			curdp = 0U;
+		} else {
+			/* find the next node in the trie */
+			curnd = find_node(curnd, idx, af->d[curdp++]);
+			if (leafp(curnd)) {
+				printf("yay found!  %td\n", curnd - af->d);
+				goto reset;
+			}
+		}
+	}
+	return 0;
+}
+
+
+static glaf_t
+rdaf1(const char *fn)
+{
 	glodfn_t f;
-	alrts_t res;
+	glaf_t res = NULL;
 
+	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		return NULL;
+		goto out;
+	} else if (UNLIKELY((res = glod_rd_alrtscc(f.fb.d, f.fb.z)) == NULL)) {
+		goto out;
 	}
-	/* otherwise read what we've got */
-	res = glod_rd_alrts(f.fb.d, f.fb.z);
+	/* magic happens here */
+	;
 
+out:
 	/* and out are we */
 	(void)munmap_fn(f);
 	return res;
 }
 
-static void
-wr_word(int fd, alrt_word_t w)
+static int
+grep1(glaf_t af, const char *fn)
 {
-	for (const char *ap = w.w, *const ep = w.w + w.z; ap < ep;) {
-		size_t az = strlen(ap);
-		write(fd, ap, az);
-		write(fd, "\n", 1);
-		ap += az + 1U;
+	glodfn_t f;
+
+	/* map the file FN and snarf the alerts */
+	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
+		return -1;
 	}
-	return;
+	glod_gr_alrtscc(af, f.fb.d, f.fb.z);
+
+	(void)munmap_fn(f);
+	return 0;
 }
 
 
@@ -185,68 +304,23 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
-	int p_beef[2];
-	pid_t grep;
+	glaf_t af;
 	int rc = 0;
 
 	if (glod_parser(argc, argv, argi)) {
 		rc = 1;
 		goto out;
-	}
-
-	if (UNLIKELY(pipe(p_beef) < 0)) {
-		error("Error: cannot establish pipe");
-		rc = 1;
+	} else if ((af = rdaf1(argi->alert_file_arg)) == NULL) {
+		error("Error: cannot read compiled alert file `%s'",
+		      argi->alert_file_arg);
 		goto out;
 	}
 
-	with (alrts_t a) {
-		int p_alrt[2];
-
-		if (UNLIKELY(pipe(p_alrt) < 0)) {
-			break;
-		} else if ((grep = grep_alrt(p_alrt, p_beef)) < 0) {
-			error("Error: cannot fork grep");
-			rc = 1;
-			goto out;
-		}
-		/* otherwise try and read the file and pipe to grep */
-		a = snarf_alrt(argi->alert_file_arg);
-
-		for (size_t i = 0; i < a->nalrt; i++) {
-			alrt_t ai = a->alrt[i];
-
-			wr_word(p_alrt[1], ai.w);
-		}
-		glod_free_alrts(a);
-		close(p_alrt[1]);
-	}
-
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		struct stat st;
-		int fd;
-
-		if (UNLIKELY((fd = open(argi->inputs[i], O_RDONLY)) < 0)) {
-			continue;
-		} else if (UNLIKELY(fstat(fd, &st) < 0)) {
-			goto clos;
-		}
-		/* otherwise just shift it to beef descriptor */
-		sendfile(p_beef[1], fd, NULL, st.st_size);
-	clos:
-		close(fd);
+		grep1(af, argi->inputs[i]);
 	}
 
-	close(p_beef[1]);
-	with (int st) {
-		while (waitpid(grep, &st, 0) != grep);
-		if (LIKELY(WIFEXITED(st))) {
-			rc = rc ?: WEXITSTATUS(st);
-		} else {
-			rc = 1;
-		}
-	}
-
+	glod_free_alrtscc(af);
 out:
 	glod_parser_free(argi);
 	return rc;
