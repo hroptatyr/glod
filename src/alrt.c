@@ -221,4 +221,17 @@ glod_free_alrts(alrts_t a)
 	return;
 }
 
+void
+glod_free_alrtscc(alrtscc_t tr)
+{
+	struct alrtscc_s *ptr;
+
+	if (UNLIKELY((ptr = deconst(tr)) == NULL)) {
+		return;
+	}
+	/* it's just a flat thing */
+	free(ptr);
+	return;
+}
+
 /* alrt.c ends here */

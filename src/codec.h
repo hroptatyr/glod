@@ -43,14 +43,23 @@
 typedef uint_fast8_t amap_uint_t;
 #define AMAP_UINT_BITZ	(sizeof(amap_uint_t) * CHAR_BIT)
 
-typedef struct rmap_s rmap_t;
 typedef const amap_uint_t *word_t;
+
+typedef struct rmap_s rmap_t;
+typedef struct imap_s imap_t;
 
 struct rmap_s {
 	/* size of the alphabet in bytes,
 	 * that is the log2 of the largest character value */
 	amap_uint_t z;
 	amap_uint_t m[128U];
+};
+
+struct imap_s {
+	/* number of characters with count > 0 */
+	amap_uint_t nchr;
+	/* the actual characters, descending */
+	unsigned char m[128U];
 };
 
 /**

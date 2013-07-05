@@ -41,8 +41,11 @@
 #include "codec.h"
 
 typedef const struct alrts_s *alrts_t;
+typedef const struct alrtscc_s *alrtscc_t;
+
 typedef struct alrt_s alrt_t;
 typedef struct alrt_word_s alrt_word_t;
+
 
 struct alrt_word_s {
 	size_t z;
@@ -59,6 +62,22 @@ struct alrts_s {
 	alrt_t alrt[];
 };
 
+/* the compiled version of an alert */
+struct alrtscc_s {
+	/* depth of the trie, length of depth vector in bytes */
+	size_t depth;
+
+	/* reverse map char -> bit index */
+	rmap_t r;
+
+	/* normal map bit-index -> char */
+	imap_t m;
+
+	/* indices of children first,
+	 * then the actual trie (at D + DEPTH) */
+	const amap_uint_t d[];
+};
+
 
 /**
  * Read and return alerts from BUF (of size BSZ) in plain text form. */
@@ -67,5 +86,9 @@ extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 /**
  * Free an alerts object. */
 extern void glod_free_alrts(alrts_t);
+
+/**
+ * Free a compiled alerts object. */
+extern void glod_free_alrtscc(alrtscc_t);
 
 #endif	/* INCLUDED_alrt_h_ */
