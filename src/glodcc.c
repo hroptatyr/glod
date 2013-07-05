@@ -40,6 +40,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <limits.h>
 #include <assert.h>
 #include "nifty.h"
@@ -68,6 +69,7 @@ struct imap_s {
 };
 
 struct rmap_s {
+	amap_uint_t z;
 	amap_uint_t m[128U];
 };
 
@@ -250,6 +252,8 @@ rmap_from_imap(imap_t x)
 
 		res.m[c] = i;
 	}
+	/* alphabet size in bytes */
+	res.z = (x.nchr - 1U) / AMAP_UINT_BITZ + 1U;
 	return res;
 }
 
@@ -276,13 +280,13 @@ amap_word(amap_t *restrict res, alrt_word_t w)
 	return;
 }
 
-static wpath_t
-cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
+static word_t
+encode_word(rmap_t rm, const char *w)
 {
+/* encode \nul terminated word W using the reverse map RM. */
 	static size_t pz;
 	static amap_uint_t *p;
-	size_t dpth = 0U;
-	size_t max_dpth = 0U;
+	size_t i = 0;
 
 	static void check_size(size_t least)
 	{
@@ -293,43 +297,47 @@ cc_word(rmap_t rm, alrt_word_t w, size_t alphz)
 		return;
 	}
 
+	/* rinse the caches, and set up the path pointer */
 	memset(p, 0, pz);
-	for (const unsigned char *bp = (const void*)w.w,
-		     *const ep = bp + w.z; bp < ep; bp++, dpth += alphz) {
+	/* traverse the word W and encode into the path */
+	for (const unsigned char *bp = (const void*)w; *bp; bp++, i += rm.z) {
+		if (UNLIKELY(*bp >= countof(rm.m))) {
+			/* character out of range, we can't encode the word */
+			return NULL/*?*/;
+		}
 
-		/* skip word separator \nul */
-		if (UNLIKELY(*bp == '\0')) {
-			/* store max_depth */
-			if (UNLIKELY(dpth > max_dpth)) {
-				max_dpth = dpth;
-			}
-			check_size(dpth + alphz);
-			/* add a \nul word and fuck off */
-			memset(p + dpth, 0, alphz);
-			break;
-			/* and reset depth */
-			dpth = 0U - alphz;
-		} else if (UNLIKELY(*bp >= countof(rm.m))) {
-			/* character out of range */
-			;
-		} else {
-			amap_uint_t rc = rm.m[*bp];
+		with (amap_uint_t rc = rm.m[*bp]) {
 			unsigned int d;
 			unsigned int r;
 
 			/* unless someone deleted that char off the amap?! :O */
 			assert(rc);
-			assert(rc < alphz * AMAP_UINT_BITZ);
+			assert(rc < rm.z * AMAP_UINT_BITZ);
 
-			check_size(dpth + alphz);
+			check_size(i + rm.z);
 
 			rc--;
 			d = rc / AMAP_UINT_BITZ;
 			r = rc % AMAP_UINT_BITZ;
-			p[d + dpth] |= (amap_uint_t)(1U << r);
+			p[i + d] |= (amap_uint_t)(1U << r);
 		}
 	}
-	return (wpath_t){.plen = max_dpth / alphz + 1U, .path = p};
+	/* finish on a \nul */
+	check_size(i + rm.z);
+	memset(p + i, 0, rm.z);
+	return (word_t)p;
+}
+
+static void
+pr_word(word_t w)
+{
+	if (UNLIKELY(w == NULL)) {
+		return;
+	}
+	do {
+		printf("%u", (unsigned int)*w);
+	} while (*w++);
+	return;
 }
 
 
@@ -351,7 +359,6 @@ amap_alrts(alrts_t a)
 static void
 cc_alrts(alrts_t a, imap_t im)
 {
-	size_t alphz;
 	rmap_t rm;
 
 	if (UNLIKELY(im.nchr == 0U)) {
@@ -359,23 +366,21 @@ cc_alrts(alrts_t a, imap_t im)
 	}
 	/* `invert' the imap */
 	rm = rmap_from_imap(im);
-	/* alphabet size in bytes */
-	alphz = (im.nchr - 1U) / AMAP_UINT_BITZ + 1U;
 
 	/* traverse all alerts */
 	for (size_t i = 0; i < a->nalrt; i++) {
 		alrt_t ai = a->alrt[i];
-		wpath_t wp;
 
-		printf("alrt[%zu]: ", i);
-		wp = cc_word(rm, ai.w, alphz);
-		for (size_t j = 0; j < wp.plen; j++) {
-			for (size_t k = 0; k < alphz; k++) {
-				printf("%02x", wp.path[j * alphz + k]);
-			}
-			putchar(' ');
+		printf("alrt[%zu]:\n", i);
+		for (const char *bp = ai.w.w, *const ep = bp + ai.w.z;
+		     bp < ep; bp += strlen(bp) + 1U) {
+			word_t w;
+
+			w = encode_word(rm, bp);
+			printf("enc'd \"%s\" -> ", bp);
+			pr_word(w);
+			putchar('\n');
 		}
-		putchar('\n');
 	}
 
 	printf("%s\n", im.m + 1U);
