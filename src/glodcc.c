@@ -47,13 +47,9 @@
 #include "fops.h"
 #include "alrt.h"
 
-typedef uint_fast8_t amap_uint_t;
-#define AMAP_UINT_BITZ	(sizeof(amap_uint_t) * CHAR_BIT)
-
 typedef struct amap_s amap_t;
 typedef struct imap_s imap_t;
-typedef struct rmap_s rmap_t;
-typedef struct wpath_s wpath_t;
+typedef struct trie_s *trie_t;
 
 /* alpha map to count chars */
 struct amap_s {
@@ -68,14 +64,14 @@ struct imap_s {
 	unsigned char m[128U];
 };
 
-struct rmap_s {
-	amap_uint_t z;
-	amap_uint_t m[128U];
-};
+/* levels (horizontally) in a trie */
+typedef amap_uint_t *trie_lev_t;
 
-struct wpath_s {
-	size_t plen;
-	amap_uint_t *path;
+/* full trie structure */
+struct trie_s {
+	size_t width;
+	size_t nlevs;
+	trie_lev_t levs[];
 };
 
 
@@ -280,54 +276,6 @@ amap_word(amap_t *restrict res, alrt_word_t w)
 	return;
 }
 
-static word_t
-encode_word(rmap_t rm, const char *w)
-{
-/* encode \nul terminated word W using the reverse map RM. */
-	static size_t pz;
-	static amap_uint_t *p;
-	size_t i = 0;
-
-	static void check_size(size_t least)
-	{
-		if (UNLIKELY(least > pz)) {
-			pz = ((least - 1U) / 64U + 1U) * 64U;
-			p = realloc(p, pz);
-		}
-		return;
-	}
-
-	/* rinse the caches, and set up the path pointer */
-	memset(p, 0, pz);
-	/* traverse the word W and encode into the path */
-	for (const unsigned char *bp = (const void*)w; *bp; bp++, i += rm.z) {
-		if (UNLIKELY(*bp >= countof(rm.m))) {
-			/* character out of range, we can't encode the word */
-			return NULL/*?*/;
-		}
-
-		with (amap_uint_t rc = rm.m[*bp]) {
-			unsigned int d;
-			unsigned int r;
-
-			/* unless someone deleted that char off the amap?! :O */
-			assert(rc);
-			assert(rc < rm.z * AMAP_UINT_BITZ);
-
-			check_size(i + rm.z);
-
-			rc--;
-			d = rc / AMAP_UINT_BITZ;
-			r = rc % AMAP_UINT_BITZ;
-			p[i + d] |= (amap_uint_t)(1U << r);
-		}
-	}
-	/* finish on a \nul */
-	check_size(i + rm.z);
-	memset(p + i, 0, rm.z);
-	return (word_t)p;
-}
-
 static void
 pr_word(word_t w)
 {
@@ -337,6 +285,113 @@ pr_word(word_t w)
 	do {
 		printf("%u", (unsigned int)*w);
 	} while (*w++);
+	return;
+}
+
+
+/* trie fiddling */
+static trie_t
+make_trie(size_t width)
+{
+/* create a full trie with a root node
+ * we wouldn't use this trie in real life because it's too bloated */
+#define DPTH_CHUNK	(8U)
+	trie_t res = malloc(sizeof(*res) + DPTH_CHUNK * sizeof(*res->levs));
+
+	/* start out flat */
+	res->width = width;
+	res->nlevs = 0U;
+	/* however put some oomph into the 0-th level */
+	res->levs[0] = calloc(
+		/* we don't need a fully expanded root actually */
+		width * width * AMAP_UINT_BITZ, sizeof(**res->levs));
+	return res;
+}
+
+static void
+free_trie(trie_t t)
+{
+	for (size_t i = 0; i <= t->nlevs; i++) {
+		free(t->levs[i]);
+	}
+	free(t);
+	return;
+}
+
+static trie_t
+trie_add_level(trie_t t)
+{
+	size_t i;
+
+	if (UNLIKELY((i = ++t->nlevs) % DPTH_CHUNK == 0U)) {
+		size_t nu = sizeof(*t) + (i + DPTH_CHUNK) * sizeof(*t->levs);
+		t = realloc(t, nu);
+	}
+	/* add the level structure */
+	t->levs[i] = calloc(
+		/* we reserve space for every possible child */
+		t->width * t->width * AMAP_UINT_BITZ,
+		sizeof(**t->levs));
+	return t;
+}
+
+static void
+trie_level_bang(amap_uint_t lev[static 1], amap_uint_t wchar)
+{
+	unsigned int d;
+	unsigned int r;
+
+	wchar--;
+	d = wchar / AMAP_UINT_BITZ;
+	r = wchar % AMAP_UINT_BITZ;
+	lev[d] |= (amap_uint_t)(1U << r);
+	return;
+}
+
+static trie_t
+trie_add_word(trie_t t, word_t w)
+{
+	size_t lev;
+
+	static void check_trie_size(size_t lev)
+	{
+		if (UNLIKELY(lev >= t->nlevs)) {
+			t = trie_add_level(t);
+		}
+		return;
+	}
+
+	/* merge the root node right away */
+	trie_level_bang(t->levs[0U], *w++);
+
+	for (lev = 1U; *w; w++, lev++) {
+		check_trie_size(lev);
+		/* then proceed to child w[0] in lev[1] */
+		trie_level_bang(t->levs[lev] + t->width * (w[-1] - 1U), *w);
+	}
+
+	/* no need to fill in the final character as the tries should
+	 * be calloc()'d and hence their 0'd out already */
+	return t;
+}
+
+static void
+pr_trie(trie_t t)
+{
+	static void pr_level(trie_lev_t l)
+	{
+		for (size_t i = 0; i < t->width * t->width * AMAP_UINT_BITZ;) {
+			for (size_t j = 0; j < t->width; i++, j++) {
+				printf("%02x", l[i]);
+			}
+			putchar(' ');
+		}
+		putchar('\n');
+	}
+
+	for (size_t i = 0; i <= t->nlevs; i++) {
+		pr_level(t->levs[i]);
+	}
 	return;
 }
 
@@ -360,12 +415,16 @@ static void
 cc_alrts(alrts_t a, imap_t im)
 {
 	rmap_t rm;
+	trie_t tr;
 
 	if (UNLIKELY(im.nchr == 0U)) {
 		return;
 	}
 	/* `invert' the imap */
 	rm = rmap_from_imap(im);
+
+	/* craft us a trie */
+	tr = make_trie(rm.z);
 
 	/* traverse all alerts */
 	for (size_t i = 0; i < a->nalrt; i++) {
@@ -376,7 +435,14 @@ cc_alrts(alrts_t a, imap_t im)
 		     bp < ep; bp += strlen(bp) + 1U) {
 			word_t w;
 
-			w = encode_word(rm, bp);
+			if (UNLIKELY((w = encode_word(rm, bp)) == NULL)) {
+				/* bog on */
+				continue;
+			}
+
+			/* merge the word with the trie so far */
+			tr = trie_add_word(tr, w);
+
 			printf("enc'd \"%s\" -> ", bp);
 			pr_word(w);
 			putchar('\n');
@@ -384,7 +450,10 @@ cc_alrts(alrts_t a, imap_t im)
 	}
 
 	printf("%s\n", im.m + 1U);
-	//printf("%u child nodes\n", uint_popcnt(mm, countof(mm)));
+	pr_trie(tr);
+
+	/* no need for this rubbish */
+	free_trie(tr);
 	return;
 }
 
