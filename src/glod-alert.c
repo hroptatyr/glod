@@ -54,21 +54,11 @@
 #include "fops.h"
 #include "alrt.h"
 
-typedef uint_fast8_t amap_uint_t;
-#define AMAP_UINT_BITZ	(sizeof(amap_uint_t) * CHAR_BIT)
-
 typedef const struct glaf_s *glaf_t;
-typedef struct rmap_s rmap_t;
 
 typedef const amap_uint_t *node_t;
 
-struct rmap_s {
-	amap_uint_t m[128U];
-};
-
 struct glaf_s {
-	/* alphabet size in bytes */
-	size_t width;
 	/* depth of the trie, length of depth vector in bytes */
 	size_t depth;
 
@@ -121,16 +111,18 @@ glod_rd_alrtscc(const char *buf, size_t bsz)
 {
 /* mock! */
 	static struct glaf_s res = {
-		.width = 1U,
 		.depth = 6U,
-		.r.m = {
-			['A'] = 1U,
-			['D'] = 2U,
-			['E'] = 3U,
-			['G'] = 4U,
-			['L'] = 5U,
-			['S'] = 6U,
-			['T'] = 7U,
+		.r = {
+			.z = 1U,
+			.m = {
+				 ['A'] = 1U,
+				 ['D'] = 2U,
+				 ['E'] = 3U,
+				 ['G'] = 4U,
+				 ['L'] = 5U,
+				 ['S'] = 6U,
+				 ['T'] = 7U,
+			 },
 		},
 		.d = {
 			 1U, 2U, 2U, 2U, 1U, 1U,
@@ -206,13 +198,13 @@ glod_gr_alrtscc(glaf_t af, const char *buf, size_t bsz)
 		}
 		last = (amap_uint_t)(n[d] & ((1 << r) - 1U));
 		pop += uint_popcnt(&last, 1U);
-		return n + dpth * af->width + pop;
+		return n + dpth * af->r.z + pop;
 	}
 
 	static bool leafp(const amap_uint_t n[static 1])
 	{
 		/* see if the target node is empty */
-		for (size_t i = 0; i < af->width; i++) {
+		for (size_t i = 0; i < af->r.z; i++) {
 			if (n[i]) {
 				return false;
 			}

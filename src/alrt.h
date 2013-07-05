@@ -38,6 +38,7 @@
 #define INCLUDED_alrt_h_
 
 #include <stddef.h>
+#include "codec.h"
 
 typedef const struct alrts_s *alrts_t;
 typedef struct alrt_s alrt_t;
