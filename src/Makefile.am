@@ -72,6 +72,7 @@ libglod_a_SOURCES += gtype-date.c gtype-date.h
 libglod_a_SOURCES += strptime.c strptime.h
 libglod_a_SOURCES += gtype-na.c gtype-na.h
 libglod_a_SOURCES += gtype-str.h
+libglod_a_SOURCES += codec.c codec.h
 libglod_a_SOURCES += alrt.c alrt.h
 libglod_a_SOURCES += version.c version.h
 
