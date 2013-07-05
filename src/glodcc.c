@@ -46,22 +46,15 @@
 #include "nifty.h"
 #include "fops.h"
 #include "alrt.h"
+#include "boobs.h"
 
 typedef struct amap_s amap_t;
-typedef struct imap_s imap_t;
 typedef struct trie_s *trie_t;
 
 /* alpha map to count chars */
 struct amap_s {
 #define MAX_CAPACITY	((sizeof(amap_uint_t) << CHAR_BIT) - 1)
 	amap_uint_t m[128U];
-};
-
-struct imap_s {
-	/* number of characters with count > 0 */
-	size_t nchr;
-	/* the actual characters, descending */
-	unsigned char m[128U];
 };
 
 /* levels (horizontally) in a trie */
@@ -276,18 +269,6 @@ amap_word(amap_t *restrict res, alrt_word_t w)
 	return;
 }
 
-static void
-pr_word(word_t w)
-{
-	if (UNLIKELY(w == NULL)) {
-		return;
-	}
-	do {
-		printf("%u", (unsigned int)*w);
-	} while (*w++);
-	return;
-}
-
 
 /* trie fiddling */
 static trie_t
@@ -375,24 +356,68 @@ trie_add_word(trie_t t, word_t w)
 	return t;
 }
 
-static void
-pr_trie(trie_t t)
+static alrtscc_t
+alrtscc_from_trie(trie_t tr, imap_t im, rmap_t rm)
 {
-	static void pr_level(trie_lev_t l)
+	struct alrtscc_s *res;
+	const size_t fix = sizeof(*res);
+	const size_t w = rm.z;
+	size_t var;
+	size_t dpthz;
+	amap_uint_t *dpth;
+	amap_uint_t *trie;
+	amap_uint_t *tp;
+
+	/* we need tr->nlev bytes for the depth vector
+	 * plus at most a full-trie's children */
+	dpthz = tr->nlevs/*depth*/ + 1U;
+	var = w/*root*/ + w * (w * AMAP_UINT_BITZ) * tr->nlevs/*children*/;
+	res = malloc(fix + dpthz + var);
+
+	/* thorough rinse */
+	res->depth = dpthz;
+	res->r = rm;
+	res->m = im;
+	dpth = deconst(res->d + 0U);
+	memset(dpth, 0, dpthz + var);
+	trie = dpth + dpthz;
+
+	/* bang root node, we also always start out at offset 1 in depth */
+	memcpy(tp = trie, tr->levs[0U], w * AMAP_UINT_BITZ);
+	dpth[0] = 1U;
+
+	static inline void
+	bang_chld(
+		amap_uint_t *restrict tp,
+		const amap_uint_t *restrict rp,
+		const amap_uint_t src[static 1], size_t z)
 	{
-		for (size_t i = 0; i < t->width * t->width * AMAP_UINT_BITZ;) {
-			for (size_t j = 0; j < t->width; i++, j++) {
-				printf("%02x", l[i]);
+		for (size_t i = 0U, j = 0U; i < z; i++) {
+			amap_uint_t v = *rp++;
+
+			if ((i % w) == 0U) {
+				j = 0U;
 			}
-			putchar(' ');
+			for (; v; v >>= 1U, j++) {
+				if (v & 1U) {
+					memcpy(tp, src + j, w);
+					tp += w;
+				}
+			}
 		}
-		putchar('\n');
+		return;
 	}
 
-	for (size_t i = 0; i <= t->nlevs; i++) {
-		pr_level(t->levs[i]);
+	/* traverse the trie */
+	for (size_t i = 1; i <= tr->nlevs; i++) {
+		size_t prev_w = dpth[i - 1] * w;
+		amap_uint_t *prev_tp = tp;
+
+		dpth[i] = (amap_uint_t)uint_popcnt(tp, prev_w);
+		tp += prev_w;
+		bang_chld(tp, prev_tp, tr->levs[i], prev_w);
 	}
-	return;
+	return res;
 }
 
 
@@ -411,14 +436,15 @@ amap_alrts(alrts_t a)
 	return res;
 }
 
-static void
+static alrtscc_t
 cc_alrts(alrts_t a, imap_t im)
 {
 	rmap_t rm;
 	trie_t tr;
+	alrtscc_t res;
 
 	if (UNLIKELY(im.nchr == 0U)) {
-		return;
+		return NULL;
 	}
 	/* `invert' the imap */
 	rm = rmap_from_imap(im);
@@ -430,7 +456,6 @@ cc_alrts(alrts_t a, imap_t im)
 	for (size_t i = 0; i < a->nalrt; i++) {
 		alrt_t ai = a->alrt[i];
 
-		printf("alrt[%zu]:\n", i);
 		for (const char *bp = ai.w.w, *const ep = bp + ai.w.z;
 		     bp < ep; bp += strlen(bp) + 1U) {
 			word_t w;
@@ -442,18 +467,34 @@ cc_alrts(alrts_t a, imap_t im)
 
 			/* merge the word with the trie so far */
 			tr = trie_add_word(tr, w);
-
-			printf("enc'd \"%s\" -> ", bp);
-			pr_word(w);
-			putchar('\n');
 		}
 	}
 
-	printf("%s\n", im.m + 1U);
-	pr_trie(tr);
+	/* condense the trie into its serialisable form */
+	res = alrtscc_from_trie(tr, im, rm);
 
 	/* no need for this rubbish */
 	free_trie(tr);
+	return res;
+}
+
+static void
+glod_wr_alrtscc(int fd, alrtscc_t tr)
+{
+	static const char hdr[] = "gLa";
+	uint32_t dpth = htobe32((uint32_t)tr->depth);
+
+	write(fd, hdr, sizeof(hdr));
+	write(fd, &dpth, sizeof(dpth));
+	write(fd, tr->m.m + 1U, tr->m.nchr);
+	write(fd, tr->d, tr->depth);
+
+	with (size_t dsum = 0) {
+		for (size_t i = 0; i < tr->depth; i++) {
+			dsum += tr->d[i];
+		}
+		write(fd, tr->d + tr->depth, dsum);
+	}
 	return;
 }
 
@@ -474,12 +515,17 @@ cc1(const char *fn)
 	/* otherwise just compile what we've got */
 	with (amap_t am) {
 		imap_t im;
+		alrtscc_t cc;
 
 		am = amap_alrts(a);
 		im = sort_amap(am);
 
 		/* now go through the alert words again and encode them */
-		cc_alrts(a, im);
+		cc = cc_alrts(a, im);
+		/* and serialise the compilation */
+		glod_wr_alrtscc(STDOUT_FILENO, cc);
+		/* and out */
+		glod_free_alrtscc(cc);
 	}
 	glod_free_alrts(a);
 out:
