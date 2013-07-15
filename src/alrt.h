@@ -95,4 +95,8 @@ extern void glod_free_alrts(alrts_t);
  * Free a compiled alerts object. */
 extern void glod_free_alrtscc(alrtscc_t);
 
+/**
+ * Compile an ALRTS_T to a ALRTSCC_T. */
+extern alrtscc_t glod_cc_alrts(alrts_t);
+
 #endif	/* INCLUDED_alrt_h_ */
