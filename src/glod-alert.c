@@ -54,20 +54,7 @@
 #include "fops.h"
 #include "alrt.h"
 
-typedef const struct glaf_s *glaf_t;
-
 typedef const amap_uint_t *node_t;
-
-struct glaf_s {
-	/* depth of the trie, length of depth vector in bytes */
-	size_t depth;
-
-	/* reverse map char -> bit index */
-	rmap_t r;
-	/* indices of children first,
-	 * then the actual trie (at D + DEPTH) */
-	const amap_uint_t d[];
-};
 
 
 static void
@@ -106,61 +93,6 @@ uint_popcnt(const amap_uint_t a[static 1], size_t na)
 }
 
 
-static glaf_t
-glod_rd_alrtscc(const char *buf, size_t bsz)
-{
-/* mock! */
-	static struct glaf_s res = {
-		.depth = 6U,
-		.r = {
-			.z = 1U,
-			.m = {
-				 ['A'] = 1U,
-				 ['D'] = 2U,
-				 ['E'] = 3U,
-				 ['G'] = 4U,
-				 ['L'] = 5U,
-				 ['S'] = 6U,
-				 ['T'] = 7U,
-			 },
-		},
-		.d = {
-			 1U, 2U, 2U, 2U, 1U, 1U,
-
-			 /* trie */
-			 /* build DEAG and STELLA */
-			 0b00100010,
-			 /* children of 'D' -> 'E' */
-			 0b00000100,
-			 /* children of 'S' -> 'T' */
-			 0b01000000,
-			 /* children of 'DE' -> 'A' */
-			 0b00000001,
-			 /* children of 'ST' -> 'E' */
-			 0b00000100,
-			 /* children of 'DEA' -> 'G' */
-			 0b00001000,
-			 /* children of 'STE' -> 'L' */
-			 0b00010000,
-			 /* children of 'DEAG' -> '\nul' */
-			 0b00000000,
-			 /* children of 'STEL' -> 'L' */
-			 0b00010000,
-			 /* children of 'STELL' -> 'A' */
-			 0b00000001,
-			 /* children of 'STELLA' -> '\nul' */
-			 0b00000000,
-		 },
-	};
-	return &res;
-}
-
-static void
-glod_free_alrtscc(glaf_t af)
-{
-	return;
-}
-
 static bool
 glaf_nd_has_p(const amap_uint_t nd[static 1], amap_uint_t idx)
 {
@@ -174,7 +106,7 @@ glaf_nd_has_p(const amap_uint_t nd[static 1], amap_uint_t idx)
 }
 
 static int
-glod_gr_alrtscc(glaf_t af, const char *buf, size_t bsz)
+glod_gr_alrtscc(alrtscc_t af, const char *buf, size_t bsz)
 {
 /* grep BUF of size BSZ for occurrences defined in AF. */
 	node_t curnd;
@@ -252,11 +184,11 @@ glod_gr_alrtscc(glaf_t af, const char *buf, size_t bsz)
 }
 
 
-static glaf_t
-rdaf1(const char *fn)
+static alrtscc_t
+rd1(const char *fn)
 {
 	glodfn_t f;
-	glaf_t res = NULL;
+	alrtscc_t res = NULL;
 
 	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
@@ -274,7 +206,7 @@ out:
 }
 
 static int
-grep1(glaf_t af, const char *fn)
+grep1(alrtscc_t af, const char *fn)
 {
 	glodfn_t f;
 
@@ -304,13 +236,13 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
-	glaf_t af;
+	alrtscc_t af;
 	int rc = 0;
 
 	if (glod_parser(argc, argv, argi)) {
 		rc = 1;
 		goto out;
-	} else if ((af = rdaf1(argi->alert_file_arg)) == NULL) {
+	} else if ((af = rd1(argi->alert_file_arg)) == NULL) {
 		error("Error: cannot read compiled alert file `%s'",
 		      argi->alert_file_arg);
 		goto out;
