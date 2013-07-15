@@ -374,6 +374,8 @@ trie_add_word(trie_t t, word_t w)
 		/* then proceed to child w[0] in lev[1] */
 		trie_level_bang(t->levs[lev] + t->width * (w[-1] - 1U), *w);
 	}
+	/* make sure we've got room for the final \nul */
+	check_trie_size(lev);
 
 	/* no need to fill in the final character as the tries should
 	 * be calloc()'d and hence their 0'd out already */
