@@ -360,7 +360,7 @@ trie_add_word(trie_t t, word_t w)
 
 	static void check_trie_size(size_t lev)
 	{
-		if (UNLIKELY(lev >= t->nlevs)) {
+		while (UNLIKELY(lev > t->nlevs)) {
 			t = trie_add_level(t);
 		}
 		return;
@@ -374,6 +374,8 @@ trie_add_word(trie_t t, word_t w)
 		/* then proceed to child w[0] in lev[1] */
 		trie_level_bang(t->levs[lev] + t->width * (w[-1] - 1U), *w);
 	}
+	/* make sure we've got room for the final \nul */
+	check_trie_size(lev);
 
 	/* no need to fill in the final character as the tries should
 	 * be calloc()'d and hence their 0'd out already */
@@ -668,12 +670,12 @@ glod_rd_alrtscc(const char *buf, size_t bsz)
 	depth = be32toh(bhdr->depth);
 
 	/* next up is the alphabet, \nul term'd so we can use strlen */
-	alphz = strlen(bhdr->alphabet);
+	alphz = strlen(bhdr->alphabet) + 1U/*for \nul*/;
 
 	/* and now we know how big the whole cc object must be,
 	 * assuming that BSZ reflects the size of the whole trie */
-	triez = bsz - (sizeof(tmphdr) + (alphz + 1U/*for \nul*/));
-	bp = (const void*)(bhdr->alphabet + alphz + 1U);
+	triez = bsz - (sizeof(tmphdr) + alphz);
+	bp = (const void*)(bhdr->alphabet + alphz);
 	res = malloc(sizeof(*res) + triez);
 
 	/* init depth and imap ... */
