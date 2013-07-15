@@ -40,6 +40,8 @@
 #include <stddef.h>
 #include "codec.h"
 
+typedef uint_fast16_t amap_dpth_t;
+
 typedef const struct alrts_s *alrts_t;
 typedef const struct alrtscc_s *alrtscc_t;
 
@@ -75,7 +77,9 @@ struct alrtscc_s {
 
 	/* indices of children first,
 	 * then the actual trie (at D + DEPTH) */
-	const amap_uint_t d[];
+	const amap_dpth_t d[];
+#define ALRTSCC_DPTZ	(sizeof(amap_dpth_t) / sizeof(amap_uint_t))
+#define ALRTSCC_TRIE(x)	((const amap_uint_t*)((x)->d + (x)->depth))
 };
 
 
