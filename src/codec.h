@@ -39,6 +39,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <limits.h>
 
 typedef uint_fast8_t amap_uint_t;
 #define AMAP_UINT_BITZ	(sizeof(amap_uint_t) * CHAR_BIT)

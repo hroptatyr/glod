@@ -84,11 +84,19 @@ struct alrtscc_s {
 extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 
 /**
+ * Read and return alerts from BUF (of size BSZ) in compiled form. */
+extern alrtscc_t glod_rd_alrtscc(const char *buf, size_t bsz);
+
+/**
  * Free an alerts object. */
 extern void glod_free_alrts(alrts_t);
 
 /**
  * Free a compiled alerts object. */
 extern void glod_free_alrtscc(alrtscc_t);
+
+/**
+ * Compile an ALRTS_T to a ALRTSCC_T. */
+extern alrtscc_t glod_cc_alrts(alrts_t);
 
 #endif	/* INCLUDED_alrt_h_ */
