@@ -360,7 +360,7 @@ trie_add_word(trie_t t, word_t w)
 
 	static void check_trie_size(size_t lev)
 	{
-		if (UNLIKELY(lev > t->nlevs)) {
+		while (UNLIKELY(lev > t->nlevs)) {
 			t = trie_add_level(t);
 		}
 		return;
