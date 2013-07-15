@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "alrt.h"
+#include "boobs.h"
 #include "nifty.h"
 
 typedef size_t idx_t;
@@ -97,6 +98,22 @@ free_word(alrt_word_t w)
 	}
 	free(pw);
 	return;
+}
+
+
+static rmap_t
+rmap_from_imap(imap_t x)
+{
+	rmap_t res = {0U};
+
+	for (size_t i = 0; i < x.nchr; i++) {
+		unsigned char c = x.m[i];
+
+		res.m[c] = i;
+	}
+	/* alphabet size in bytes */
+	res.z = (x.nchr - 1U) / AMAP_UINT_BITZ + 1U;
+	return res;
 }
 
 
@@ -219,6 +236,63 @@ glod_free_alrts(alrts_t a)
 	}
 	free(pa);
 	return;
+}
+
+alrtscc_t
+glod_rd_alrtscc(const char *buf, size_t bsz)
+{
+	struct hdr_s {
+		const char magic[4U];
+		uint32_t depth;
+		const char alphabet[];
+	};
+	/* magic handle */
+	static struct hdr_s tmphdr = {"gLa"};
+	struct alrtscc_s *res;
+	const struct hdr_s *bhdr;
+	const amap_uint_t *bp;
+	size_t depth;
+	size_t alphz;
+	size_t triez;
+
+	if (UNLIKELY(bsz <= sizeof(tmphdr))) {
+		/* too small to be real */
+		return NULL;
+	} else if (UNLIKELY(memcmp(buf, tmphdr.magic, sizeof(tmphdr.magic)))) {
+		/* uh oh, magic numbers no matchee */
+		return NULL;
+	}
+	/* yay, just make an alias of buf */
+	bhdr = (const struct hdr_s*)buf;
+
+	/* depth is the length of the longest word + \nul character */
+	depth = be32toh(bhdr->depth);
+
+	/* next up is the alphabet, \nul term'd so we can use strlen */
+	alphz = strlen(bhdr->alphabet);
+
+	/* and now we know how big the whole cc object must be,
+	 * assuming that BSZ reflects the size of the whole trie */
+	triez = bsz - (sizeof(tmphdr) + (alphz + 1U/*for \nul*/));
+	bp = (const void*)(bhdr->alphabet + alphz + 1U);
+	res = malloc(sizeof(*res) + triez);
+
+	/* init depth and imap ... */
+	res->depth = depth;
+	res->m.nchr = (amap_uint_t)alphz;
+	memset(res->m.m, 0, sizeof(res->m.m));
+	memcpy(res->m.m + 1U, bhdr->alphabet, alphz);
+
+	/* ... and build the rmap from the imap */
+	res->r = rmap_from_imap(res->m);
+
+	/* read off the branch indices for the tree structure
+	 * they're DEPTH long,
+	 * actually the whole trie sits at BP now, so copy it in one go */
+	with (amap_uint_t *dp = deconst(res->d)) {
+		memcpy(dp, bp, triez);
+	}
+	return res;
 }
 
 void
