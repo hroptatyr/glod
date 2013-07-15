@@ -670,12 +670,12 @@ glod_rd_alrtscc(const char *buf, size_t bsz)
 	depth = be32toh(bhdr->depth);
 
 	/* next up is the alphabet, \nul term'd so we can use strlen */
-	alphz = strlen(bhdr->alphabet);
+	alphz = strlen(bhdr->alphabet) + 1U/*for \nul*/;
 
 	/* and now we know how big the whole cc object must be,
 	 * assuming that BSZ reflects the size of the whole trie */
-	triez = bsz - (sizeof(tmphdr) + (alphz + 1U/*for \nul*/));
-	bp = (const void*)(bhdr->alphabet + alphz + 1U);
+	triez = bsz - (sizeof(tmphdr) + alphz);
+	bp = (const void*)(bhdr->alphabet + alphz);
 	res = malloc(sizeof(*res) + triez);
 
 	/* init depth and imap ... */
