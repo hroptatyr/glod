@@ -562,6 +562,7 @@ glod_rd_alrts(const char *buf, size_t bsz)
 		if (UNLIKELY(c == NULL)) {
 			size_t iniz = 16U * sizeof(*c->alrt);
 			c = malloc(iniz);
+			c->nalrt = 0U;
 		} else if (UNLIKELY(!(c->nalrt % 16U))) {
 			size_t nu = (c->nalrt + 16U) * sizeof(*c->alrt);
 			c = realloc(c, nu);
