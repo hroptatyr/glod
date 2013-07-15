@@ -553,7 +553,12 @@ glod_rd_alrts(const char *buf, size_t bsz)
 
 	static alrt_word_t clone_cch(struct cch_s *c)
 	{
-		return (alrt_word_t){.z = c->bi - c->bb, .w = c->buf + c->bb};
+		return (alrt_word_t){
+			.z = c->bi - c->bb,
+			/* this one will be fixed up later on, we use the
+			 * offset here to allow for realloc()s on the way */
+			.w = (const void*)(intptr_t)c->bb
+		};
 	}
 
 	static struct alrts_s*
@@ -620,6 +625,15 @@ glod_rd_alrts(const char *buf, size_t bsz)
 			/* keep going */
 			break;
 		}
+	}
+
+	/* fixup word and yield buffers */
+	for (size_t i = 0; i < res->nalrt; i++) {
+		idx_t woffs = (idx_t)(intptr_t)res->alrt[i].w.w;
+		idx_t yoffs = (idx_t)(intptr_t)res->alrt[i].y.w;
+
+		res->alrt[i].w.w = w->buf + woffs;
+		res->alrt[i].y.w = y->buf + yoffs;
 	}
 	return res;
 }
