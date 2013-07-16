@@ -55,8 +55,8 @@ typedef uint_fast8_t ix_t;
 #define TBLZ	(32768U)
 
 struct alrtscc_s {
-	const int B;
-	const int m;
+	const unsigned int B;
+	const unsigned int m;
 	ix_t SHIFT[TBLZ];
 	hx_t HASH[TBLZ];
 	hx_t PREFIX[TBLZ];
@@ -105,12 +105,13 @@ glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
 			static const unsigned int Hbits = 5U;
 			hx_t res = bp[0] << Hbits;
 
-			if (LIKELY(bp > sp)) {
+			if (LIKELY(c->B > 2U && bp > sp + 1U)) {
 				res += bp[-1];
-			}
-			if (UNLIKELY(c->B > 2 && bp > sp + 1U)) {
 				res <<= Hbits;
 				res += bp[-2];
+				res &= (TBLZ - 1);
+			} else if (LIKELY(bp > sp)) {
+				res += bp[-1];
 			}
 			return res;
 		}
@@ -118,11 +119,12 @@ glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
 		static inline hx_t hash_prfx(void)
 		{
 			static const unsigned int Pbits = 8U;
+			const int offs = 1 - c->m;
 			hx_t res = 0U;
 
-			if (LIKELY(bp + (-c->m + 1) >= sp)) {
-				res = bp[(-c->m + 1)] << Pbits;
-				res += bp[(-c->m + 2)];
+			if (LIKELY(bp + offs >= sp)) {
+				res = bp[offs + 0] << Pbits;
+				res += bp[offs + 1];
 			}
 			return res;
 		}
@@ -132,6 +134,7 @@ glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
 			const hx_t pbeg = c->HASH[h + 0U];
 			const hx_t pend = c->HASH[h + 1U];
 			const hx_t prfx = hash_prfx();
+			const int offs = c->m - 1;
 
 			printf("CAND  %u\n", prfx);
 
@@ -141,7 +144,7 @@ glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
 					continue;
 				}
 				/* otherwise check the word */
-				if (!xcmp(c->PATPTR[p], bp + (-c->m + 1))) {
+				if (!xcmp(c->PATPTR[p], bp - offs)) {
 					/* MATCH */
 					printf("YAY %s\n", c->PATPTR[p]);
 				}
@@ -162,7 +165,7 @@ glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
 {
 	static const char *pats[] = {"DEAG", "STELLA"};
 	static struct alrtscc_s mock = {
-		.B = 2U,
+		.B = 3U,
 		.m = 4U,	/* min("DEAG", "STELLA") */
 	};
 
@@ -175,16 +178,21 @@ glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
 	for (size_t i = 0; i < countof(pats); i++) {
 		const char *pat = pats[i];
 
-		for (size_t j = mock.m; j >= 2; j--) {
-			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
+		for (size_t j = mock.m; j >= mock.B; j--) {
 			ix_t d = (mock.m - j);
+			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
 
-			if (d < mock.SHIFT[h]) {
-				mock.SHIFT[h] = d;
+			if (mock.B == 3U) {
+				h <<= 5U;
+				h += pat[j - 3];
+				h &= (TBLZ - 1);
 			}
 			if (UNLIKELY(d == 0U)) {
 				/* also set up the HASH table */
 				mock.HASH[h]++;
+				mock.SHIFT[h] = 0U;
+			} else if (d < mock.SHIFT[h]) {
+				mock.SHIFT[h] = d;
 			}
 		}
 	}
@@ -198,10 +206,16 @@ glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
 	/* prefix handling */
 	for (size_t i = 0; i < countof(pats); i++) {
 		const char *pat = pats[i];
-		hx_t h = pat[mock.m - 2] + (pat[mock.m - 1] << 5U);
 		hx_t p = pat[1U] + (pat[0U] << 8U);
-		ix_t H = --mock.HASH[h];
+		hx_t h = pat[mock.m - 2] + (pat[mock.m - 1] << 5U);
+		ix_t H;
 
+		if (mock.B == 3U) {
+			h <<= 5U;
+			h += pat[mock.m - 3];
+			h &= (TBLZ - 1);
+		}
+		H = --mock.HASH[h];
 		mock.PATPTR[H] = pat;
 		mock.PREFIX[H] = p;
 	}
