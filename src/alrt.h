@@ -77,6 +77,10 @@ extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 extern alrtscc_t glod_rd_alrtscc(const char *buf, size_t bsz);
 
 /**
+ * Write (serialise) a compiled alerts object. */
+extern size_t glod_wr_alrtscc(const char **buf, size_t *bsz);
+
+/**
  * Free an alerts object. */
 extern void glod_free_alrts(alrts_t);
 
