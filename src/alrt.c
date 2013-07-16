@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "alrt.h"
+#include "alrt-private.h"
 #include "boobs.h"
 #include "nifty.h"
 

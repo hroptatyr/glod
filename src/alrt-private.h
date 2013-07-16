@@ -1,4 +1,4 @@
-/*** alrt.h -- reading/writing glod alert files
+/*** alrt-private.h -- implementation details of alrt.h
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -34,58 +34,27 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_alrt_h_
-#define INCLUDED_alrt_h_
+#if !defined INCLUDED_alrt_private_h_
+#define INCLUDED_alrt_private_h_
 
-#include <stddef.h>
-#include "codec.h"
-
-typedef uint_fast16_t amap_dpth_t;
-
-typedef const struct alrts_s *alrts_t;
-typedef const struct alrtscc_s *alrtscc_t;
-
-typedef struct alrt_s alrt_t;
-typedef struct alrt_word_s alrt_word_t;
-
-
-struct alrt_word_s {
-	size_t z;
-	const char *w;
-};
-
-struct alrt_s {
-	alrt_word_t w;
-	alrt_word_t y;
-};
-
-struct alrts_s {
-	size_t nalrt;
-	alrt_t alrt[];
-};
+#include "alrt.h"
 
 /* the compiled version of an alert */
-struct alrtscc_s;
+struct alrtscc_s {
+	/* depth of the trie, length of depth vector in bytes */
+	size_t depth;
 
-
-/**
- * Read and return alerts from BUF (of size BSZ) in plain text form. */
-extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
+	/* reverse map char -> bit index */
+	rmap_t r;
 
-/**
- * Read and return alerts from BUF (of size BSZ) in compiled form. */
-extern alrtscc_t glod_rd_alrtscc(const char *buf, size_t bsz);
+	/* normal map bit-index -> char */
+	imap_t m;
 
-/**
- * Free an alerts object. */
-extern void glod_free_alrts(alrts_t);
+	/* indices of children first,
+	 * then the actual trie (at D + DEPTH) */
+	const amap_dpth_t d[];
+#define ALRTSCC_DPTZ	(sizeof(amap_dpth_t) / sizeof(amap_uint_t))
+#define ALRTSCC_TRIE(x)	((const amap_uint_t*)((x)->d + (x)->depth))
+};
 
-/**
- * Free a compiled alerts object. */
-extern void glod_free_alrtscc(alrtscc_t);
-
-/**
- * Compile an ALRTS_T to a ALRTSCC_T. */
-extern alrtscc_t glod_cc_alrts(alrts_t);
-
-#endif	/* INCLUDED_alrt_h_ */
+#endif	/* INCLUDED_alrt_private_h_ */

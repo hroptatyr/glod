@@ -53,6 +53,7 @@
 #include "nifty.h"
 #include "fops.h"
 #include "alrt.h"
+#include "alrt-private.h"
 
 typedef const amap_uint_t *node_t;
 
