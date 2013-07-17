@@ -105,6 +105,14 @@ glodcc_SOURCES += glodcc.ggo
 glodcc_LDADD = libglod.a
 BUILT_SOURCES += glodcc.x glodcc.xh
 
+noinst_PROGRAMS += wu-manber-guts
+wu_manber_guts_SOURCES = wu-manber-guts.c
+wu_manber_guts_SOURCES += glod-alert.ggo
+wu_manber_guts_CPPFLAGS = $(AM_CPPFLAGS)
+wu_manber_guts_CPPFLAGS += -DSTANDALONE
+wu_manber_guts_LDADD = libglod.a
+BUILT_SOURCES += glod-alert.x glod-alert.xh
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@

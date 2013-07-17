@@ -45,8 +45,9 @@
 #include <assert.h>
 #include "nifty.h"
 #include "fops.h"
-#include "alrt.h"
 #include "boobs.h"
+#include "alrt.h"
+#include "alrt-private.h"
 
 
 /* alerts level */

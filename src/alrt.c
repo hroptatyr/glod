@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "alrt.h"
+#include "alrt-private.h"
 #include "boobs.h"
 #include "nifty.h"
 
@@ -388,29 +389,29 @@ alrtscc_from_trie(trie_t tr, imap_t im, rmap_t rm)
 	struct alrtscc_s *res;
 	const size_t fix = sizeof(*res);
 	const size_t w = rm.z;
-	size_t var;
+	size_t triez;
 	size_t dpthz;
-	amap_uint_t *dpth;
+	size_t var;
+	amap_dpth_t *dpth;
 	amap_uint_t *trie;
 	amap_uint_t *tp;
+
+#define aligned(v, to)	((((v) - 1U + to * sizeof(v)) / to + 1U) * to)
 
 	/* we need tr->nlev bytes for the depth vector
 	 * plus at most a full-trie's children */
 	dpthz = tr->nlevs/*depth*/ + 1U;
-	var = w/*root*/ + w * (w * AMAP_UINT_BITZ) * tr->nlevs/*children*/;
-	res = malloc(fix + dpthz + var);
+	triez = w/*root*/ + w * (w * AMAP_UINT_BITZ) * tr->nlevs/*children*/;
+	var = dpthz * ALRTSCC_DPTZ + aligned(triez, ALRTSCC_DPTZ);
+	res = malloc(fix + var);
 
 	/* thorough rinse */
 	res->depth = dpthz;
 	res->r = rm;
 	res->m = im;
 	dpth = deconst(res->d + 0U);
-	memset(dpth, 0, dpthz + var);
-	trie = dpth + dpthz;
-
-	/* bang root node, we also always start out at offset 1 in depth */
-	memcpy(tp = trie, tr->levs[0U], w * AMAP_UINT_BITZ);
-	dpth[0] = 1U;
+	memset(dpth, 0, var);
+	trie = deconst(ALRTSCC_TRIE(res));
 
 	static inline void
 	bang_chld(
@@ -418,7 +419,7 @@ alrtscc_from_trie(trie_t tr, imap_t im, rmap_t rm)
 		const amap_uint_t *restrict rp,
 		const amap_uint_t src[static 1], size_t z)
 	{
-		for (size_t i = 0U, j = 0U; i < z; i++) {
+		for (size_t i = 0U, j; i < z; i++) {
 			amap_uint_t v = *rp++;
 
 			if ((i % w) == 0U) {
@@ -434,14 +435,17 @@ alrtscc_from_trie(trie_t tr, imap_t im, rmap_t rm)
 		return;
 	}
 
+	/* bang root node, we also always start out at offset 1 in depth */
+	memcpy(tp = trie, tr->levs[0U], w * AMAP_UINT_BITZ);
+	dpth[0] = 1U;
+
 	/* traverse the trie */
 	for (size_t i = 1; i <= tr->nlevs; i++) {
 		size_t prev_w = dpth[i - 1] * w;
-		amap_uint_t *prev_tp = tp;
 
-		dpth[i] = (amap_uint_t)uint_popcnt(tp, prev_w);
+		dpth[i] = (amap_dpth_t)uint_popcnt(tp, prev_w);
+		bang_chld(tp + prev_w, tp, tr->levs[i], prev_w);
 		tp += prev_w;
-		bang_chld(tp, prev_tp, tr->levs[i], prev_w);
 	}
 	return res;
 }
@@ -553,7 +557,12 @@ glod_rd_alrts(const char *buf, size_t bsz)
 
 	static alrt_word_t clone_cch(struct cch_s *c)
 	{
-		return (alrt_word_t){.z = c->bi - c->bb, .w = c->buf + c->bb};
+		return (alrt_word_t){
+			.z = c->bi - c->bb,
+			/* this one will be fixed up later on, we use the
+			 * offset here to allow for realloc()s on the way */
+			.w = (const void*)(intptr_t)c->bb
+		};
 	}
 
 	static struct alrts_s*
@@ -562,6 +571,7 @@ glod_rd_alrts(const char *buf, size_t bsz)
 		if (UNLIKELY(c == NULL)) {
 			size_t iniz = 16U * sizeof(*c->alrt);
 			c = malloc(iniz);
+			c->nalrt = 0U;
 		} else if (UNLIKELY(!(c->nalrt % 16U))) {
 			size_t nu = (c->nalrt + 16U) * sizeof(*c->alrt);
 			c = realloc(c, nu);
@@ -619,6 +629,15 @@ glod_rd_alrts(const char *buf, size_t bsz)
 			/* keep going */
 			break;
 		}
+	}
+
+	/* fixup word and yield buffers */
+	for (size_t i = 0; i < res->nalrt; i++) {
+		idx_t woffs = (idx_t)(intptr_t)res->alrt[i].w.w;
+		idx_t yoffs = (idx_t)(intptr_t)res->alrt[i].y.w;
+
+		res->alrt[i].w.w = w->buf + woffs;
+		res->alrt[i].y.w = y->buf + yoffs;
 	}
 	return res;
 }
