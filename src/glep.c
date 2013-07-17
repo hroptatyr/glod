@@ -289,9 +289,21 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return -1;
 	}
-	/* magic happens here, rinse ms, then grep, then print */
+	/* magic happens here, rinse ms, ... */
 	glep_mset_rset(ms);
+	/* ... then grep, ... */
 	glep_gr(ms, pf, f.fb.d, f.fb.z);
+	/* ... then print all matches */
+	for (size_t i = 0U, bix; i <= ms->nms / MSET_MOD; i++) {
+		bix = i * MSET_MOD;
+		for (uint_fast32_t b = ms->ms[i]; b; b >>= 1U, bix++) {
+			if (b & 1U) {
+				fputs(pf->pats[bix].s, stdout);
+				putchar('\t');
+				puts(fn);
+			}
+		}
+	}
 
 	(void)munmap_fn(f);
 	return 0;
