@@ -48,7 +48,7 @@
 #include "alrt.h"
 
 /* hash type */
-typedef uint_fast16_t hx_t;
+typedef uint_fast32_t hx_t;
 /* index type */
 typedef uint_fast8_t ix_t;
 
@@ -60,7 +60,7 @@ struct alrtscc_s {
 	ix_t SHIFT[TBLZ];
 	hx_t HASH[TBLZ];
 	hx_t PREFIX[TBLZ];
-	const char *PATPTR[TBLZ];
+	alrt_pat_t PATPTR[TBLZ];
 };
 
 
@@ -89,8 +89,79 @@ xcmp(const char *s1, const unsigned char *s2)
 #endif	/* __INTEL_COMPILER */
 
 
-static int
-glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
+/* alrt.h api */
+alrtscc_t
+glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
+{
+	static const alrt_pat_t pats[] = {{{0}, "DEAG"}, {{0}, "STELLA"}};
+	static struct alrtscc_s mock = {
+		.B = 3U,
+		.m = 4U,	/* min("DEAG", "STELLA") */
+	};
+
+	/* prep SHIFT table */
+	for (size_t i = 0; i < countof(mock.SHIFT); i++) {
+		mock.SHIFT[i] = (ix_t)(mock.m - mock.B + 1U);
+	}
+
+	/* suffix handling */
+	for (size_t i = 0; i < countof(pats); i++) {
+		const char *pat = pats[i].s;
+
+		for (size_t j = mock.m; j >= mock.B; j--) {
+			ix_t d = (mock.m - j);
+			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
+
+			if (mock.B == 3U) {
+				h <<= 5U;
+				h += pat[j - 3];
+				h &= (TBLZ - 1);
+			}
+			if (UNLIKELY(d == 0U)) {
+				/* also set up the HASH table */
+				mock.HASH[h]++;
+				mock.SHIFT[h] = 0U;
+			} else if (d < mock.SHIFT[h]) {
+				mock.SHIFT[h] = d;
+			}
+		}
+	}
+
+	/* finalise (integrate) the HASH table */
+	for (size_t i = 1; i < countof(mock.HASH); i++) {
+		mock.HASH[i] += mock.HASH[i - 1];
+	}
+	mock.HASH[0] = 0U;
+
+	/* prefix handling */
+	for (size_t i = 0; i < countof(pats); i++) {
+		const char *pat = pats[i].s;
+		hx_t p = pat[1U] + (pat[0U] << 8U);
+		hx_t h = pat[mock.m - 2] + (pat[mock.m - 1] << 5U);
+		ix_t H;
+
+		if (mock.B == 3U) {
+			h <<= 5U;
+			h += pat[mock.m - 3];
+			h &= (TBLZ - 1);
+		}
+		H = --mock.HASH[h];
+		mock.PATPTR[H] = pats[i];
+		mock.PREFIX[H] = p;
+	}
+	return &mock;
+}
+
+/**
+ * Free a compiled alerts object. */
+void
+glod_free_alrtscc(alrtscc_t UNUSED(cc))
+{
+	return;
+}
+
+int
+glod_gr_alrtscc(mset_t ms, alrtscc_t c, const char *buf, size_t bsz)
 {
 	const unsigned char *bp = (const unsigned char*)buf;
 	const unsigned char *const sp = bp;
@@ -136,17 +207,16 @@ glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
 			const hx_t prfx = hash_prfx();
 			const int offs = c->m - 1;
 
-			printf("CAND  %u\n", prfx);
-
 			/* loop through all patterns that hash to H */
 			for (hx_t p = pbeg; p < pend; p++) {
-				if (prfx != c->PREFIX[p]) {
-					continue;
-				}
-				/* otherwise check the word */
-				if (!xcmp(c->PATPTR[p], bp - offs)) {
-					/* MATCH */
-					printf("YAY %s\n", c->PATPTR[p]);
+				if (prfx == c->PREFIX[p]) {
+					alrt_pat_t pat = c->PATPTR[p];
+
+					/* otherwise check the word */
+					if (!xcmp(pat.s, bp - offs)) {
+						/* MATCH */
+						printf("YAY %s\n", pat.s);
+					}
 				}
 			}
 			sh = 1U;
@@ -156,93 +226,6 @@ glod_gr_alrtscc(alrtscc_t c, const char *buf, size_t bsz)
 		bp += sh;
 	}
 	return 0;
-}
-
-
-/* alrt.h api */
-alrtscc_t
-glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
-{
-	static const char *pats[] = {"DEAG", "STELLA"};
-	static struct alrtscc_s mock = {
-		.B = 3U,
-		.m = 4U,	/* min("DEAG", "STELLA") */
-	};
-
-	/* prep SHIFT table */
-	for (size_t i = 0; i < countof(mock.SHIFT); i++) {
-		mock.SHIFT[i] = (ix_t)(mock.m - mock.B + 1U);
-	}
-
-	/* suffix handling */
-	for (size_t i = 0; i < countof(pats); i++) {
-		const char *pat = pats[i];
-
-		for (size_t j = mock.m; j >= mock.B; j--) {
-			ix_t d = (mock.m - j);
-			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
-
-			if (mock.B == 3U) {
-				h <<= 5U;
-				h += pat[j - 3];
-				h &= (TBLZ - 1);
-			}
-			if (UNLIKELY(d == 0U)) {
-				/* also set up the HASH table */
-				mock.HASH[h]++;
-				mock.SHIFT[h] = 0U;
-			} else if (d < mock.SHIFT[h]) {
-				mock.SHIFT[h] = d;
-			}
-		}
-	}
-
-	/* finalise (integrate) the HASH table */
-	for (size_t i = 1; i < countof(mock.HASH); i++) {
-		mock.HASH[i] += mock.HASH[i - 1];
-	}
-	mock.HASH[0] = 0U;
-
-	/* prefix handling */
-	for (size_t i = 0; i < countof(pats); i++) {
-		const char *pat = pats[i];
-		hx_t p = pat[1U] + (pat[0U] << 8U);
-		hx_t h = pat[mock.m - 2] + (pat[mock.m - 1] << 5U);
-		ix_t H;
-
-		if (mock.B == 3U) {
-			h <<= 5U;
-			h += pat[mock.m - 3];
-			h &= (TBLZ - 1);
-		}
-		H = --mock.HASH[h];
-		mock.PATPTR[H] = pat;
-		mock.PREFIX[H] = p;
-	}
-
-	for (size_t i = 0; i < countof(mock.SHIFT); i++) {
-		ix_t sh = mock.SHIFT[i];
-
-		if (sh < mock.m - mock.B + 1U) {
-			printf("SHIFT[%zu] = %u", i, (unsigned)sh);
-
-			if (sh == 0U) {
-				hx_t h = mock.HASH[i];
-				printf("  PREFIX %u  PATPTR %s",
-				       mock.PREFIX[h], mock.PATPTR[h]);
-			}
-			putchar('\n');
-		}
-	}
-	return &mock;
-}
-
-/**
- * Free a compiled alerts object. */
-void
-glod_free_alrtscc(alrtscc_t UNUSED(cc))
-{
-	return;
 }
 
 
@@ -295,7 +278,7 @@ grep1(alrtscc_t af, const char *fn)
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return -1;
 	}
-	glod_gr_alrtscc(af, f.fb.d, f.fb.z);
+	glod_gr_alrtscc((mset_t){}, af, f.fb.d, f.fb.z);
 
 	(void)munmap_fn(f);
 	return 0;
