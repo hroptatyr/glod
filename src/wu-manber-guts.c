@@ -40,11 +40,8 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include "nifty.h"
-#include "fops.h"
 #include "alrt.h"
 
 /* hash type */
@@ -227,100 +224,5 @@ glod_gr_alrtscc(mset_t ms, alrtscc_t c, const char *buf, size_t bsz)
 	}
 	return 0;
 }
-
-
-#if defined STANDALONE
-/* standalone stuff */
-static void
-__attribute__((format(printf, 1, 2)))
-error(const char *fmt, ...)
-{
-	va_list vap;
-	va_start(vap, fmt);
-	vfprintf(stderr, fmt, vap);
-	va_end(vap);
-	if (errno) {
-		fputc(':', stderr);
-		fputc(' ', stderr);
-		fputs(strerror(errno), stderr);
-	}
-	fputc('\n', stderr);
-	return;
-}
-
-static alrtscc_t
-rd1(const char *fn)
-{
-	glodfn_t f;
-	alrtscc_t res = NULL;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		goto out;
-	} else if (UNLIKELY((res = glod_rd_alrtscc(f.fb.d, f.fb.z)) == NULL)) {
-		goto out;
-	}
-	/* magic happens here */
-	;
-
-out:
-	/* and out are we */
-	(void)munmap_fn(f);
-	return res;
-}
-
-static int
-grep1(alrtscc_t af, const char *fn)
-{
-	glodfn_t f;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		return -1;
-	}
-	glod_gr_alrtscc((mset_t){}, af, f.fb.d, f.fb.z);
-
-	(void)munmap_fn(f);
-	return 0;
-}
-
-
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "glod-alert.xh"
-#include "glod-alert.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
-
-int
-main(int argc, char *argv[])
-{
-	struct glod_args_info argi[1];
-	alrtscc_t af;
-	int rc = 0;
-
-	if (glod_parser(argc, argv, argi)) {
-		rc = 1;
-		goto out;
-	} else if ((af = rd1(argi->alert_file_arg)) == NULL) {
-		error("Error: cannot read compiled alert file `%s'",
-		      argi->alert_file_arg);
-		goto out;
-	}
-
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		grep1(af, argi->inputs[i]);
-	}
-
-	glod_free_alrtscc(af);
-out:
-	glod_parser_free(argi);
-	return rc;
-}
-#endif	/* STANDALONE */
 
 /* wu-manber-guts.c ends here */
