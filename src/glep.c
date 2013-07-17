@@ -43,6 +43,7 @@
 #include "boobs.h"
 #include "nifty.h"
 
+/* lib stuff */
 typedef size_t idx_t;
 typedef struct word_s word_t;
 
@@ -52,6 +53,7 @@ struct word_s {
 };
 
 
+#if !defined STANDALONE
 /* word level */
 static unsigned int
 snarf_ww(const char *left, const char *right)
@@ -195,8 +197,6 @@ glod_rd_gleps(const char *buf, size_t bsz)
 			}
 			break;
 		case '\n':
-			/* emit an alert */
-			puts("got him");
 			/* switch back to W mode */
 			ctx = CTX_W;
 			break;
@@ -232,5 +232,117 @@ glod_fr_gleps(gleps_t g)
 	free(pg);
 	return;
 }
+
+int
+glod_gr_gleps(glep_mset_t ms, gleps_t c, const char *buf, size_t bsz)
+{
+	return 0;
+}
+#endif	/* !STANDALONE */
+
+
+#if defined STANDALONE
+#include <stdarg.h>
+#include <stdio.h>
+#include <errno.h>
+#include "fops.h"
+
+static void
+__attribute__((format(printf, 1, 2)))
+error(const char *fmt, ...)
+{
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	if (errno) {
+		fputc(':', stderr);
+		fputc(' ', stderr);
+		fputs(strerror(errno), stderr);
+	}
+	fputc('\n', stderr);
+	return;
+}
+
+static gleps_t
+rd1(const char *fn)
+{
+	glodfn_t f;
+	gleps_t res = NULL;
+
+	/* map the file FN and snarf the alerts */
+	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
+		goto out;
+	} else if (UNLIKELY((res = glod_rd_gleps(f.fb.d, f.fb.z)) == NULL)) {
+		goto out;
+	}
+	/* magic happens here */
+	;
+
+out:
+	/* and out are we */
+	(void)munmap_fn(f);
+	return res;
+}
+
+static int
+gr1(gleps_t pf, const char *fn)
+{
+	glodfn_t f;
+
+	/* map the file FN and snarf the alerts */
+	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
+		return -1;
+	}
+	/* magic happens here */
+	glod_gr_gleps((glep_mset_t){}, pf, f.fb.d, f.fb.z);
+
+	printf("got %zu pats\n", pf->npats);
+	for (size_t i = 0; i < pf->npats; i++) {
+		puts(pf->pats[i].s);
+	}
+
+	(void)munmap_fn(f);
+	return 0;
+}
+
+
+#if defined __INTEL_COMPILER
+# pragma warning (disable:593)
+# pragma warning (disable:181)
+#endif	/* __INTEL_COMPILER */
+#include "glep.xh"
+#include "glep.x"
+#if defined __INTEL_COMPILER
+# pragma warning (default:593)
+# pragma warning (default:181)
+#endif	/* __INTEL_COMPILER */
+
+int
+main(int argc, char *argv[])
+{
+	struct glod_args_info argi[1];
+	gleps_t pf;
+	int rc = 0;
+
+	if (glod_parser(argc, argv, argi)) {
+		rc = 1;
+		goto out;
+	} else if ((pf = rd1(argi->pattern_file_arg)) == NULL) {
+		error("Error: cannot read pattern file `%s'",
+		      argi->pattern_file_arg);
+		goto out;
+	}
+
+	for (unsigned int i = 0; i < argi->inputs_num; i++) {
+		gr1(pf, argi->inputs[i]);
+	}
+
+	glod_fr_gleps(pf);
+out:
+	glod_parser_free(argi);
+	return rc;
+}
+#endif	/* STANDALONE */
 
 /* glep.c ends here */

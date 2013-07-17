@@ -106,6 +106,14 @@ glodcc_SOURCES += glodcc.ggo
 glodcc_LDADD = libglod.a
 BUILT_SOURCES += glodcc.x glodcc.xh
 
+bin_PROGRAMS += glep
+glep_SOURCES = glep.c
+glep_SOURCES += glep.ggo
+glep_CPPFLAGS = $(AM_CPPFLAGS)
+glep_CPPFLAGS += -DSTANDALONE
+glep_LDADD = libglod.a
+BUILT_SOURCES += glep.x glep.xh
+
 noinst_PROGRAMS += wu-manber-guts
 wu_manber_guts_SOURCES = wu-manber-guts.c
 wu_manber_guts_SOURCES += glod-alert.ggo
