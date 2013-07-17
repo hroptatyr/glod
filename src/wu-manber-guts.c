@@ -39,6 +39,7 @@
 #endif	/* HAVE_CONFIG_H */
 #include <unistd.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include "nifty.h"
@@ -52,8 +53,8 @@ typedef uint_fast8_t ix_t;
 #define TBLZ	(32768U)
 
 struct glepcc_s {
-	const unsigned int B;
-	const unsigned int m;
+	unsigned int B;
+	unsigned int m;
 	ix_t SHIFT[TBLZ];
 	hx_t HASH[TBLZ];
 	hx_t PREFIX[TBLZ];
@@ -85,79 +86,118 @@ xcmp(const char *s1, const unsigned char *s2)
 # pragma warning (default:593)
 #endif	/* __INTEL_COMPILER */
 
+static size_t
+find_m(gleps_t g)
+{
+	size_t res;
+
+	if (UNLIKELY(g->npats == 0U)) {
+		return 0U;
+	}
+
+	/* otherwise initialise RES to length of first pattern */
+	res = strlen(g->pats->s);
+	for (size_t i = 1; i < g->npats; i++) {
+		glep_pat_t p = g->pats[i];
+		size_t z = strlen(p.s);
+
+		if (z < res) {
+			res = z;
+		}
+	}
+	return res;
+}
+
+static size_t
+find_B(gleps_t g, size_t m)
+{
+	/* just use agrep's heuristics */
+	if (g->npats >= 400U && m > 2) {
+		return 3U;
+	}
+	return 2U;
+}
+
 
 /* glep.h engine api */
 int
-glep_cc(gleps_t c)
+glep_cc(gleps_t g)
 {
-	static const glep_pat_t pats[] = {{{0}, "DEAG"}, {{0}, "STELLA"}};
-	static struct glepcc_s mock = {
-		.B = 3U,
-		.m = 4U,	/* min("DEAG", "STELLA") */
-	};
-	struct gleps_s *pc = deconst(c);
+	struct glepcc_s *res;
+
+	/* get us some memory to chew on */
+	res = calloc(1, sizeof(*res));
+	res->m = find_m(g);
+	res->B = find_B(g, res->m);
 
 	/* prep SHIFT table */
-	for (size_t i = 0; i < countof(mock.SHIFT); i++) {
-		mock.SHIFT[i] = (ix_t)(mock.m - mock.B + 1U);
+	for (size_t i = 0; i < countof(res->SHIFT); i++) {
+		res->SHIFT[i] = (ix_t)(res->m - res->B + 1U);
 	}
 
 	/* suffix handling */
-	for (size_t i = 0; i < countof(pats); i++) {
-		const char *pat = pats[i].s;
+	for (size_t i = 0; i < g->npats; i++) {
+		const char *pat = g->pats[i].s;
 
-		for (size_t j = mock.m; j >= mock.B; j--) {
-			ix_t d = (mock.m - j);
+		for (size_t j = res->m; j >= res->B; j--) {
+			ix_t d = (res->m - j);
 			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
 
-			if (mock.B == 3U) {
+			if (res->B == 3U) {
 				h <<= 5U;
 				h += pat[j - 3];
 				h &= (TBLZ - 1);
 			}
 			if (UNLIKELY(d == 0U)) {
 				/* also set up the HASH table */
-				mock.HASH[h]++;
-				mock.SHIFT[h] = 0U;
-			} else if (d < mock.SHIFT[h]) {
-				mock.SHIFT[h] = d;
+				res->HASH[h]++;
+				res->SHIFT[h] = 0U;
+			} else if (d < res->SHIFT[h]) {
+				res->SHIFT[h] = d;
 			}
 		}
 	}
 
 	/* finalise (integrate) the HASH table */
-	for (size_t i = 1; i < countof(mock.HASH); i++) {
-		mock.HASH[i] += mock.HASH[i - 1];
+	for (size_t i = 1; i < countof(res->HASH); i++) {
+		res->HASH[i] += res->HASH[i - 1];
 	}
-	mock.HASH[0] = 0U;
+	res->HASH[0] = 0U;
 
 	/* prefix handling */
-	for (size_t i = 0; i < countof(pats); i++) {
-		const char *pat = pats[i].s;
+	for (size_t i = 0; i < g->npats; i++) {
+		const char *pat = g->pats[i].s;
 		hx_t p = pat[1U] + (pat[0U] << 8U);
-		hx_t h = pat[mock.m - 2] + (pat[mock.m - 1] << 5U);
+		hx_t h = pat[res->m - 2] + (pat[res->m - 1] << 5U);
 		ix_t H;
 
-		if (mock.B == 3U) {
+		if (res->B == 3U) {
 			h <<= 5U;
-			h += pat[mock.m - 3];
+			h += pat[res->m - 3];
 			h &= (TBLZ - 1);
 		}
-		H = --mock.HASH[h];
-		mock.PATPTR[H] = pats[i];
-		mock.PREFIX[H] = p;
+		H = --res->HASH[h];
+		res->PATPTR[H] = g->pats[i];
+		res->PREFIX[H] = p;
 	}
 
 	/* yay, bang the mock into the gleps object */
-	pc->ctx = &mock;
+	with (struct gleps_s *pg = deconst(g)) {
+		pg->ctx = res;
+	}
 	return 0;
 }
 
 /**
  * Free our context object. */
 void
-glep_fr(gleps_t UNUSED(cc))
+glep_fr(gleps_t g)
 {
+	if (LIKELY(g->ctx != NULL)) {
+		with (struct gleps_s *pg = deconst(g)) {
+			free(pg->ctx);
+		}
+	}
 	return;
 }
 
