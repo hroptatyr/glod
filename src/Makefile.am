@@ -75,6 +75,7 @@ libglod_a_SOURCES += gtype-str.h
 libglod_a_SOURCES += boobs.h
 libglod_a_SOURCES += codec.c codec.h
 libglod_a_SOURCES += alrt.c alrt.h
+libglod_a_SOURCES += glep.c glep.h
 libglod_a_SOURCES += version.c version.h
 
 bin_PROGRAMS += glod
