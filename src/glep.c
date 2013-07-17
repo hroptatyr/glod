@@ -233,12 +233,6 @@ glod_fr_gleps(gleps_t g)
 	free(pg);
 	return;
 }
-
-int
-glod_gr_gleps(glep_mset_t ms, gleps_t c, const char *buf, size_t bsz)
-{
-	return 0;
-}
 #endif	/* !STANDALONE */
 
 
@@ -296,7 +290,7 @@ gr1(gleps_t pf, const char *fn)
 		return -1;
 	}
 	/* magic happens here */
-	glod_gr_gleps((glep_mset_t){}, pf, f.fb.d, f.fb.z);
+	glep_gr((glep_mset_t){}, pf, f.fb.d, f.fb.z);
 
 	printf("got %zu pats\n", pf->npats);
 	for (size_t i = 0; i < pf->npats; i++) {
@@ -335,10 +329,18 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
+	/* compile the patterns */
+	if (UNLIKELY(glep_cc(pf) < 0)) {
+		goto fr_gl;
+	}
+
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
 		gr1(pf, argi->inputs[i]);
 	}
 
+	/* resource hand over */
+	glep_fr(pf);
+fr_gl:
 	glod_fr_gleps(pf);
 out:
 	glod_parser_free(argi);

@@ -42,7 +42,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "nifty.h"
-#include "alrt.h"
+#include "glep.h"
 
 /* hash type */
 typedef uint_fast32_t hx_t;
@@ -51,13 +51,13 @@ typedef uint_fast8_t ix_t;
 
 #define TBLZ	(32768U)
 
-struct alrtscc_s {
+struct glepcc_s {
 	const unsigned int B;
 	const unsigned int m;
 	ix_t SHIFT[TBLZ];
 	hx_t HASH[TBLZ];
 	hx_t PREFIX[TBLZ];
-	alrt_pat_t PATPTR[TBLZ];
+	glep_pat_t PATPTR[TBLZ];
 };
 
 
@@ -86,15 +86,16 @@ xcmp(const char *s1, const unsigned char *s2)
 #endif	/* __INTEL_COMPILER */
 
 
-/* alrt.h api */
-alrtscc_t
-glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
+/* glep.h engine api */
+int
+glep_cc(gleps_t c)
 {
-	static const alrt_pat_t pats[] = {{{0}, "DEAG"}, {{0}, "STELLA"}};
-	static struct alrtscc_s mock = {
+	static const glep_pat_t pats[] = {{{0}, "DEAG"}, {{0}, "STELLA"}};
+	static struct glepcc_s mock = {
 		.B = 3U,
 		.m = 4U,	/* min("DEAG", "STELLA") */
 	};
+	struct gleps_s *pc = deconst(c);
 
 	/* prep SHIFT table */
 	for (size_t i = 0; i < countof(mock.SHIFT); i++) {
@@ -146,23 +147,27 @@ glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
 		mock.PATPTR[H] = pats[i];
 		mock.PREFIX[H] = p;
 	}
-	return &mock;
+
+	/* yay, bang the mock into the gleps object */
+	pc->ctx = &mock;
+	return 0;
 }
 
 /**
- * Free a compiled alerts object. */
+ * Free our context object. */
 void
-glod_free_alrtscc(alrtscc_t UNUSED(cc))
+glep_fr(gleps_t UNUSED(cc))
 {
 	return;
 }
 
 int
-glod_gr_alrtscc(mset_t ms, alrtscc_t c, const char *buf, size_t bsz)
+glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 {
 	const unsigned char *bp = (const unsigned char*)buf;
 	const unsigned char *const sp = bp;
 	const unsigned char *const ep = bp + bsz;
+	const glepcc_t c = g->ctx;
 
 	while (bp < ep) {
 		ix_t sh;
@@ -207,7 +212,7 @@ glod_gr_alrtscc(mset_t ms, alrtscc_t c, const char *buf, size_t bsz)
 			/* loop through all patterns that hash to H */
 			for (hx_t p = pbeg; p < pend; p++) {
 				if (prfx == c->PREFIX[p]) {
-					alrt_pat_t pat = c->PATPTR[p];
+					glep_pat_t pat = c->PATPTR[p];
 
 					/* otherwise check the word */
 					if (!xcmp(pat.s, bp - offs)) {

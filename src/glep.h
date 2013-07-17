@@ -44,6 +44,8 @@ typedef const struct gleps_s *gleps_t;
 typedef struct glep_pat_s glep_pat_t;
 typedef struct glep_mset_s glep_mset_t;
 
+typedef struct glepcc_s *glepcc_t;
+
 struct glep_pat_s {
 	struct {
 		/* case insensitive? */
@@ -60,6 +62,9 @@ struct glep_pat_s {
 };
 
 struct gleps_s {
+	/* private portion implemented by glep engines */
+	glepcc_t ctx;
+
 	size_t npats;
 	glep_pat_t pats[];
 };
@@ -86,6 +91,10 @@ extern void glod_fr_gleps(gleps_t);
 
 /**
  * Return the number of matches of C in BUF of size BSZ. */
-extern int glod_gr_gleps(glep_mset_t, gleps_t c, const char *buf, size_t bsz);
+extern int glep_gr(glep_mset_t, gleps_t c, const char *buf, size_t bsz);
+
+/* to be implemented by engines */
+extern int glep_cc(gleps_t c);
+extern void glep_fr(gleps_t);
 
 #endif	/* INCLUDED_glep_h_ */
