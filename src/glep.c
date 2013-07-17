@@ -292,11 +292,6 @@ gr1(gleps_t pf, const char *fn)
 	/* magic happens here */
 	glep_gr((glep_mset_t){}, pf, f.fb.d, f.fb.z);
 
-	printf("got %zu pats\n", pf->npats);
-	for (size_t i = 0; i < pf->npats; i++) {
-		puts(pf->pats[i].s);
-	}
-
 	(void)munmap_fn(f);
 	return 0;
 }
