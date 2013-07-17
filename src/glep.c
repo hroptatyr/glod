@@ -281,7 +281,7 @@ out:
 }
 
 static int
-gr1(gleps_t pf, const char *fn)
+gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 {
 	glodfn_t f;
 
@@ -289,8 +289,9 @@ gr1(gleps_t pf, const char *fn)
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return -1;
 	}
-	/* magic happens here */
-	glep_gr((glep_mset_t){}, pf, f.fb.d, f.fb.z);
+	/* magic happens here, rinse ms, then grep, then print */
+	glep_mset_rset(ms);
+	glep_gr(ms, pf, f.fb.d, f.fb.z);
 
 	(void)munmap_fn(f);
 	return 0;
@@ -312,6 +313,7 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
+	glep_mset_t ms;
 	gleps_t pf;
 	int rc = 0;
 
@@ -329,12 +331,15 @@ main(int argc, char *argv[])
 		goto fr_gl;
 	}
 
+	/* get the mset */
+	ms = glep_make_mset(pf->npats);
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		gr1(pf, argi->inputs[i]);
+		gr1(pf, argi->inputs[i], ms);
 	}
 
 	/* resource hand over */
 	glep_fr(pf);
+	glep_free_mset(ms);
 fr_gl:
 	glod_fr_gleps(pf);
 out:

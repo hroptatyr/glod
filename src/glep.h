@@ -37,12 +37,14 @@
 #if !defined INCLUDED_glep_h_
 #define INCLUDED_glep_h_
 
+#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 typedef const struct gleps_s *gleps_t;
 typedef struct glep_pat_s glep_pat_t;
-typedef struct glep_mset_s glep_mset_t;
+typedef struct glep_mset_s *glep_mset_t;
 
 typedef struct glepcc_s *glepcc_t;
 
@@ -96,5 +98,47 @@ extern int glep_gr(glep_mset_t, gleps_t c, const char *buf, size_t bsz);
 /* to be implemented by engines */
 extern int glep_cc(gleps_t c);
 extern void glep_fr(gleps_t);
+
+
+/* mset fiddling */
+#define MSET_MOD	(sizeof(uint_fast32_t) * 8U/*CHAR_BIT*/)
+
+static inline glep_mset_t
+glep_make_mset(size_t nbits)
+{
+	glep_mset_t res;
+	size_t nby = (nbits / MSET_MOD + 1U) * sizeof(*res->ms);
+
+	res = malloc(sizeof(*res) + nby);
+	res->nms = nbits;
+	return res;
+}
+
+static inline void
+glep_free_mset(glep_mset_t ms)
+{
+	free(ms);
+	return;
+}
+
+static inline void
+glep_mset_rset(glep_mset_t ms)
+{
+	memset(ms->ms, 0, ms->nms / MSET_MOD + 1U);
+	return;
+}
+
+static inline void
+glep_mset_set(glep_mset_t ms, size_t i)
+{
+	static const size_t mod = sizeof(uint_fast32_t) * 8U/*CHAR_BIT*/;
+	unsigned int d;
+	unsigned int r;
+
+	d = i / mod;
+	r = i % mod;
+	ms->ms[d] |= 1 << r;
+	return;
+}
 
 #endif	/* INCLUDED_glep_h_ */

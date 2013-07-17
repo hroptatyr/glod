@@ -58,7 +58,7 @@ struct glepcc_s {
 	ix_t SHIFT[TBLZ];
 	hx_t HASH[TBLZ];
 	hx_t PREFIX[TBLZ];
-	glep_pat_t PATPTR[TBLZ];
+	hx_t PATPTR[TBLZ];
 };
 
 
@@ -67,19 +67,20 @@ struct glepcc_s {
 # pragma warning (disable:981)
 #endif	/* __INTEL_COMPILER */
 
-static int
+static size_t
 xcmp(const char *s1, const unsigned char *s2)
 {
-/* like strcmp() but don't barf if S1 ends permaturely */
-	register const unsigned char *p1 = (const unsigned char*)s1;
-	register const unsigned char *p2 = (const unsigned char*)s2;
+/* compare S1 to S2, allowing S1 to end prematurely,
+ * return S1's length if strings are equal and 0 otherwise. */
+	register const char *p1 = s1;
+	register const unsigned char *p2 = s2;
 
 	do {
-		if (!*p1) {
-			return 0U;
+		if (UNLIKELY(!*p1)) {
+			return p1 - s1;
 		}
 	} while (*p1++ == *p2++);
-	return *p1 - *p2;
+	return 0U;
 }
 
 #if defined __INTEL_COMPILER
@@ -177,7 +178,7 @@ glep_cc(gleps_t g)
 			h &= (TBLZ - 1);
 		}
 		H = --res->HASH[h];
-		res->PATPTR[H] = g->pats[i];
+		res->PATPTR[H] = i;
 		res->PREFIX[H] = p;
 	}
 
@@ -209,58 +210,69 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	const unsigned char *const ep = bp + bsz;
 	const glepcc_t c = g->ctx;
 
+	static inline hx_t hash(const unsigned char *bp)
+	{
+		static const unsigned int Hbits = 5U;
+		hx_t res = bp[0] << Hbits;
+
+		if (LIKELY(c->B > 2U && bp > sp + 1U)) {
+			res += bp[-1];
+			res <<= Hbits;
+			res += bp[-2];
+			res &= (TBLZ - 1);
+		} else if (LIKELY(bp > sp)) {
+			res += bp[-1];
+		}
+		return res;
+	}
+
+	static inline hx_t hash_prfx(const unsigned char *bp)
+	{
+		static const unsigned int Pbits = 8U;
+		const int offs = 1 - c->m;
+		hx_t res = 0U;
+
+		if (LIKELY(bp + offs >= sp)) {
+			res = bp[offs + 0] << Pbits;
+			res += bp[offs + 1];
+		}
+		return res;
+	}
+
+	static inline ix_t match_prfx(const unsigned char *bp, hx_t h)
+	{
+		const hx_t pbeg = c->HASH[h + 0U];
+		const hx_t pend = c->HASH[h + 1U];
+		const hx_t prfx = hash_prfx(bp);
+		const int offs = c->m - 1;
+
+		/* loop through all patterns that hash to H */
+		for (hx_t pi = pbeg; pi < pend; pi++) {
+			if (prfx == c->PREFIX[pi]) {
+				glep_pat_t p = g->pats[pi];
+				size_t l;
+
+				/* check the word */
+				if ((l = xcmp(p.s, bp - offs))) {
+					/* MATCH */
+					glep_mset_set(ms, pi);
+					return l;
+				}
+			}
+		}
+		return 0U;
+	}
+
 	while (bp < ep) {
 		ix_t sh;
 		hx_t h;
 
-		static inline hx_t hash(void)
-		{
-			static const unsigned int Hbits = 5U;
-			hx_t res = bp[0] << Hbits;
-
-			if (LIKELY(c->B > 2U && bp > sp + 1U)) {
-				res += bp[-1];
-				res <<= Hbits;
-				res += bp[-2];
-				res &= (TBLZ - 1);
-			} else if (LIKELY(bp > sp)) {
-				res += bp[-1];
-			}
-			return res;
-		}
-
-		static inline hx_t hash_prfx(void)
-		{
-			static const unsigned int Pbits = 8U;
-			const int offs = 1 - c->m;
-			hx_t res = 0U;
-
-			if (LIKELY(bp + offs >= sp)) {
-				res = bp[offs + 0] << Pbits;
-				res += bp[offs + 1];
-			}
-			return res;
-		}
-
-		h = hash();
-		if ((sh = c->SHIFT[h]) == 0U) {
-			const hx_t pbeg = c->HASH[h + 0U];
-			const hx_t pend = c->HASH[h + 1U];
-			const hx_t prfx = hash_prfx();
-			const int offs = c->m - 1;
-
-			/* loop through all patterns that hash to H */
-			for (hx_t p = pbeg; p < pend; p++) {
-				if (prfx == c->PREFIX[p]) {
-					glep_pat_t pat = c->PATPTR[p];
-
-					/* otherwise check the word */
-					if (!xcmp(pat.s, bp - offs)) {
-						/* MATCH */
-						printf("YAY %s\n", pat.s);
-					}
-				}
-			}
+		h = hash(bp);
+		if ((sh = c->SHIFT[h])) {
+			;
+		} else if ((sh = match_prfx(bp, h))) {
+			;
+		} else {
 			sh = 1U;
 		}
 
