@@ -119,6 +119,27 @@ find_B(gleps_t g, size_t m)
 	return 2U;
 }
 
+static inline hx_t
+sufh(glepcc_t ctx, const unsigned char cp[static 1])
+{
+/* suffix hashing */
+	hx_t res = (cp[-1] << 5U) + *cp;
+
+	if (ctx->B == 3U) {
+		res <<= 5U;
+		res += cp[-2];
+	}
+	return res & (TBLZ - 1);
+}
+
+static inline hx_t
+prfh(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
+{
+/* prefix hashing */
+	hx_t res = (cp[0U] << 8U) + (cp[1U] << 0U);
+	return res;
+}
+
 
 /* glep.h engine api */
 int
@@ -138,17 +159,12 @@ glep_cc(gleps_t g)
 
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		const char *pat = g->pats[i].s;
+		const unsigned char *pat = (const unsigned char*)g->pats[i].s;
 
 		for (size_t j = res->m; j >= res->B; j--) {
 			ix_t d = (res->m - j);
-			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
+			hx_t h = sufh(res, pat + j - 1);
 
-			if (res->B == 3U) {
-				h <<= 5U;
-				h += pat[j - 3];
-				h &= (TBLZ - 1);
-			}
 			if (UNLIKELY(d == 0U)) {
 				/* also set up the HASH table */
 				res->HASH[h]++;
@@ -167,16 +183,11 @@ glep_cc(gleps_t g)
 
 	/* prefix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		const char *pat = g->pats[i].s;
-		hx_t p = pat[1U] + (pat[0U] << 8U);
-		hx_t h = pat[res->m - 2] + (pat[res->m - 1] << 5U);
+		const unsigned char *pat = (const unsigned char*)g->pats[i].s;
+		hx_t p = prfh(res, pat);
+		hx_t h = sufh(res, pat + res->m - 1);
 		hx_t H;
 
-		if (res->B == 3U) {
-			h <<= 5U;
-			h += pat[res->m - 3];
-			h &= (TBLZ - 1);
-		}
 		H = --res->HASH[h];
 		res->PATPTR[H] = i;
 		res->PREFIX[H] = p;
@@ -205,45 +216,25 @@ glep_fr(gleps_t g)
 int
 glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 {
-	const unsigned char *bp = (const unsigned char*)buf;
-	const unsigned char *const sp = bp;
-	const unsigned char *const ep = bp + bsz;
 	const glepcc_t c = g->ctx;
+	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
+	const unsigned char *const ep = bp + bsz;
 
-	static inline hx_t hash(const unsigned char *bp)
+	static inline hx_t hash_suf(const unsigned char *bp)
 	{
-		static const unsigned int Hbits = 5U;
-		hx_t res = bp[0] << Hbits;
-
-		if (LIKELY(c->B > 2U && bp > sp + 1U)) {
-			res += bp[-1];
-			res <<= Hbits;
-			res += bp[-2];
-			res &= (TBLZ - 1);
-		} else if (LIKELY(bp > sp)) {
-			res += bp[-1];
-		}
-		return res;
+		return sufh(c, bp);
 	}
 
-	static inline hx_t hash_prfx(const unsigned char *bp)
+	static inline hx_t hash_prf(const unsigned char *bp)
 	{
-		static const unsigned int Pbits = 8U;
-		const int offs = 1 - c->m;
-		hx_t res = 0U;
-
-		if (LIKELY(bp + offs >= sp)) {
-			res = bp[offs + 0] << Pbits;
-			res += bp[offs + 1];
-		}
-		return res;
+		return prfh(c, bp - c->m + 1);
 	}
 
 	static inline ix_t match_prfx(const unsigned char *bp, hx_t h)
 	{
 		const hx_t pbeg = c->HASH[h + 0U];
 		const hx_t pend = c->HASH[h + 1U];
-		const hx_t prfx = hash_prfx(bp);
+		const hx_t prfx = hash_prf(bp);
 		const int offs = c->m - 1;
 
 		/* loop through all patterns that hash to H */
@@ -268,7 +259,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		ix_t sh;
 		hx_t h;
 
-		h = hash(bp);
+		h = hash_suf(bp);
 		if ((sh = c->SHIFT[h])) {
 			;
 		} else if ((sh = match_prfx(bp, h))) {
