@@ -129,7 +129,7 @@ glep_mset_rset(glep_mset_t ms)
 }
 
 static inline void
-glep_mset_set(glep_mset_t ms, size_t i)
+glep_mset_set(glep_mset_t ms, unsigned int i)
 {
 	static const size_t mod = sizeof(uint_fast32_t) * 8U/*CHAR_BIT*/;
 	unsigned int d;
@@ -137,7 +137,7 @@ glep_mset_set(glep_mset_t ms, size_t i)
 
 	d = i / mod;
 	r = i % mod;
-	ms->ms[d] |= 1 << r;
+	ms->ms[d] |= (uint_fast32_t)1U << r;
 	return;
 }
 
