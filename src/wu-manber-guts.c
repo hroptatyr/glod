@@ -170,7 +170,7 @@ glep_cc(gleps_t g)
 		const char *pat = g->pats[i].s;
 		hx_t p = pat[1U] + (pat[0U] << 8U);
 		hx_t h = pat[res->m - 2] + (pat[res->m - 1] << 5U);
-		ix_t H;
+		hx_t H;
 
 		if (res->B == 3U) {
 			h <<= 5U;
