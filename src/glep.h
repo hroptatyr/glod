@@ -53,12 +53,8 @@ struct glep_pat_s {
 		/* case insensitive? */
 		unsigned int ci:1;
 		/* whole word match or just prefix, suffix */
-		enum {
-			PAT_WW_NONE,
-			PAT_WW_LEFT,
-				PAT_WW_RIGHT,
-			PAT_WW_BOTH,
-		} ww:2;
+		unsigned int left:1;
+		unsigned int right:1;
 	} fl/*ags*/;
 	const char *s;
 };

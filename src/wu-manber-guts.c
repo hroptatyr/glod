@@ -337,38 +337,28 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	}
 
 	static bool
-	ww_match_p(unsigned int wwpol, const unsigned char *const sp, size_t z)
+	ww_match_p(glep_pat_t pat, const unsigned char *const sp, size_t z)
 	{
 		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
-		switch (wwpol) {
-		case PAT_WW_NONE:
-			/* check both left and right */
-		case PAT_WW_LEFT:
+		if (UNLIKELY(pat.fl.left && pat.fl.right)) {
+			/* we're looking at *foo*, trivial match */
+			return true;
+		}
+		if (!pat.fl.right) {
 			/* we're looking at *foo, so check the right side */
 			if (UNLIKELY(sp + z >= ep)) {
 				return true;
 			} else if (!xalnump(sp[z])) {
 				return true;
-			} else if (wwpol) {
-				/* not NONE */
-				break;
 			}
-		case PAT_WW_RIGHT:
+		}
+		if (!pat.fl.left) {
 			/* we're looking at foo*, so check the left side */
 			if (UNLIKELY(sp == (const unsigned char*)buf)) {
 				return true;
 			} else if (!xalnump(sp[-1])) {
 				return true;
-			} else if (wwpol) {
-				/* not NONE */
-				break;
 			}
-		default:
-			break;
-
-		case PAT_WW_BOTH:
-			/* *foo* will always match */
-			return true;
 		}
 		return false;
 	}
@@ -391,11 +381,11 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					return l;
 				} else if (pat.fl.ci &&
 					   (l = xicmp(pat.s, sp)) &&
-					   ww_match_p(pat.fl.ww, sp, l)) {
+					   ww_match_p(pat, sp, l)) {
 					goto match;
 				} else if (!pat.fl.ci &&
 					   (l = xcmp(pat.s, sp)) &&
-					   ww_match_p(pat.fl.ww, sp, l)) {
+					   ww_match_p(pat, sp, l)) {
 					goto match;
 				}
 			}

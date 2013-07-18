@@ -55,14 +55,6 @@ struct word_s {
 
 #if !defined STANDALONE
 /* word level */
-static unsigned int
-snarf_ww(const char *left, const char *right)
-{
-/* check for whole word match or left/right open matching */
-	return (right[0] == '*' && right[-1] != '\\')/*prefix/left*/ |
-		(left[0] == '*'/*suffix/right*/) << 1;
-}
-
 static word_t
 snarf_word(const char *bp[static 1], const char *const ep)
 {
@@ -82,9 +74,22 @@ snarf_word(const char *bp[static 1], const char *const ep)
 	/* create the result */
 	res = (word_t){.z = wp - *bp, .p = {
 			.fl.ci = wp[1] == 'i',
-			.fl.ww = snarf_ww(*bp, wp - 1),
 			.s = *bp,
 		}};
+	/* check the word-boundary flags */
+	if (UNLIKELY(**bp == '*')) {
+		/* left boundary is a * */
+		res.p.fl.left = 1;
+		res.p.s++;
+		res.z--;
+	}
+	if (wp[-1] == '*' && wp[-2] != '\\') {
+		/* right boundary is a * */
+		res.p.fl.right = 1;
+		res.z--;
+	}
+
+	/* advance the tracker pointer */
 	*bp = wp + 1U;
 
 	if (UNLIKELY(has_esc)) {
