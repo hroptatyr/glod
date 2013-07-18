@@ -41,6 +41,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "nifty.h"
 #include "glep.h"
@@ -75,6 +76,21 @@ static uint_fast8_t xlcase[] = {
 #undef x
 #undef y
 };
+
+static inline bool
+xalnump(const unsigned char c)
+{
+/* if c is 0-9A-Za-z */
+	switch (c) {
+	case '0' ... '9':
+	case 'A' ... 'Z':
+	case 'a' ... 'z':
+		return true;
+	default:
+		break;
+	}
+	return false;
+}
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:981)
@@ -320,6 +336,43 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		return bp - c->m + 1;
 	}
 
+	static bool
+	ww_match_p(unsigned int wwpol, const unsigned char *const sp, size_t z)
+	{
+		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
+		switch (wwpol) {
+		case PAT_WW_NONE:
+			/* check both left and right */
+		case PAT_WW_LEFT:
+			/* we're looking at *foo, so check the right side */
+			if (UNLIKELY(sp + z >= ep)) {
+				return true;
+			} else if (!xalnump(sp[z])) {
+				return true;
+			} else if (wwpol) {
+				/* not NONE */
+				break;
+			}
+		case PAT_WW_RIGHT:
+			/* we're looking at foo*, so check the left side */
+			if (UNLIKELY(sp == (const unsigned char*)buf)) {
+				return true;
+			} else if (!xalnump(sp[-1])) {
+				return true;
+			} else if (wwpol) {
+				/* not NONE */
+				break;
+			}
+		default:
+			break;
+
+		case PAT_WW_BOTH:
+			/* *foo* will always match */
+			return true;
+		}
+		return false;
+	}
+
 	static ix_t
 	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, hx_t p)
 	{
@@ -337,10 +390,12 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					glep_mset_set(ms, i);
 					return l;
 				} else if (pat.fl.ci &&
-					   (l = xicmp(pat.s, sp))) {
+					   (l = xicmp(pat.s, sp)) &&
+					   ww_match_p(pat.fl.ww, sp, l)) {
 					goto match;
 				} else if (!pat.fl.ci &&
-					   (l = xcmp(pat.s, sp))) {
+					   (l = xcmp(pat.s, sp)) &&
+					   ww_match_p(pat.fl.ww, sp, l)) {
 					goto match;
 				}
 			}
