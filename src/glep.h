@@ -124,7 +124,7 @@ glep_free_mset(glep_mset_t ms)
 static inline void
 glep_mset_rset(glep_mset_t ms)
 {
-	memset(ms->ms, 0, ms->nms / MSET_MOD + 1U);
+	memset(ms->ms, 0, (ms->nms / MSET_MOD + 1U) * sizeof(*ms->ms));
 	return;
 }
 
