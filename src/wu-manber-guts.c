@@ -249,13 +249,14 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		/* loop through all patterns that hash to H */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
 			if (prfx == c->PREFIX[pi]) {
-				glep_pat_t p = g->pats[pi];
+				hx_t i = c->PATPTR[pi];
+				glep_pat_t p = g->pats[i];
 				size_t l;
 
 				/* check the word */
 				if ((l = xcmp(p.s, bp - offs))) {
 					/* MATCH */
-					glep_mset_set(ms, pi);
+					glep_mset_set(ms, i);
 					return l;
 				}
 			}
