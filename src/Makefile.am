@@ -75,6 +75,8 @@ libglod_a_SOURCES += gtype-str.h
 libglod_a_SOURCES += boobs.h
 libglod_a_SOURCES += codec.c codec.h
 libglod_a_SOURCES += alrt.c alrt.h
+libglod_a_SOURCES += glep.c glep.h
+libglod_a_SOURCES += wu-manber-guts.c
 libglod_a_SOURCES += version.c version.h
 
 bin_PROGRAMS += glod
@@ -105,13 +107,13 @@ glodcc_SOURCES += glodcc.ggo
 glodcc_LDADD = libglod.a
 BUILT_SOURCES += glodcc.x glodcc.xh
 
-noinst_PROGRAMS += wu-manber-guts
-wu_manber_guts_SOURCES = wu-manber-guts.c
-wu_manber_guts_SOURCES += glod-alert.ggo
-wu_manber_guts_CPPFLAGS = $(AM_CPPFLAGS)
-wu_manber_guts_CPPFLAGS += -DSTANDALONE
-wu_manber_guts_LDADD = libglod.a
-BUILT_SOURCES += glod-alert.x glod-alert.xh
+bin_PROGRAMS += glep
+glep_SOURCES = glep.c
+glep_SOURCES += glep.ggo
+glep_CPPFLAGS = $(AM_CPPFLAGS)
+glep_CPPFLAGS += -DSTANDALONE
+glep_LDADD = libglod.a
+BUILT_SOURCES += glep.x glep.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk

@@ -39,13 +39,11 @@
 #endif	/* HAVE_CONFIG_H */
 #include <unistd.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include "nifty.h"
-#include "fops.h"
-#include "alrt.h"
+#include "glep.h"
 
 /* hash type */
 typedef uint_fast32_t hx_t;
@@ -54,13 +52,13 @@ typedef uint_fast8_t ix_t;
 
 #define TBLZ	(32768U)
 
-struct alrtscc_s {
-	const unsigned int B;
-	const unsigned int m;
+struct glepcc_s {
+	unsigned int B;
+	unsigned int m;
 	ix_t SHIFT[TBLZ];
 	hx_t HASH[TBLZ];
 	hx_t PREFIX[TBLZ];
-	alrt_pat_t PATPTR[TBLZ];
+	hx_t PATPTR[TBLZ];
 };
 
 
@@ -69,156 +67,213 @@ struct alrtscc_s {
 # pragma warning (disable:981)
 #endif	/* __INTEL_COMPILER */
 
-static int
+static size_t
 xcmp(const char *s1, const unsigned char *s2)
 {
-/* like strcmp() but don't barf if S1 ends permaturely */
-	register const unsigned char *p1 = (const unsigned char*)s1;
-	register const unsigned char *p2 = (const unsigned char*)s2;
+/* compare S1 to S2, allowing S1 to end prematurely,
+ * return S1's length if strings are equal and 0 otherwise. */
+	register const char *p1 = s1;
+	register const unsigned char *p2 = s2;
 
 	do {
-		if (!*p1) {
-			return 0U;
+		if (UNLIKELY(!*p1)) {
+			return p1 - s1;
 		}
 	} while (*p1++ == *p2++);
-	return *p1 - *p2;
+	return 0U;
 }
 
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
 #endif	/* __INTEL_COMPILER */
 
-
-/* alrt.h api */
-alrtscc_t
-glod_rd_alrtscc(const char *UNUSED(buf), size_t UNUSED(bsz))
+static size_t
+find_m(gleps_t g)
 {
-	static const alrt_pat_t pats[] = {{{0}, "DEAG"}, {{0}, "STELLA"}};
-	static struct alrtscc_s mock = {
-		.B = 3U,
-		.m = 4U,	/* min("DEAG", "STELLA") */
-	};
+	size_t res;
+
+	if (UNLIKELY(g->npats == 0U)) {
+		return 0U;
+	}
+
+	/* otherwise initialise RES to length of first pattern */
+	res = strlen(g->pats->s);
+	for (size_t i = 1; i < g->npats; i++) {
+		glep_pat_t p = g->pats[i];
+		size_t z = strlen(p.s);
+
+		if (z < res) {
+			res = z;
+		}
+	}
+	return res;
+}
+
+static size_t
+find_B(gleps_t g, size_t m)
+{
+	/* just use agrep's heuristics */
+	if (g->npats >= 400U && m > 2) {
+		return 3U;
+	}
+	return 2U;
+}
+
+
+/* glep.h engine api */
+int
+glep_cc(gleps_t g)
+{
+	struct glepcc_s *res;
+
+	/* get us some memory to chew on */
+	res = calloc(1, sizeof(*res));
+	res->m = find_m(g);
+	res->B = find_B(g, res->m);
 
 	/* prep SHIFT table */
-	for (size_t i = 0; i < countof(mock.SHIFT); i++) {
-		mock.SHIFT[i] = (ix_t)(mock.m - mock.B + 1U);
+	for (size_t i = 0; i < countof(res->SHIFT); i++) {
+		res->SHIFT[i] = (ix_t)(res->m - res->B + 1U);
 	}
 
 	/* suffix handling */
-	for (size_t i = 0; i < countof(pats); i++) {
-		const char *pat = pats[i].s;
+	for (size_t i = 0; i < g->npats; i++) {
+		const char *pat = g->pats[i].s;
 
-		for (size_t j = mock.m; j >= mock.B; j--) {
-			ix_t d = (mock.m - j);
+		for (size_t j = res->m; j >= res->B; j--) {
+			ix_t d = (res->m - j);
 			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
 
-			if (mock.B == 3U) {
+			if (res->B == 3U) {
 				h <<= 5U;
 				h += pat[j - 3];
 				h &= (TBLZ - 1);
 			}
 			if (UNLIKELY(d == 0U)) {
 				/* also set up the HASH table */
-				mock.HASH[h]++;
-				mock.SHIFT[h] = 0U;
-			} else if (d < mock.SHIFT[h]) {
-				mock.SHIFT[h] = d;
+				res->HASH[h]++;
+				res->SHIFT[h] = 0U;
+			} else if (d < res->SHIFT[h]) {
+				res->SHIFT[h] = d;
 			}
 		}
 	}
 
 	/* finalise (integrate) the HASH table */
-	for (size_t i = 1; i < countof(mock.HASH); i++) {
-		mock.HASH[i] += mock.HASH[i - 1];
+	for (size_t i = 1; i < countof(res->HASH); i++) {
+		res->HASH[i] += res->HASH[i - 1];
 	}
-	mock.HASH[0] = 0U;
+	res->HASH[0] = 0U;
 
 	/* prefix handling */
-	for (size_t i = 0; i < countof(pats); i++) {
-		const char *pat = pats[i].s;
+	for (size_t i = 0; i < g->npats; i++) {
+		const char *pat = g->pats[i].s;
 		hx_t p = pat[1U] + (pat[0U] << 8U);
-		hx_t h = pat[mock.m - 2] + (pat[mock.m - 1] << 5U);
-		ix_t H;
+		hx_t h = pat[res->m - 2] + (pat[res->m - 1] << 5U);
+		hx_t H;
 
-		if (mock.B == 3U) {
+		if (res->B == 3U) {
 			h <<= 5U;
-			h += pat[mock.m - 3];
+			h += pat[res->m - 3];
 			h &= (TBLZ - 1);
 		}
-		H = --mock.HASH[h];
-		mock.PATPTR[H] = pats[i];
-		mock.PREFIX[H] = p;
+		H = --res->HASH[h];
+		res->PATPTR[H] = i;
+		res->PREFIX[H] = p;
 	}
-	return &mock;
+
+	/* yay, bang the mock into the gleps object */
+	with (struct gleps_s *pg = deconst(g)) {
+		pg->ctx = res;
+	}
+	return 0;
 }
 
 /**
- * Free a compiled alerts object. */
+ * Free our context object. */
 void
-glod_free_alrtscc(alrtscc_t UNUSED(cc))
+glep_fr(gleps_t g)
 {
+	if (LIKELY(g->ctx != NULL)) {
+		with (struct gleps_s *pg = deconst(g)) {
+			free(pg->ctx);
+		}
+	}
 	return;
 }
 
 int
-glod_gr_alrtscc(mset_t ms, alrtscc_t c, const char *buf, size_t bsz)
+glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 {
 	const unsigned char *bp = (const unsigned char*)buf;
 	const unsigned char *const sp = bp;
 	const unsigned char *const ep = bp + bsz;
+	const glepcc_t c = g->ctx;
+
+	static inline hx_t hash(const unsigned char *bp)
+	{
+		static const unsigned int Hbits = 5U;
+		hx_t res = bp[0] << Hbits;
+
+		if (LIKELY(c->B > 2U && bp > sp + 1U)) {
+			res += bp[-1];
+			res <<= Hbits;
+			res += bp[-2];
+			res &= (TBLZ - 1);
+		} else if (LIKELY(bp > sp)) {
+			res += bp[-1];
+		}
+		return res;
+	}
+
+	static inline hx_t hash_prfx(const unsigned char *bp)
+	{
+		static const unsigned int Pbits = 8U;
+		const int offs = 1 - c->m;
+		hx_t res = 0U;
+
+		if (LIKELY(bp + offs >= sp)) {
+			res = bp[offs + 0] << Pbits;
+			res += bp[offs + 1];
+		}
+		return res;
+	}
+
+	static inline ix_t match_prfx(const unsigned char *bp, hx_t h)
+	{
+		const hx_t pbeg = c->HASH[h + 0U];
+		const hx_t pend = c->HASH[h + 1U];
+		const hx_t prfx = hash_prfx(bp);
+		const int offs = c->m - 1;
+
+		/* loop through all patterns that hash to H */
+		for (hx_t pi = pbeg; pi < pend; pi++) {
+			if (prfx == c->PREFIX[pi]) {
+				hx_t i = c->PATPTR[pi];
+				glep_pat_t p = g->pats[i];
+				size_t l;
+
+				/* check the word */
+				if ((l = xcmp(p.s, bp - offs))) {
+					/* MATCH */
+					glep_mset_set(ms, i);
+					return l;
+				}
+			}
+		}
+		return 0U;
+	}
 
 	while (bp < ep) {
 		ix_t sh;
 		hx_t h;
 
-		static inline hx_t hash(void)
-		{
-			static const unsigned int Hbits = 5U;
-			hx_t res = bp[0] << Hbits;
-
-			if (LIKELY(c->B > 2U && bp > sp + 1U)) {
-				res += bp[-1];
-				res <<= Hbits;
-				res += bp[-2];
-				res &= (TBLZ - 1);
-			} else if (LIKELY(bp > sp)) {
-				res += bp[-1];
-			}
-			return res;
-		}
-
-		static inline hx_t hash_prfx(void)
-		{
-			static const unsigned int Pbits = 8U;
-			const int offs = 1 - c->m;
-			hx_t res = 0U;
-
-			if (LIKELY(bp + offs >= sp)) {
-				res = bp[offs + 0] << Pbits;
-				res += bp[offs + 1];
-			}
-			return res;
-		}
-
-		h = hash();
-		if ((sh = c->SHIFT[h]) == 0U) {
-			const hx_t pbeg = c->HASH[h + 0U];
-			const hx_t pend = c->HASH[h + 1U];
-			const hx_t prfx = hash_prfx();
-			const int offs = c->m - 1;
-
-			/* loop through all patterns that hash to H */
-			for (hx_t p = pbeg; p < pend; p++) {
-				if (prfx == c->PREFIX[p]) {
-					alrt_pat_t pat = c->PATPTR[p];
-
-					/* otherwise check the word */
-					if (!xcmp(pat.s, bp - offs)) {
-						/* MATCH */
-						printf("YAY %s\n", pat.s);
-					}
-				}
-			}
+		h = hash(bp);
+		if ((sh = c->SHIFT[h])) {
+			;
+		} else if ((sh = match_prfx(bp, h))) {
+			;
+		} else {
 			sh = 1U;
 		}
 
@@ -227,100 +282,5 @@ glod_gr_alrtscc(mset_t ms, alrtscc_t c, const char *buf, size_t bsz)
 	}
 	return 0;
 }
-
-
-#if defined STANDALONE
-/* standalone stuff */
-static void
-__attribute__((format(printf, 1, 2)))
-error(const char *fmt, ...)
-{
-	va_list vap;
-	va_start(vap, fmt);
-	vfprintf(stderr, fmt, vap);
-	va_end(vap);
-	if (errno) {
-		fputc(':', stderr);
-		fputc(' ', stderr);
-		fputs(strerror(errno), stderr);
-	}
-	fputc('\n', stderr);
-	return;
-}
-
-static alrtscc_t
-rd1(const char *fn)
-{
-	glodfn_t f;
-	alrtscc_t res = NULL;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		goto out;
-	} else if (UNLIKELY((res = glod_rd_alrtscc(f.fb.d, f.fb.z)) == NULL)) {
-		goto out;
-	}
-	/* magic happens here */
-	;
-
-out:
-	/* and out are we */
-	(void)munmap_fn(f);
-	return res;
-}
-
-static int
-grep1(alrtscc_t af, const char *fn)
-{
-	glodfn_t f;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		return -1;
-	}
-	glod_gr_alrtscc((mset_t){}, af, f.fb.d, f.fb.z);
-
-	(void)munmap_fn(f);
-	return 0;
-}
-
-
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "glod-alert.xh"
-#include "glod-alert.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
-
-int
-main(int argc, char *argv[])
-{
-	struct glod_args_info argi[1];
-	alrtscc_t af;
-	int rc = 0;
-
-	if (glod_parser(argc, argv, argi)) {
-		rc = 1;
-		goto out;
-	} else if ((af = rd1(argi->alert_file_arg)) == NULL) {
-		error("Error: cannot read compiled alert file `%s'",
-		      argi->alert_file_arg);
-		goto out;
-	}
-
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		grep1(af, argi->inputs[i]);
-	}
-
-	glod_free_alrtscc(af);
-out:
-	glod_parser_free(argi);
-	return rc;
-}
-#endif	/* STANDALONE */
 
 /* wu-manber-guts.c ends here */
