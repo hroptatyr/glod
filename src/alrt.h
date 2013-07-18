@@ -39,56 +39,21 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "codec.h"
-
-typedef uint_fast16_t amap_dpth_t;
-
-typedef const struct alrts_s *alrts_t;
-typedef const struct alrtscc_s *alrtscc_t;
+#include "glep.h"
 
 typedef struct alrt_s alrt_t;
-typedef struct alrt_word_s alrt_word_t;
+typedef const struct alrts_s *alrts_t;
 
-typedef struct alrt_pat_s alrt_pat_t;
-typedef struct mset_s mset_t;
-
-struct alrt_word_s {
-	size_t z;
-	const char *w;
-};
-
-struct alrt_pat_s {
-	struct {
-		/* case insensitive? */
-		unsigned int ci:1;
-		/* whole word match or just prefix, suffix */
-		enum {
-			PAT_WW_NONE,
-			PAT_WW_LEFT,
-			PAT_WW_RIGHT,
-			PAT_WW_WORD,
-		} ww:2;
-	};
-	const char *s;
-};
-
+/* an alert is a labelled glep_pat_t */
 struct alrt_s {
-	alrt_word_t w;
-	alrt_word_t y;
+	const glep_pat_t *p;
+	const char *label;
 };
 
 struct alrts_s {
-	size_t nalrt;
-	alrt_t alrt[];
-};
-
-/* the compiled version of an alert */
-struct alrtscc_s;
-
-/* match sets, each bit corresponds to an alert */
-struct mset_s {
-	size_t nms;
-	uint_fast32_t ms[];
+	gleps_t g;
+	size_t nalrts;
+	alrt_t alrts[];
 };
 
 
@@ -97,27 +62,16 @@ struct mset_s {
 extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
 
 /**
- * Read and return alerts from BUF (of size BSZ) in compiled form. */
-extern alrtscc_t glod_rd_alrtscc(const char *buf, size_t bsz);
-
-/**
- * Write (serialise) a compiled alerts object. */
-extern size_t glod_wr_alrtscc(const char **buf, size_t *bsz, alrtscc_t);
+ * Write alrts into BUF, return the number of significant bytes.
+ * Also put the allocation size of BUF into BSZ. */
+extern size_t glod_wr_alrts(const char **buf, size_t *bsz, alrts_t);
 
 /**
  * Free an alerts object. */
-extern void glod_free_alrts(alrts_t);
+extern void glod_fr_alrts(alrts_t);
 
 /**
- * Free a compiled alerts object. */
-extern void glod_free_alrtscc(alrtscc_t);
-
-/**
- * Compile an ALRTS_T to a ALRTSCC_T. */
-extern alrtscc_t glod_cc_alrts(alrts_t);
-
-/**
- * Return the number of matches of C in BUF of size BSZ. */
-extern int glod_gr_alrtscc(mset_t, alrtscc_t c, const char *buf, size_t bsz);
+ * Compile an ALRTS_T object. */
+extern int glod_cc_alrts(alrts_t);
 
 #endif	/* INCLUDED_alrt_h_ */
