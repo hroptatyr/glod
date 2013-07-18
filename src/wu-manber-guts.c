@@ -41,6 +41,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "nifty.h"
 #include "glep.h"
@@ -63,6 +64,34 @@ struct glepcc_s {
 
 
 /* aux */
+static uint_fast8_t xlcase[] = {
+#define x(c)	(c) + 0U, (c) + 1U, (c) + 2U, (c) + 3U
+#define y(c)	x((c) + 0U), x((c) + 4U), x((c) + 8U), x((c) + 12U)
+	y('\0'), y(16U), y(' '), y('0'),
+	'@', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+	'x', 'y', 'z', 'Z' + 1U, 'Z' + 2U, 'Z' + 3U, 'Z' + 4U, 'Z' + 5U,
+	y('Z' + 6U + 0U), y('Z' + 6U + 16U), y('Z' + 6U + 32U),
+#undef x
+#undef y
+};
+
+static inline bool
+xalnump(const unsigned char c)
+{
+/* if c is 0-9A-Za-z */
+	switch (c) {
+	case '0' ... '9':
+	case 'A' ... 'Z':
+	case 'a' ... 'z':
+		return true;
+	default:
+		break;
+	}
+	return false;
+}
+
 #if defined __INTEL_COMPILER
 # pragma warning (disable:981)
 #endif	/* __INTEL_COMPILER */
@@ -80,6 +109,22 @@ xcmp(const char *s1, const unsigned char *s2)
 			return p1 - s1;
 		}
 	} while (*p1++ == *p2++);
+	return 0U;
+}
+
+static size_t
+xicmp(const char *s1, const unsigned char *s2)
+{
+/* compare S1 to S2 case-insensitively, allowing S1 to end prematurely,
+ * return S1's length if strings are equal and 0 otherwise. */
+	register const char *p1 = s1;
+	register const unsigned char *p2 = s2;
+
+	do {
+		if (UNLIKELY(!*p1)) {
+			return p1 - s1;
+		}
+	} while (xlcase[*p1++] == xlcase[*p2++]);
 	return 0U;
 }
 
@@ -119,6 +164,62 @@ find_B(gleps_t g, size_t m)
 	return 2U;
 }
 
+static inline hx_t
+sufh_c(const unsigned char c0, const unsigned char c1, const unsigned char c2)
+{
+/* suffix hashing, c0 is the rightmost char, c1 the char left thereof, etc. */
+	hx_t res = c2;
+
+	res <<= 5U;
+	res += c1;
+	res <<= 5U;
+	res += c0;
+	return res & (TBLZ - 1);
+}
+
+static inline hx_t
+sufh(glepcc_t ctx, const unsigned char cp[static 1])
+{
+/* suffix hashing */
+	return sufh_c(
+		cp[0], cp[-1],
+		(unsigned char)(ctx->B == 3U ? cp[-2] : 0U));
+}
+
+static inline hx_t
+sufh_ci(glepcc_t ctx, const unsigned char cp[static 1])
+{
+/* suffix hashing, case insensitive */
+	return sufh_c(
+		xlcase[cp[0]], xlcase[cp[-1]],
+		(unsigned char)(ctx->B == 3U ? xlcase[cp[-2]] : 0U));
+}
+
+static inline hx_t
+prfh_c(const unsigned char c0, const unsigned char c1)
+{
+/* prefix hashing, c0 is the leftmost char, c1 the char to the right */
+	hx_t res = c0;
+
+	res <<= 8U;
+	res += c1;
+	return res & (TBLZ - 1);
+}
+
+static inline hx_t
+prfh(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
+{
+/* prefix hashing */
+	return prfh_c(cp[0U], cp[1U]);
+}
+
+static inline hx_t
+prfh_ci(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
+{
+/* prefix hashing, case insensitive */
+	return prfh_c(xlcase[cp[0U]], xlcase[cp[1U]]);
+}
+
 
 /* glep.h engine api */
 int
@@ -138,23 +239,35 @@ glep_cc(gleps_t g)
 
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		const char *pat = g->pats[i].s;
+		glep_pat_t pat = g->pats[i];
+		const unsigned char *p = (const unsigned char*)pat.s;
 
-		for (size_t j = res->m; j >= res->B; j--) {
-			ix_t d = (res->m - j);
-			hx_t h = pat[j - 2] + (pat[j - 1] << 5U);
+		if (!pat.fl.ci) {
+			for (size_t j = res->m; j >= res->B; j--) {
+				ix_t d = (res->m - j);
+				hx_t h = sufh(res, p + j - 1);
 
-			if (res->B == 3U) {
-				h <<= 5U;
-				h += pat[j - 3];
-				h &= (TBLZ - 1);
+				if (UNLIKELY(d == 0U)) {
+					/* also set up the HASH table */
+					res->HASH[h]++;
+					res->SHIFT[h] = 0U;
+				} else if (d < res->SHIFT[h]) {
+					res->SHIFT[h] = d;
+				}
 			}
-			if (UNLIKELY(d == 0U)) {
-				/* also set up the HASH table */
-				res->HASH[h]++;
-				res->SHIFT[h] = 0U;
-			} else if (d < res->SHIFT[h]) {
-				res->SHIFT[h] = d;
+		} else {
+			/* case insensitve */
+			for (size_t j = res->m; j >= res->B; j--) {
+				ix_t d = (res->m - j);
+				hx_t h = sufh_ci(res, p + j - 1);
+
+				if (UNLIKELY(d == 0U)) {
+					/* also set up the HASH table */
+					res->HASH[h]++;
+					res->SHIFT[h] = 0U;
+				} else if (d < res->SHIFT[h]) {
+					res->SHIFT[h] = d;
+				}
 			}
 		}
 	}
@@ -167,19 +280,27 @@ glep_cc(gleps_t g)
 
 	/* prefix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		const char *pat = g->pats[i].s;
-		hx_t p = pat[1U] + (pat[0U] << 8U);
-		hx_t h = pat[res->m - 2] + (pat[res->m - 1] << 5U);
-		hx_t H;
+		glep_pat_t pat = g->pats[i];
+		const unsigned char *p = (const unsigned char*)pat.s;
 
-		if (res->B == 3U) {
-			h <<= 5U;
-			h += pat[res->m - 3];
-			h &= (TBLZ - 1);
+		if (!pat.fl.ci) {
+			hx_t pi = prfh(res, p);
+			hx_t h = sufh(res, p + res->m - 1);
+			hx_t H;
+
+			H = --res->HASH[h];
+			res->PATPTR[H] = i;
+			res->PREFIX[H] = pi;
+		} else {
+			/* case insensitve */
+			hx_t pi = prfh_ci(res, p);
+			hx_t h = sufh_ci(res, p + res->m - 1);
+			hx_t H;
+
+			H = --res->HASH[h];
+			res->PATPTR[H] = i;
+			res->PREFIX[H] = pi;
 		}
-		H = --res->HASH[h];
-		res->PATPTR[H] = i;
-		res->PREFIX[H] = p;
 	}
 
 	/* yay, bang the mock into the gleps object */
@@ -205,80 +326,114 @@ glep_fr(gleps_t g)
 int
 glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 {
-	const unsigned char *bp = (const unsigned char*)buf;
-	const unsigned char *const sp = bp;
-	const unsigned char *const ep = bp + bsz;
 	const glepcc_t c = g->ctx;
+	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
+	const unsigned char *const ep = bp + bsz;
 
-	static inline hx_t hash(const unsigned char *bp)
+	static inline const unsigned char *prfs(const unsigned char *bp)
 	{
-		static const unsigned int Hbits = 5U;
-		hx_t res = bp[0] << Hbits;
-
-		if (LIKELY(c->B > 2U && bp > sp + 1U)) {
-			res += bp[-1];
-			res <<= Hbits;
-			res += bp[-2];
-			res &= (TBLZ - 1);
-		} else if (LIKELY(bp > sp)) {
-			res += bp[-1];
-		}
-		return res;
+		/* return a pointer to the prefix of BP */
+		return bp - c->m + 1;
 	}
 
-	static inline hx_t hash_prfx(const unsigned char *bp)
+	static bool
+	ww_match_p(glep_pat_t pat, const unsigned char *const sp, size_t z)
 	{
-		static const unsigned int Pbits = 8U;
-		const int offs = 1 - c->m;
-		hx_t res = 0U;
-
-		if (LIKELY(bp + offs >= sp)) {
-			res = bp[offs + 0] << Pbits;
-			res += bp[offs + 1];
+		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
+		if (UNLIKELY(pat.fl.left && pat.fl.right)) {
+			/* we're looking at *foo*, trivial match */
+			return true;
 		}
-		return res;
+		if (!pat.fl.right) {
+			/* we're looking at *foo, so check the right side */
+			if (UNLIKELY(sp + z >= ep)) {
+				return true;
+			} else if (!xalnump(sp[z])) {
+				return true;
+			}
+		}
+		if (!pat.fl.left) {
+			/* we're looking at foo*, so check the left side */
+			if (UNLIKELY(sp == (const unsigned char*)buf)) {
+				return true;
+			} else if (!xalnump(sp[-1])) {
+				return true;
+			}
+		}
+		return false;
 	}
 
-	static inline ix_t match_prfx(const unsigned char *bp, hx_t h)
+	static ix_t
+	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, hx_t p)
 	{
-		const hx_t pbeg = c->HASH[h + 0U];
-		const hx_t pend = c->HASH[h + 1U];
-		const hx_t prfx = hash_prfx(bp);
-		const int offs = c->m - 1;
-
 		/* loop through all patterns that hash to H */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
-			if (prfx == c->PREFIX[pi]) {
+			if (p == c->PREFIX[pi]) {
 				hx_t i = c->PATPTR[pi];
-				glep_pat_t p = g->pats[i];
+				glep_pat_t pat = g->pats[i];
 				size_t l;
 
 				/* check the word */
-				if ((l = xcmp(p.s, bp - offs))) {
+				if (0) {
+				match:
 					/* MATCH */
 					glep_mset_set(ms, i);
 					return l;
+				} else if (pat.fl.ci &&
+					   (l = xicmp(pat.s, sp)) &&
+					   ww_match_p(pat, sp, l)) {
+					goto match;
+				} else if (!pat.fl.ci &&
+					   (l = xcmp(pat.s, sp)) &&
+					   ww_match_p(pat, sp, l)) {
+					goto match;
 				}
 			}
 		}
 		return 0U;
 	}
 
-	while (bp < ep) {
-		ix_t sh;
+	for (ix_t shift; bp < ep; bp += shift) {
+		const unsigned char *sp;
+		ix_t shci;
 		hx_t h;
+		hx_t hci;
+		hx_t pbeg;
+		hx_t pend;
 
-		h = hash(bp);
-		if ((sh = c->SHIFT[h])) {
-			;
-		} else if ((sh = match_prfx(bp, h))) {
-			;
-		} else {
-			sh = 1U;
+		/* the next two can be parallelised, no? */
+		h = sufh(c, bp);
+		hci = sufh_ci(c, bp);
+
+		/* check suffix */
+		if ((shift = c->SHIFT[h]) && (shci = c->SHIFT[hci])) {
+			if (shci < shift) {
+				shift = shci;
+			}
+			continue;
 		}
 
-		/* inc */
-		bp += sh;
+		/* check prefix */
+		sp = prfs(bp);
+
+		/* try case aware variant first */
+		pbeg = c->HASH[h + 0U];
+		pend = c->HASH[h + 1U];
+
+		if ((shift = match_prfx(sp, pbeg, pend, prfh(c, sp)))) {
+			continue;
+		}
+
+		/* try the case insensitive case */
+		pbeg = c->HASH[hci + 0U];
+		pend = c->HASH[hci + 1U];
+
+		if ((shift = match_prfx(sp, pbeg, pend, prfh_ci(c, sp)))) {
+			continue;
+		}
+
+		/* be careful with the stepping then */
+		shift = 1U;
 	}
 	return 0;
 }
