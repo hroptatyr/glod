@@ -53,9 +53,6 @@
 #include "nifty.h"
 #include "fops.h"
 #include "alrt.h"
-#include "alrt-private.h"
-
-typedef const amap_uint_t *node_t;
 
 
 static void
@@ -75,126 +72,17 @@ error(const char *fmt, ...)
 	return;
 }
 
-static unsigned int
-uint_popcnt(const amap_uint_t a[static 1], size_t na)
-{
-	static const uint_fast8_t __popcnt[] = {
-#define B2(n)	n, n+1, n+1, n+2
-#define B4(n)	B2(n), B2(n+1), B2(n+1), B2(n+2)
-#define B6(n)	B4(n), B4(n+1), B4(n+1), B4(n+2)
-		B6(0), B6(1), B6(1), B6(2)
-	};
-	register unsigned int sum = 0U;
-
-	for (register const unsigned char *ap = a,
-		     *const ep = ap + na; ap < ep; ap++) {
-		sum += __popcnt[*ap];
-	}
-	return sum;
-}
-
 
-static bool
-glaf_nd_has_p(const amap_uint_t nd[static 1], amap_uint_t idx)
-{
-	unsigned int d;
-	unsigned int r;
-
-	idx--;
-	d = idx / AMAP_UINT_BITZ;
-	r = idx % AMAP_UINT_BITZ;
-	return nd[d] & (1 << r);
-}
-
-static int
-glod_gr_alrtscc(alrtscc_t af, const char *buf, size_t bsz)
-{
-/* grep BUF of size BSZ for occurrences defined in AF. */
-	node_t curnd;
-	size_t curdp = 0U;
-
-	static node_t
-	find_node(const amap_uint_t n[static 1], size_t i, size_t dpth)
-	{
-		/* given bit index IDX, determine the number of set
-		 * less significant bits (the ones to the right) in n */
-		unsigned int d;
-		unsigned int r;
-		unsigned int pop = 0U;
-		amap_uint_t last;
-
-		i--;
-		d = i / AMAP_UINT_BITZ;
-		r = i % AMAP_UINT_BITZ;
-		if (d) {
-			pop += uint_popcnt(n, d - 1U);
-		}
-		last = (amap_uint_t)(n[d] & ((1 << r) - 1U));
-		pop += uint_popcnt(&last, 1U);
-		return n + dpth * af->r.z + pop;
-	}
-
-	static bool leafp(const amap_uint_t n[static 1])
-	{
-		/* see if the target node is empty */
-		for (size_t i = 0; i < af->r.z; i++) {
-			if (n[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	static node_t root(void)
-	{
-		return af->d + af->depth;
-	}
-
-	printf("grepping %p (%zu) using %p\n", buf, bsz, af);
-	curnd = root();
-	for (const unsigned char *bp = (const unsigned char*)buf,
-		     *const ep = bp + bsz; bp < ep; bp++) {
-		amap_uint_t idx;
-
-		if (UNLIKELY(*bp > countof(af->r.m))) {
-			/* not doing weird chars atm */
-			goto reset;
-		} else if ((idx = af->r.m[*bp]) == 0U) {
-			/* not in the alphabet, dont bother */
-			goto reset;
-		} else if (!glaf_nd_has_p(curnd, idx)) {
-			/* not in the current node */
-			;
-		} else if (UNLIKELY(curdp >= af->depth)) {
-			/* must be a longer word than expected */
-		reset:
-			/* just reset the node ptr and the current depth
-			 * and start over */
-			curnd = root();
-			curdp = 0U;
-		} else {
-			/* find the next node in the trie */
-			curnd = find_node(curnd, idx, af->d[curdp++]);
-			if (leafp(curnd)) {
-				printf("yay found!  %td\n", curnd - af->d);
-				goto reset;
-			}
-		}
-	}
-	return 0;
-}
-
-
-static alrtscc_t
+static alrts_t
 rd1(const char *fn)
 {
 	glodfn_t f;
-	alrtscc_t res = NULL;
+	alrts_t res = NULL;
 
 	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		goto out;
-	} else if (UNLIKELY((res = glod_rd_alrtscc(f.fb.d, f.fb.z)) == NULL)) {
+	} else if (UNLIKELY((res = glod_rd_alrts(f.fb.d, f.fb.z)) == NULL)) {
 		goto out;
 	}
 	/* magic happens here */
@@ -207,7 +95,7 @@ out:
 }
 
 static int
-grep1(alrtscc_t af, const char *fn)
+gr1(alrts_t af, const char *fn)
 {
 	glodfn_t f;
 
@@ -215,7 +103,8 @@ grep1(alrtscc_t af, const char *fn)
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return -1;
 	}
-	glod_gr_alrtscc(af, f.fb.d, f.fb.z);
+	/* magic happens here */
+	;
 
 	(void)munmap_fn(f);
 	return 0;
@@ -237,7 +126,7 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
-	alrtscc_t af;
+	alrts_t af;
 	int rc = 0;
 
 	if (glod_parser(argc, argv, argi)) {
@@ -250,10 +139,10 @@ main(int argc, char *argv[])
 	}
 
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		grep1(af, argi->inputs[i]);
+		gr1(af, argi->inputs[i]);
 	}
 
-	glod_free_alrtscc(af);
+	glod_fr_alrts(af);
 out:
 	glod_parser_free(argi);
 	return rc;

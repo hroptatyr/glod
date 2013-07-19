@@ -73,7 +73,6 @@ libglod_a_SOURCES += strptime.c strptime.h
 libglod_a_SOURCES += gtype-na.c gtype-na.h
 libglod_a_SOURCES += gtype-str.h
 libglod_a_SOURCES += boobs.h
-libglod_a_SOURCES += codec.c codec.h
 libglod_a_SOURCES += alrt.c alrt.h
 libglod_a_SOURCES += glep.c glep.h
 libglod_a_SOURCES += wu-manber-guts.c
@@ -100,12 +99,6 @@ glod_alert_SOURCES = glod-alert.c
 glod_alert_SOURCES += glod-alert.ggo
 glod_alert_LDADD = libglod.a
 BUILT_SOURCES += glod-alert.x glod-alert.xh
-
-bin_PROGRAMS += glodcc
-glodcc_SOURCES = glodcc.c
-glodcc_SOURCES += glodcc.ggo
-glodcc_LDADD = libglod.a
-BUILT_SOURCES += glodcc.x glodcc.xh
 
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c
