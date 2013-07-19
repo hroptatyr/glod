@@ -100,12 +100,6 @@ glod_alert_SOURCES += glod-alert.ggo
 glod_alert_LDADD = libglod.a
 BUILT_SOURCES += glod-alert.x glod-alert.xh
 
-bin_PROGRAMS += glodcc
-glodcc_SOURCES = glodcc.c
-glodcc_SOURCES += glodcc.ggo
-glodcc_LDADD = libglod.a
-BUILT_SOURCES += glodcc.x glodcc.xh
-
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c
 glep_SOURCES += glep.ggo

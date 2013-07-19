@@ -1,5 +1,0 @@
-args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
-package "glodcc"
-usage "glodcc [OPTIONS...] [FILE]..."
-description "Compile alert words in FILE."
-
