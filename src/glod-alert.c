@@ -95,7 +95,7 @@ out:
 }
 
 static int
-gr1(alrts_t af, const char *fn)
+gr1(alrts_t af, const char *fn, glep_mset_t ms)
 {
 	glodfn_t f;
 
@@ -104,7 +104,19 @@ gr1(alrts_t af, const char *fn)
 		return -1;
 	}
 	/* magic happens here */
-	;
+	glep_mset_rset(ms);
+	glod_gr_alrts(ms, af, f.fb.d, f.fb.z);
+	/* ... then print all matches */
+	for (size_t i = 0U, bix; i <= ms->nms / MSET_MOD; i++) {
+		bix = i * MSET_MOD;
+		for (uint_fast32_t b = ms->ms[i]; b; b >>= 1U, bix++) {
+			if (b & 1U) {
+				fputs(af->lbls[bix], stdout);
+				putchar('\t');
+				puts(fn);
+			}
+		}
+	}
 
 	(void)munmap_fn(f);
 	return 0;
@@ -126,6 +138,7 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
+	glep_mset_t ms;
 	alrts_t af;
 	int rc = 0;
 
@@ -138,10 +151,20 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		gr1(af, argi->inputs[i]);
+	/* compile the patterns */
+	if (UNLIKELY(glod_cc_alrts(af) < 0)) {
+		goto fr_af;
 	}
 
+	/* get the mset */
+	ms = glep_make_mset(af->nlbls);
+	for (unsigned int i = 0; i < argi->inputs_num; i++) {
+		gr1(af, argi->inputs[i], ms);
+	}
+
+	/* resource hand over */
+	glep_free_mset(ms);
+fr_af:
 	glod_fr_alrts(af);
 out:
 	glod_parser_free(argi);

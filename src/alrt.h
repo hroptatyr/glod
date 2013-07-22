@@ -44,14 +44,18 @@
 typedef struct alrt_s alrt_t;
 typedef const struct alrts_s *alrts_t;
 
-/* an alert is a labelled glep_pat_t */
 struct alrt_s {
-	const glep_pat_t *p;
-	const char *label;
+	/* index into the label array */
+	uint_fast32_t lbl;
 };
 
 struct alrts_s {
 	gleps_t g;
+
+	/* the global labels vector */
+	size_t nlbls;
+	const char **lbls;
+
 	size_t nalrts;
 	alrt_t alrts[];
 };
@@ -73,5 +77,9 @@ extern void glod_fr_alrts(alrts_t);
 /**
  * Compile an ALRTS_T object. */
 extern int glod_cc_alrts(alrts_t);
+
+/**
+ * Return the number of matches of C in BUF of size BSZ. */
+extern int glod_gr_alrts(glep_mset_t, alrts_t a, const char *buf, size_t bsz);
 
 #endif	/* INCLUDED_alrt_h_ */
