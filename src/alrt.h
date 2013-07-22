@@ -78,4 +78,8 @@ extern void glod_fr_alrts(alrts_t);
  * Compile an ALRTS_T object. */
 extern int glod_cc_alrts(alrts_t);
 
+/**
+ * Return the number of matches of C in BUF of size BSZ. */
+extern int glod_gr_alrts(glep_mset_t, alrts_t a, const char *buf, size_t bsz);
+
 #endif	/* INCLUDED_alrt_h_ */

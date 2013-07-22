@@ -211,6 +211,7 @@ glod_rd_alrts(const char *buf, size_t bsz)
 		}
 	}
 	if (LIKELY(res != NULL)) {
+		res->g = g;
 		res->nlbls = cch.li;
 		res->lbls = cch.lbls;
 	}
@@ -226,6 +227,7 @@ glod_fr_alrts(alrts_t a)
 		return;
 	}
 	/* render the gleps void first */
+	glep_fr(pa->g);
 	glod_fr_gleps(pa->g);
 
 	if (pa->lbls != NULL) {
@@ -240,7 +242,7 @@ glod_fr_alrts(alrts_t a)
 }
 
 size_t
-glod_wr_alrts(const char **buf, size_t *bsz, alrts_t a)
+glod_wr_alrts(const char **UNUSED(buf), size_t *UNUSED(bsz), alrts_t UNUSED(a))
 {
 	return 0U;
 }
@@ -249,7 +251,45 @@ glod_wr_alrts(const char **buf, size_t *bsz, alrts_t a)
 int
 glod_cc_alrts(alrts_t a)
 {
-	return 0;
+	if (UNLIKELY(a->g == NULL)) {
+		return -1;
+	}
+	return glep_cc(a->g);
+}
+
+/* the actual grepping */
+int
+glod_gr_alrts(glep_mset_t ms, alrts_t a, const char *buf, size_t bsz)
+{
+	static glep_mset_t patms;
+	int res = 0U;
+
+	if (patms == NULL || patms->nms < a->nalrts) {
+		if (patms != NULL) {
+			glep_free_mset(patms);
+		}
+		patms = glep_make_mset(a->nalrts);
+	}
+
+	/* pattern mset rinse rinse */
+	glep_mset_rset(patms);
+	/* grep */
+	if (UNLIKELY(glep_gr(patms, a->g, buf, bsz) < 0)) {
+		return -1;
+	}
+	/* now turn the patms bitset into a alrt bitset */
+	for (size_t i = 0U, bix; i <= patms->nms / MSET_MOD; i++) {
+		bix = i * MSET_MOD;
+		for (uint_fast32_t b = patms->ms[i]; b; b >>= 1U, bix++) {
+			if (b & 1U) {
+				uint_fast32_t lbl = a->alrts[bix].lbl;
+
+				glep_mset_set(ms, lbl);
+				res++;
+			}
+		}
+	}
+	return res;
 }
 
 /* alrt.c ends here */
