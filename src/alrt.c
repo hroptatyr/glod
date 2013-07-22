@@ -158,6 +158,7 @@ glod_rd_alrts(const char *buf, size_t bsz)
 		for (size_t pi = last_pat; pi < this_pat; pi++) {
 			c->alrts[pi].lbl = li;
 		}
+		last_pat = this_pat;
 		return c;
 	}
 
