@@ -40,19 +40,202 @@
 #include <stdlib.h>
 #include <string.h>
 #include "alrt.h"
+#include "glep.h"
 #include "boobs.h"
 #include "nifty.h"
+
+typedef size_t idx_t;
+typedef struct word_s word_t;
+
+struct word_s {
+	size_t z;
+	const char *s;
+};
+
+
+/* word level */
+static word_t
+snarf_word(const char *bp[static 1], const char *const ep)
+{
+	const char *wp;
+	int has_esc = 0;
+	word_t res;
+
+	for (wp = *bp; wp < ep; wp++) {
+		if (UNLIKELY(*wp == '"')) {
+			if (LIKELY(wp[-1] != '\\')) {
+				break;
+			}
+			/* otherwise de-escape */
+			has_esc = 1;
+		}
+	}
+	/* create the result */
+	res = (word_t){.z = wp - *bp, .s = *bp};
+
+	if (**bp == '*') {
+		/* fast-forward *s at the beginning */
+		res.s++;
+		res.z--;
+	}
+	if (wp[-1] == '*' && wp[-2] != '\\') {
+		/* rewind *s at the end */
+		res.z--;
+	}
+
+	/* advance the tracker pointer */
+	*bp = wp + 1U;
+
+	if (UNLIKELY(has_esc)) {
+		static char *word;
+		static size_t worz;
+		const char *sp = res.s;
+		size_t sz = res.z;
+		char *cp;
+
+		if (UNLIKELY(sz > worz)) {
+			worz = (sz / 64U + 1) * 64U;
+			word = realloc(word, worz);
+		}
+		memcpy(cp = word, sp, sz);
+		for (size_t x = sz; x > 0; x--, sp++) {
+			if ((*cp = *sp) != '\\') {
+				cp++;
+			} else {
+				sz--;
+			}
+		}
+		res.z = sz;
+		res.s = word;
+	}
+	return res;
+}
 
 
 alrts_t
 glod_rd_alrts(const char *buf, size_t bsz)
 {
-	return NULL;
+	gleps_t g;
+	/* context, 0 for words, and 1 for yields */
+	enum {
+		CTX_W,
+		CTX_Y,
+	} ctx = CTX_W;
+	/* the result object we're building */
+	struct alrts_s *res = NULL;
+	size_t last_pat = 0U;
+	size_t this_pat = 0U;
+	struct {
+		idx_t li;
+		const char **lbls;
+	} cch = {0U};
+
+	static struct alrts_s *append_pat(struct alrts_s *c, word_t UNUSED(w))
+	{
+		this_pat++;
+		return c;
+	}
+
+	static struct alrts_s *append_lbl(struct alrts_s *c, word_t w)
+	{
+		/* assign W to pats [LAST_PAT, THIS_PAT] */
+		uint_fast32_t li;
+
+		if (UNLIKELY((li = cch.li++) % 256U == 0U)) {
+			size_t nu = (li + 256U) * sizeof(*cch.lbls);
+			cch.lbls = realloc(cch.lbls, nu);
+		}
+		cch.lbls[li] = strndup(w.s, w.z);
+
+		if (UNLIKELY((last_pat - 1) / 256U) != (this_pat / 256U)) {
+			size_t nu = sizeof(*c) +
+				(this_pat / 256U + 1U) * 256U *
+				sizeof(*c->alrts);
+			c = realloc(c, nu);
+		}
+
+		c->nalrts = this_pat;
+		for (size_t pi = last_pat; pi < this_pat; pi++) {
+			c->alrts[pi].lbl = li;
+		}
+		return c;
+	}
+
+	/* start off by reading glep patterns */
+	if (UNLIKELY((g = glod_rd_gleps(buf, bsz)) == NULL)) {
+		return NULL;
+	}
+
+	/* now go through the buffer (again) looking for " escapes */
+	for (const char *bp = buf, *const ep = buf + bsz; bp < ep;) {
+		switch (*bp++) {
+		case '"': {
+			/* we're inside a word */
+			word_t w = snarf_word(&bp, ep);
+
+			/* append the word to cch for now */
+			switch (ctx) {
+			case CTX_W:
+				res = append_pat(res, w);
+				break;
+			case CTX_Y:
+				/* don't deal with yields in glep mode */
+				res = append_lbl(res, w);
+				break;
+			}
+			break;
+		}
+		case '-':
+			/* could be -> (yield) */
+			if (LIKELY(*bp == '>')) {
+				/* yay, yield oper */
+				ctx = CTX_Y;
+				bp++;
+			}
+			break;
+		case '\\':
+			if (UNLIKELY(*bp == '\n')) {
+				/* quoted newline, aka linebreak */
+				bp++;
+			}
+			break;
+		case '\n':
+			/* switch back to W mode */
+			ctx = CTX_W;
+			break;
+		case '|':
+		case '&':
+		default:
+			/* keep going */
+			break;
+		}
+	}
+	if (LIKELY(res != NULL)) {
+		res->nlbls = cch.li;
+		res->lbls = cch.lbls;
+	}
+	return res;
 }
 
 void
 glod_fr_alrts(alrts_t a)
 {
+	struct alrts_s *pa;
+
+	if (UNLIKELY((pa = deconst(a)) == NULL)) {
+		return;
+	}
+	/* render the gleps void first */
+	glod_fr_gleps(pa->g);
+
+	if (pa->lbls != NULL) {
+		for (size_t i = 0; i < pa->nlbls; i++) {
+			free(deconst(pa->lbls[i]));
+		}
+		free(pa->lbls);
+	}
+	/* free the alert object herself */
+	free(pa);
 	return;
 }
 

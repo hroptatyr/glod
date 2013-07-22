@@ -44,14 +44,18 @@
 typedef struct alrt_s alrt_t;
 typedef const struct alrts_s *alrts_t;
 
-/* an alert is a labelled glep_pat_t */
 struct alrt_s {
-	const glep_pat_t *p;
-	const char *label;
+	/* index into the label array */
+	uint_fast32_t lbl;
 };
 
 struct alrts_s {
 	gleps_t g;
+
+	/* the global labels vector */
+	size_t nlbls;
+	const char **lbls;
+
 	size_t nalrts;
 	alrt_t alrts[];
 };
