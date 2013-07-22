@@ -54,33 +54,16 @@ CLEANFILES =
 CLEANFILES += version.c
 EXTRA_DIST += version.c.in
 
-noinst_PROGRAMS += facc
-facc_SOURCES = facc.c ftab.h
-BUILT_SOURCES += date.tab
-
 noinst_LIBRARIES += libglod.a
 libglod_a_SOURCES =
 libglod_a_SOURCES += nifty.h
 libglod_a_SOURCES += mem.h
 libglod_a_SOURCES += fops.h
-libglod_a_SOURCES += prchunk.c prchunk.h
-libglod_a_SOURCES += gsep.c gsep.h
-libglod_a_SOURCES += gtype.c gtype.h
-libglod_a_SOURCES += gtype-int.c gtype-int.h
-libglod_a_SOURCES += gtype-flt.c gtype-flt.h
-libglod_a_SOURCES += gtype-date.c gtype-date.h
-libglod_a_SOURCES += strptime.c strptime.h
-libglod_a_SOURCES += gtype-na.c gtype-na.h
-libglod_a_SOURCES += gtype-str.h
 libglod_a_SOURCES += boobs.h
 libglod_a_SOURCES += alrt.c alrt.h
 libglod_a_SOURCES += glep.c glep.h
 libglod_a_SOURCES += wu-manber-guts.c
 libglod_a_SOURCES += version.c version.h
-
-bin_PROGRAMS += glod
-glod_SOURCES = glod.c
-glod_LDADD = libglod.a
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
