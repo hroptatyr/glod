@@ -11,8 +11,8 @@ install-sh
 missing
 src/config.h.in
 *~
-=build*
-build*
+=build*/
+build*/
 depcomp
 ++*
 Makefile
