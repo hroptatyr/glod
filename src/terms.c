@@ -96,6 +96,11 @@ class(char c)
 static void
 pr(const char *s, size_t z)
 {
+	/* cut off leading non-word chars */
+	while (z > 0 && !xalnump(*s)) {
+		s++;
+		z--;
+	}
 	/* cut off trailing non-word chars */
 	while (z > 0 && !xalnump(s[z - 1])) {
 		z--;
