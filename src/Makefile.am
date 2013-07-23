@@ -91,6 +91,12 @@ glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.a
 BUILT_SOURCES += glep.x glep.xh
 
+noinst_PROGRAMS += terms
+terms_SOURCES = terms.c
+terms_SOURCES += terms.ggo
+terms_LDADD = libglod.a
+BUILT_SOURCES += terms.x terms.xh
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
