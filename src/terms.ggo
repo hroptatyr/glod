@@ -1,5 +1,5 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
-package "words"
-usage "glep [OPTIONS...] [FILE]..."
-description "Output words of FILEs."
+package "terms"
+usage "terms [OPTIONS...] [FILE]..."
+description "Output terms of FILEs."
 
