@@ -32,7 +32,7 @@ check_PROGRAMS += clitoris
 clitoris_CPPFLAGS = $(AM_CPPFLAGS)
 clitoris_CPPFLAGS += -D_GNU_SOURCE
 clitoris_LDFLAGS = $(AM_LDFLAGS) -static
-clitoris_LDFLAGS += -lutil
+clitoris_LDADD = -lutil
 BUILT_SOURCES += clitoris.x clitoris.h
 
 
