@@ -91,16 +91,10 @@ glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.a
 BUILT_SOURCES += glep.x glep.xh
 
-noinst_PROGRAMS += terms
+bin_PROGRAMS += terms
 terms_SOURCES = terms.c
 terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
-BUILT_SOURCES += terms.x terms.xh
-
-noinst_PROGRAMS += terms-tst
-terms_tst_SOURCES = terms-tst.c
-terms_tst_SOURCES += terms.ggo
-terms_tst_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
 
 

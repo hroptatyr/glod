@@ -1,4 +1,4 @@
-/*** words.c -- output words, one per line, of a text file
+/*** terms.c -- tag terms according to classifiers
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -39,155 +39,203 @@
 #endif	/* HAVE_CONFIG_H */
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <unistd.h>
 #include <stdio.h>
-#include <ctype.h>
-#include "fops.h"
+#include <stdbool.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <limits.h>
+#include <wchar.h>
+#include <assert.h>
 #include "nifty.h"
+#include "fops.h"
+
+#define MAX_CLASSIFIERS	(64U)
+
+typedef uint_fast8_t clsf_streak_t;
+typedef uint_fast64_t clsf_match_t;
+
+/* we support up to 64 classifiers, and keep track of their streaks */
+static clsf_streak_t strk[MAX_CLASSIFIERS];
+static const char *names[MAX_CLASSIFIERS];
+static size_t nclsf;
+
+static clsf_match_t mtch[128U];
 
 
-static __attribute__((pure, const)) unsigned int
-xalnump(char c)
+static void
+__attribute__((format(printf, 2, 3)))
+error(int eno, const char *fmt, ...)
 {
-	switch (c) {
-	case '0' ... '9':
-	case 'A' ... 'Z':
-	case 'a' ... 'z':
-		return 1U;
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	if (eno || errno) {
+		fputc(':', stderr);
+		fputc(' ', stderr);
+		fputs(strerror(eno ?: errno), stderr);
 	}
-	return 0U;
+	fputc('\n', stderr);
+	return;
 }
 
-static __attribute__((pure, const)) unsigned int
-xword_inner_p(char c)
+
+static clsf_match_t
+classify_char(const char c)
 {
-	switch (c) {
-	case '.':
-	case ',':
-	case '!':
-	case '@':
-	case '%':
-	case ':':
-		return 1U;
-	}
-	return 0U;
-}
+	int ci = c;
 
-static __attribute__((pure, const)) unsigned int
-xword_ext_p(char c)
-{
-	if (c < 0) {
-		/* utf-8 and stuff */
-		return 1U;
+	if (UNLIKELY(ci < 0)) {
+		ci = CHAR_MAX;
 	}
-	return 0U;
-}
-
-static __attribute__((pure, const)) unsigned int
-class(char c)
-{
-	if (xalnump(c) ||
-	    xword_inner_p(c) ||
-	    xword_ext_p(c)) {
-		return 1U;
-	}
-	return 0U;
+	return mtch[ci];
 }
 
 static void
-pr(const char *s, size_t z)
+pr_strk(size_t clsfi, const char *tp, size_t strkz)
 {
-	/* cut off leading non-word chars */
-	while (z > 0 && !xalnump(*s)) {
-		s++;
-		z--;
-	}
-	/* cut off trailing non-word chars */
-	while (z > 0 && !xalnump(s[z - 1])) {
-		z--;
-	}
-	if (LIKELY(z > 0)) {
-		fwrite(s, sizeof(*s), z, stdout);
-		fputc('\n', stdout);
+/* print the streak of size STRKZ that ends on tail-pointer TP. */
+	fwrite(tp - strkz, sizeof(*tp), strkz, stdout);
+	if (LIKELY(names[clsfi] != NULL && *names[clsfi] != '\0')) {
+		putchar('\t');
+		puts(names[clsfi]);
+	} else {
+		putchar('\n');
 	}
 	return;
 }
 
 static int
-w1(const char *fn)
+classify_buf(const char *buf, size_t z)
+{
+	for (const char *bp = buf, *const ep = bp + z; bp < ep; bp++) {
+		clsf_match_t m = classify_char(*bp);
+
+		for (size_t i = 0; i < nclsf; i++, m >>= 1U) {
+			if (m & 1U) {
+				strk[i]++;
+			} else if (strk[i]) {
+				pr_strk(i, bp, strk[i]);
+				strk[i] = 0U;
+			}
+		}
+	}
+	return 0;
+}
+
+static int
+classify1(const char *fn)
 {
 	glodfn_t f;
+	int res = -1;
 
 	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		return -1;
-	}
-	/* just go through the buffer and */
-	{
-		const char *bp = f.fb.d;
-		const char *const ep = bp + f.fb.z;
-		const char *cw = NULL;
-		enum {
-			CTX_UNK,
-			CTX_WORD,
-		} st = CTX_UNK;
-
-		while (bp < ep) {
-			unsigned int wcharp = class(*bp);
-
-			switch (st) {
-			case CTX_UNK:
-			default:
-				if (wcharp) {
-					cw = bp;
-					st = CTX_WORD;
-				}
-				break;
-			case CTX_WORD:
-				if (!wcharp) {
-					/* print current word */
-					pr(cw, bp - cw);
-					st = CTX_UNK;
-				}
-				break;
-			}
-			bp++;
-		}
+		goto out;
 	}
 
+	/* peruse */
+	if (classify_buf(f.fb.d, f.fb.z) < 0) {
+		goto out;
+	}
+
+	/* otherwise print our findings */
+	;
+
+	/* total success innit? */
+	res = 0;
+
+out:
 	(void)munmap_fn(f);
+	return res;
+}
+
+
+/* classifier handling */
+static int
+reg_classifier(const char *name, const char *r)
+{
+	const size_t ci = nclsf++;
+	const size_t cb = 1U << ci;
+
+	/* keep the name at least */
+	names[ci] = name;
+	for (const char *cp = r; *cp; cp++) {
+		int i = *cp;
+
+		if (UNLIKELY(i < 0)) {
+			/* use CHAR_MAX to encode specials */
+			i = CHAR_MAX;
+		}
+		mtch[i] |= cb;
+	}
 	return 0;
 }
 
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
-# pragma warning (disable:181)
 #endif	/* __INTEL_COMPILER */
 #include "terms.xh"
 #include "terms.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
-# pragma warning (default:181)
 #endif	/* __INTEL_COMPILER */
 
 int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
-	int rc = 0;
+	int res;
 
 	if (glod_parser(argc, argv, argi)) {
-		rc = 1;
+		res = 1;
+		goto out;
+	} else if (argi->inputs_num < 1) {
+		fputs("Error: no FILE given\n\n", stderr);
+		glod_parser_print_help();
+		res = 1;
 		goto out;
 	}
 
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		w1(argi->inputs[i]);
+	/* add classifiers */
+	for (size_t i = 0; i < argi->class_given; i++) {
+		char *cl_arg = argi->class_arg[i];
+		const char *name;
+		char *beef;
+
+		if ((beef = strchr(cl_arg, ':')) != NULL) {
+			*beef++ = '\0';
+			name = cl_arg;
+		} else {
+			beef = cl_arg;
+			name = NULL;
+		}
+		reg_classifier(name, beef);
+	}
+	if (!argi->class_given) {
+		/* default classifier are word constituents */
+		reg_classifier(
+			NULL,
+			"0123456789"
+			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			"abcdefghijklmnopqrstuvwxyz"
+			".!@%:^\377");
+	}
+
+	/* run stats on that one file */
+	with (const char *file = argi->inputs[0]) {
+		if ((res = classify1(file)) < 0) {
+			error(errno, "Error: processing `%s' failed", file);
+		}
 	}
 
 out:
 	glod_parser_free(argi);
-	return rc;
+	return res;
 }
 
-/* words.c ends here */
+/* terms.c ends here */

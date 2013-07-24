@@ -3,3 +3,6 @@ package "terms"
 usage "terms [OPTIONS...] [FILE]..."
 description "Output terms of FILEs."
 
+option "class" c
+	"Report terms of character class NAME which consists solely of CHARS."
+	string typestr="[NAME:]CHARS" multiple optional
