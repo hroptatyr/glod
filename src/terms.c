@@ -156,14 +156,11 @@ out:
 
 /* classifier handling */
 static int
-reg_classifier(const char *name, const char *r)
+reg_range(const size_t clsf_idx, const char *const rng)
 {
-	const size_t ci = nclsf++;
-	const size_t cb = 1U << ci;
+	const clsf_match_t cb = 1U << clsf_idx;
 
-	/* keep the name at least */
-	names[ci] = name;
-	for (const char *cp = r; *cp; cp++) {
+	for (const char *cp = rng; *cp; cp++) {
 		int i = *cp;
 
 		if (UNLIKELY(i < 0)) {
@@ -175,14 +172,111 @@ reg_classifier(const char *name, const char *r)
 	return 0;
 }
 
+static int
+reg_class(const size_t clsf_idx, const char *const clsf_name)
+{
+	static const struct {
+		const char *name;
+		const char *r;
+	} clsss[] = {
+		{":alpha:",
+		 "abcdefghijklmnopqrstuvwxyz"
+		 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
+		{":lower:",
+		 "abcdefghijklmnopqrstuvwxyz"},
+		{":upper:",
+		 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
+		{":digit:",
+		 "0123456789"},
+	};
+
+	for (size_t i = 0; i < countof(clsss); i++) {
+		if (!strcmp(clsf_name, clsss[i].name)) {
+			reg_range(clsf_idx, clsss[i].r);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+static int
+reg_classifier(const char *name, char *const rng)
+{
+	const size_t ci = nclsf++;
+	char *tp;
+
+	/* massage escapes */
+	for (const char *rp = tp = rng; *rp; rp++, tp++) {
+		static const char esc[] = "\a\bcde\fghijklm\nopq\rs\tu\v";
+
+		if ((*tp = *rp) != '\\') {
+			continue;
+		}
+
+		/* otherwise use the esc map */
+		switch (*++rp) {
+		case 'a' ... 'v':
+			*tp = esc[*rp - 'a'];
+			break;
+		case '\\':
+			*tp = '\\';
+			break;
+		case '\0':
+			/* unescaped \ at eos */
+			*tp = '\0';
+			break;
+		default:
+			*tp = *rp;
+			break;
+		}
+	}
+	/* finalise target */
+	*tp = '\0';
+
+	for (char *sp = tp = rng, *rp; (rp = strchr(tp, '[')) != NULL;) {
+		char *erp;
+
+		/* check if it's really the magic set specifier */
+		if (rp[1] != ':' ||
+		    (erp = strchr(rp + 2, ']')) == NULL ||
+		    erp[-1] != ':') {
+			/* nope, retry */
+			tp = rp + 1;
+			continue;
+		}
+		/* otherwise we have a [: digraph, finalise temporarily */
+		*rp = '\0';
+		*erp = '\0';
+		if (rp > sp) {
+			/* register stuff at the front */
+			reg_range(ci, sp);
+		}
+		/* register class */
+		reg_class(ci, rp + 1);
+
+		/* set loop vars for next run */
+		sp = tp = erp + 1;
+	}
+	if (*tp) {
+		/* register stuff beyond the last set specifier */
+		reg_range(ci, tp);
+	}
+
+	/* keep the name at least */
+	names[ci] = name;
+	return 0;
+}
+
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
+# pragma warning (disable:181)
 #endif	/* __INTEL_COMPILER */
 #include "terms.xh"
 #include "terms.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
+# pragma warning (default:181)
 #endif	/* __INTEL_COMPILER */
 
 int
@@ -207,7 +301,8 @@ main(int argc, char *argv[])
 		const char *name;
 		char *beef;
 
-		if ((beef = strchr(cl_arg, ':')) != NULL) {
+		if ((beef = strchr(cl_arg, ':')) != NULL &&
+		    beef == cl_arg || beef[-1] != '[') {
 			*beef++ = '\0';
 			name = cl_arg;
 		} else {
@@ -218,8 +313,8 @@ main(int argc, char *argv[])
 	}
 	if (!argi->class_given) {
 		/* default classifier are word constituents */
-		reg_classifier(
-			NULL,
+		reg_range(
+			0,
 			"0123456789"
 			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 			"abcdefghijklmnopqrstuvwxyz"
