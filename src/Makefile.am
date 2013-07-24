@@ -97,6 +97,12 @@ terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
 
+noinst_PROGRAMS += terms-tst
+terms_tst_SOURCES = terms-tst.c
+terms_tst_SOURCES += terms.ggo
+terms_tst_LDADD = libglod.a
+BUILT_SOURCES += terms.x terms.xh
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
