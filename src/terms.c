@@ -343,7 +343,7 @@ main(int argc, char *argv[])
 		char *beef;
 
 		if ((beef = strchr(cl_arg, ':')) != NULL &&
-		    beef == cl_arg || beef[-1] != '[') {
+		    (beef == cl_arg || beef[-1] != '[')) {
 			*beef++ = '\0';
 			name = cl_arg;
 		} else {
