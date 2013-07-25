@@ -156,7 +156,7 @@ out:
 
 /* classifier handling */
 static int
-reg_range(const size_t clsf_idx, const char *const rng)
+reg_srange(const size_t clsf_idx, const char *const rng)
 {
 	const clsf_match_t cb = 1U << clsf_idx;
 
@@ -173,27 +173,61 @@ reg_range(const size_t clsf_idx, const char *const rng)
 }
 
 static int
+reg_nrange(const size_t clsf_idx, const char from, const char to)
+{
+	const clsf_match_t cb = 1U << clsf_idx;
+	char cp;
+
+	if (UNLIKELY((cp = from) < 0)) {
+		mtch[CHAR_MAX] |= cb;
+		cp = '\001';
+	}
+	for (; cp <= to; cp++) {
+		mtch[cp] |= cb;
+	}
+	return 0;
+}
+
+static int
 reg_class(const size_t clsf_idx, const char *const clsf_name)
 {
+#define DIGIT	"012345679"
+#define LOWER	"abcdefghijklmnopqrstuvwxyz"
+#define UPPER	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+#define ALPHA	UPPER LOWER
+#define ALNUM	DIGIT ALPHA
+#define PUNCT	"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+#define HSPACE	" \t"
+#define VSPACE	"\n\v\f\r"
+#define SPACE	HSPACE VSPACE
+#define GRAPH	PUNCT ALNUM
 	static const struct {
 		const char *name;
 		const char *r;
 	} clsss[] = {
-		{":alpha:",
-		 "abcdefghijklmnopqrstuvwxyz"
-		 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
-		{":lower:",
-		 "abcdefghijklmnopqrstuvwxyz"},
-		{":upper:",
-		 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
-		{":digit:",
-		 "0123456789"},
+		{":alnum:", ALNUM},
+		{":alpha:", ALPHA},
+		{":blank:", HSPACE},
+		{":digit:", DIGIT},
+		{":graph:", GRAPH},
+		{":lower:", LOWER},
+		{":print:", " " GRAPH},
+		{":punct:", PUNCT},
+		{":space:", SPACE},
+		{":upper:", UPPER},
+		{":xdigit:", DIGIT "abcdefABCDEF"},
 	};
 
 	for (size_t i = 0; i < countof(clsss); i++) {
-		if (!strcmp(clsf_name, clsss[i].name)) {
-			reg_range(clsf_idx, clsss[i].r);
+		int c = strcmp(clsf_name, clsss[i].name);
+
+		if (c == 0) {
+			/* exact match */
+			reg_srange(clsf_idx, clsss[i].r);
 			return 0;
+		} else if (c < 0) {
+			/* wont match as clsss is in ascending order */
+			return -1;
 		}
 	}
 	return -1;
@@ -233,11 +267,18 @@ reg_classifier(const char *name, char *const rng)
 	/* finalise target */
 	*tp = '\0';
 
-	for (char *sp = tp = rng, *rp; (rp = strchr(tp, '[')) != NULL;) {
+	for (char *sp = tp = rng, *rp; (rp = strpbrk(tp, "[-")) != NULL;) {
 		char *erp;
 
 		/* check if it's really the magic set specifier */
-		if (rp[1] != ':' ||
+		if (rp[0] == '-') {
+			if (rp > rng && rp[1] != '\0' && rp[-1] < rp[1]) {
+				reg_nrange(ci, rp[-1], rp[1]);
+				rp++;
+			}
+			tp = rp + 1;
+			continue;
+		} else if (rp[1] != ':' ||
 		    (erp = strchr(rp + 2, ']')) == NULL ||
 		    erp[-1] != ':') {
 			/* nope, retry */
@@ -249,7 +290,7 @@ reg_classifier(const char *name, char *const rng)
 		*erp = '\0';
 		if (rp > sp) {
 			/* register stuff at the front */
-			reg_range(ci, sp);
+			reg_srange(ci, sp);
 		}
 		/* register class */
 		reg_class(ci, rp + 1);
@@ -259,7 +300,7 @@ reg_classifier(const char *name, char *const rng)
 	}
 	if (*tp) {
 		/* register stuff beyond the last set specifier */
-		reg_range(ci, tp);
+		reg_srange(ci, tp);
 	}
 
 	/* keep the name at least */
@@ -313,12 +354,7 @@ main(int argc, char *argv[])
 	}
 	if (!argi->class_given) {
 		/* default classifier are word constituents */
-		reg_range(
-			0,
-			"0123456789"
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			"abcdefghijklmnopqrstuvwxyz"
-			".!@%:^\377");
+		reg_srange(0, ALNUM ".!@%:^\377");
 	}
 
 	/* run stats on that one file */
