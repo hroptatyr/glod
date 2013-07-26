@@ -6,3 +6,7 @@ description "Report matching patterns in FILEs."
 option "pattern-file" f
 	"Read patterns from FILE."
 	string typestr="FILE"
+
+option "invert-match" v
+	"Report FILEs that don't match any patterns."
+	optional
