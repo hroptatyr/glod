@@ -247,6 +247,8 @@ glod_fr_gleps(gleps_t g)
 #include <errno.h>
 #include "fops.h"
 
+static int invert_match_p;
+
 static void
 __attribute__((format(printf, 1, 2)))
 error(const char *fmt, ...)
@@ -289,6 +291,7 @@ static int
 gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 {
 	glodfn_t f;
+	int nmtch = 0;
 
 	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
@@ -306,12 +309,16 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 				fputs(pf->pats[bix].s, stdout);
 				putchar('\t');
 				puts(fn);
+				nmtch++;
 			}
 		}
 	}
+	if (invert_match_p && !nmtch) {
+		puts(fn);
+	}
 
 	(void)munmap_fn(f);
-	return 0;
+	return nmtch;
 }
 
 
@@ -341,6 +348,10 @@ main(int argc, char *argv[])
 		error("Error: cannot read pattern file `%s'",
 		      argi->pattern_file_arg);
 		goto out;
+	}
+
+	if (argi->invert_match_given) {
+		invert_match_p = 1;
 	}
 
 	/* compile the patterns */
