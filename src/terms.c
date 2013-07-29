@@ -354,7 +354,9 @@ main(int argc, char *argv[])
 	}
 	if (!argi->class_given) {
 		/* default classifier are word constituents */
-		reg_srange(0, ALNUM ".!@%:^\377");
+		const size_t ci = nclsf++;
+
+		reg_srange(ci, ALNUM "!@%^\377");
 	}
 
 	/* run stats on that one file */
