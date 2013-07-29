@@ -255,6 +255,19 @@ reg_classifier(const char *name, char *const rng)
 		case '\\':
 			*tp = '\\';
 			break;
+		case '0' ... '7':;
+			/* octal number */
+			int oct;
+
+			/* just go through whatever comes */
+			for (oct = *rp++ - '0';
+			     *rp >= '0' && *rp <= '7';
+			     oct *= 8U, oct += *rp++ - '0');
+			/* rewind rp again */
+			rp--;
+
+			*tp = (char)oct;
+			break;
 		case '\0':
 			/* unescaped \ at eos */
 			*tp = '\0';
