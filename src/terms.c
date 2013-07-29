@@ -255,6 +255,19 @@ reg_classifier(const char *name, char *const rng)
 		case '\\':
 			*tp = '\\';
 			break;
+		case '0' ... '7':;
+			/* octal number */
+			int oct;
+
+			/* just go through whatever comes */
+			for (oct = *rp++ - '0';
+			     *rp >= '0' && *rp <= '7';
+			     oct *= 8U, oct += *rp++ - '0');
+			/* rewind rp again */
+			rp--;
+
+			*tp = (char)oct;
+			break;
 		case '\0':
 			/* unescaped \ at eos */
 			*tp = '\0';
@@ -354,7 +367,9 @@ main(int argc, char *argv[])
 	}
 	if (!argi->class_given) {
 		/* default classifier are word constituents */
-		reg_srange(0, ALNUM ".!@%:^\377");
+		const size_t ci = nclsf++;
+
+		reg_srange(ci, ALNUM "!@%^\377");
 	}
 
 	/* run stats on that one file */
