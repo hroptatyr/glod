@@ -1,0 +1,186 @@
+/*** glkv.h -- glod key-val data store
+ *
+ * Copyright (C) 2013 Sebastian Freundt
+ *
+ * Author:  Sebastian Freundt <freundt@ga-group.nl>
+ *
+ * This file is part of glod.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the author nor the names of any contributors
+ *    may be used to endorse or promote products derived from this
+ *    software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ ***/
+#if defined HAVE_CONFIG_H
+# include "config.h"
+#endif	/* HAVE_CONFIG_H */
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <string.h>
+#include <fcntl.h>
+#include <tcbdb.h>
+
+#include "glkv.h"
+#include "nifty.h"
+
+struct glkv_s {
+	TCBDB *db;
+};
+
+
+/* low level graph lib */
+glkv_t
+make_glkv(const char *db, ...)
+{
+	va_list ap;
+	int omode = BDBOREADER;
+	int oparam;
+	struct glkv_s res;
+
+	va_start(ap, db);
+	oparam = va_arg(ap, int);
+	va_end(ap);
+
+	if (oparam & O_RDWR) {
+		omode |= BDBOWRITER;
+	}
+	if (oparam & O_CREAT) {
+		omode |= BDBOCREAT;
+	}
+
+	if (UNLIKELY((res.db = tcbdbnew()) == NULL)) {
+		goto out;
+	} else if (UNLIKELY(!tcbdbopen(res.db, db, omode))) {
+		goto free_out;
+	}
+
+	/* success, clone and out */
+	{
+		struct glkv_s *x = malloc(sizeof(*x));
+
+		*x = res;
+		return x;
+	}
+
+free_out:
+	tcbdbdel(res.db);
+out:
+	return NULL;
+}
+
+void
+free_glkv(glkv_t ctx)
+{
+	tcbdbclose(ctx->db);
+	tcbdbdel(ctx->db);
+	free(ctx);
+	return;
+}
+
+
+static gl_crpid_t
+next_id(glkv_t g)
+{
+	static const char nid[] = "\x1d";
+	int res;
+
+	if (UNLIKELY((res = tcbdbaddint(g->db, nid, sizeof(nid), 1)) <= 0)) {
+		return 0U;
+	}
+	return (gl_crpid_t)res;
+}
+
+static gl_crpid_t
+get_term(glkv_t g, const char *t, size_t z)
+{
+	gl_crpid_t res;
+	const int *rp;
+	int rz[1];
+
+	if (UNLIKELY((rp = tcbdbget3(g->db, t, z, rz)) == NULL)) {
+		return 0U;
+	} else if (UNLIKELY(*rz != sizeof(*rp))) {
+		return 0U;
+	}
+	res = (gl_crpid_t)*rp;
+	return res;
+}
+
+static int
+add_term(glkv_t g, const char *t, size_t z, gl_crpid_t id)
+{
+	return tcbdbaddint(g->db, t, z, (int)id) - 1;
+}
+
+static int
+del_term(glkv_t g, gl_crpid_t UNUSED(id), const char *t, size_t z)
+{
+	return tcbdbout(g->db, t, z) - 1;
+}
+
+
+gl_crpid_t
+glkv_get_term(glkv_t g, const char *t)
+{
+	return get_term(g, t, strlen(t));
+}
+
+gl_crpid_t
+glkv_add_term(glkv_t g, const char *t)
+{
+	size_t z = strlen(t);
+	gl_crpid_t res;
+
+	/* check if T is in there already */
+	if ((res = get_term(g, t, z))) {
+		/* perfeck */
+		;
+	} else if (UNLIKELY((res = next_id(g)) == 0U)) {
+		/* big fuck */
+		;
+	} else if (add_term(g, t, z, res) < 0) {
+		res = 0U;
+	}
+	return res;
+}
+
+gl_crpid_t
+glkv_del_term(glkv_t g, const char *t)
+{
+	size_t z = strlen(t);
+	gl_crpid_t res;
+
+	/* first check if T is really there, if not get an id and add that */
+	if (UNLIKELY(!(res = get_term(g, t, z)))) {
+		;
+	} else if (UNLIKELY(del_term(g, res, t, z) < 0)) {
+		res = 0U;
+	}
+	return res;
+}
+
+/* glkv.c ends here */
