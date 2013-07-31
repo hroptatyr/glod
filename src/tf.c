@@ -71,10 +71,11 @@ resize_tf(ctx_t ctx, gl_crpid_t id)
 	} else if (UNLIKELY((ol = ctx->tf->nf) <= id)) {
 		;
 	} else {
+		/* already covered */
 		return;
 	}
 	/* resize then */
-	with (size_t nu = (ol + TF_RESZ_STEP)) {
+	with (size_t nu = ((id / TF_RESZ_STEP) + 1U) * TF_RESZ_STEP) {
 		ctx->tf = realloc(
 			ctx->tf, nu * sizeof(*ctx->tf->f) + sizeof(*ctx->tf));
 		/* bzero */
