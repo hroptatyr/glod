@@ -373,7 +373,9 @@ main(int argc, char *argv[])
 	}
 
 	/* run stats on that one file */
-	with (const char *file = argi->inputs[0]) {
+	for (unsigned int i = 0; i < argi->inputs_num; i++) {
+		const char *file = argi->inputs[i];
+
 		if ((res = classify1(file)) < 0) {
 			error(errno, "Error: processing `%s' failed", file);
 		}
