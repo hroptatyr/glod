@@ -40,12 +40,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include "glkv.h"
+#include "corpus.h"
 #include "nifty.h"
 
 
 static void
-snarf(glkv_t ctx)
+snarf(gl_corpus_t ctx)
 {
 	char *line = NULL;
 	size_t llen = 0U;
@@ -55,7 +55,7 @@ snarf(glkv_t ctx)
 		gl_crpid_t id;
 
 		line[nrd - 1] = '\0';
-		if ((id = glkv_add_term(ctx, line))) {
+		if ((id = corpus_add_term(ctx, line))) {
 			;
 		} else {
 			fprintf(stderr,
@@ -84,8 +84,8 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
-	const char *db = GLOD_DFLT_GLKV;
-	glkv_t ctx;
+	const char *db = GLOD_DFLT_CORPUS;
+	gl_corpus_t ctx;
 	int res;
 
 	if (glod_parser(argc, argv, argi)) {
@@ -97,14 +97,14 @@ main(int argc, char *argv[])
 		db = argi->corpus_arg;
 	}
 
-	if (UNLIKELY((ctx = make_glkv(db, O_RDWR | O_CREAT)) == NULL)) {
+	if (UNLIKELY((ctx = make_corpus(db, O_RDWR | O_CREAT)) == NULL)) {
 		goto out;
 	}
 
 	/* just categorise the whole shebang */
 	snarf(ctx);
 
-	free_glkv(ctx);
+	free_corpus(ctx);
 out:
 	glod_parser_free(argi);
 	return res;

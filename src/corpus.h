@@ -1,4 +1,4 @@
-/*** glkv.h -- glod key-val data store
+/*** corpus.h -- glod key-val data store for corpora
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -34,33 +34,29 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_glkv_h_
-#define INCLUDED_glkv_h_
+#if !defined INCLUDED_corpus_h_
+#define INCLUDED_corpus_h_
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
 
-#define GLOD_DFLT_GLKV	"corpus.tcb"
+#define GLOD_DFLT_CORPUS	"corpus.tcb"
 
-typedef struct glkv_s *restrict glkv_t;
+typedef struct gl_corpus_s *restrict gl_corpus_t;
 typedef unsigned int gl_crpid_t;
 
 
 /* lower level graph api */
-extern glkv_t make_glkv(const char *dbfile, ...);
-extern void free_glkv(glkv_t);
+extern gl_corpus_t make_corpus(const char *dbfile, ...);
+extern void free_corpus(gl_corpus_t);
 
 /**
  * Return corpus id for term T, 0 if T is not present. */
-extern gl_crpid_t glkv_get_term(glkv_t, const char *t);
+extern gl_crpid_t corpus_get_term(gl_corpus_t, const char *t);
 
 /**
  * Add T to the corpus, and return its id. */
-extern gl_crpid_t glkv_add_term(glkv_t, const char *t);
+extern gl_crpid_t corpus_add_term(gl_corpus_t, const char *t);
 
-/**
- * Remove T from the corpus, and return its former id. */
-extern gl_crpid_t glkv_del_term(glkv_t, const char *t);
-
-#endif	/* INCLUDED_glkv_h_ */
+#endif	/* INCLUDED_corpus_h_ */

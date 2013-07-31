@@ -1,4 +1,4 @@
-/*** glkv.h -- glod key-val data store
+/*** corpus.c -- glod key-val data store for corpora
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -44,22 +44,22 @@
 #include <fcntl.h>
 #include <tcbdb.h>
 
-#include "glkv.h"
+#include "corpus.h"
 #include "nifty.h"
 
-struct glkv_s {
+struct gl_corpus_s {
 	TCBDB *db;
 };
 
 
 /* low level graph lib */
-glkv_t
-make_glkv(const char *db, ...)
+gl_corpus_t
+make_corpus(const char *db, ...)
 {
 	va_list ap;
 	int omode = BDBOREADER;
 	int oparam;
-	struct glkv_s res;
+	struct gl_corpus_s res;
 
 	va_start(ap, db);
 	oparam = va_arg(ap, int);
@@ -80,7 +80,7 @@ make_glkv(const char *db, ...)
 
 	/* success, clone and out */
 	{
-		struct glkv_s *x = malloc(sizeof(*x));
+		struct gl_corpus_s *x = malloc(sizeof(*x));
 
 		*x = res;
 		return x;
@@ -93,7 +93,7 @@ out:
 }
 
 void
-free_glkv(glkv_t ctx)
+free_corpus(gl_corpus_t ctx)
 {
 	tcbdbclose(ctx->db);
 	tcbdbdel(ctx->db);
@@ -103,7 +103,7 @@ free_glkv(glkv_t ctx)
 
 
 static gl_crpid_t
-next_id(glkv_t g)
+next_id(gl_corpus_t g)
 {
 	static const char nid[] = "\x1d";
 	int res;
@@ -115,7 +115,7 @@ next_id(glkv_t g)
 }
 
 static gl_crpid_t
-get_term(glkv_t g, const char *t, size_t z)
+get_term(gl_corpus_t g, const char *t, size_t z)
 {
 	gl_crpid_t res;
 	const int *rp;
@@ -131,26 +131,20 @@ get_term(glkv_t g, const char *t, size_t z)
 }
 
 static int
-add_term(glkv_t g, const char *t, size_t z, gl_crpid_t id)
+add_term(gl_corpus_t g, const char *t, size_t z, gl_crpid_t id)
 {
 	return tcbdbaddint(g->db, t, z, (int)id) - 1;
 }
 
-static int
-del_term(glkv_t g, gl_crpid_t UNUSED(id), const char *t, size_t z)
-{
-	return tcbdbout(g->db, t, z) - 1;
-}
-
 
 gl_crpid_t
-glkv_get_term(glkv_t g, const char *t)
+corpus_get_term(gl_corpus_t g, const char *t)
 {
 	return get_term(g, t, strlen(t));
 }
 
 gl_crpid_t
-glkv_add_term(glkv_t g, const char *t)
+corpus_add_term(gl_corpus_t g, const char *t)
 {
 	size_t z = strlen(t);
 	gl_crpid_t res;
@@ -168,19 +162,4 @@ glkv_add_term(glkv_t g, const char *t)
 	return res;
 }
 
-gl_crpid_t
-glkv_del_term(glkv_t g, const char *t)
-{
-	size_t z = strlen(t);
-	gl_crpid_t res;
-
-	/* first check if T is really there, if not get an id and add that */
-	if (UNLIKELY(!(res = get_term(g, t, z)))) {
-		;
-	} else if (UNLIKELY(del_term(g, res, t, z) < 0)) {
-		res = 0U;
-	}
-	return res;
-}
-
-/* glkv.c ends here */
+/* corpus.c ends here */
