@@ -100,15 +100,15 @@ terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
 
-noinst_PROGRAMS += tcvec
-tcvec_SOURCES = tcvec.c
-tcvec_SOURCES += tcvec.ggo
-tcvec_CPPFLAGS = $(AM_CPPFLAGS)
-tcvec_CPPFLAGS += -D_GNU_SOURCE
-tcvec_LDFLAGS = $(AM_LDFLAGS)
-tcvec_LDFLAGS += $(tokyocabinet_LIBS)
-tcvec_LDADD = libglod.a
-BUILT_SOURCES += tcvec.x tcvec.xh
+noinst_PROGRAMS += tf
+tf_SOURCES = tf.c
+tf_SOURCES += tf.ggo
+tf_CPPFLAGS = $(AM_CPPFLAGS)
+tf_CPPFLAGS += -D_GNU_SOURCE
+tf_LDFLAGS = $(AM_LDFLAGS)
+tf_LDFLAGS += $(tokyocabinet_LIBS)
+tf_LDADD = libglod.a
+BUILT_SOURCES += tf.x tf.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk

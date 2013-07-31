@@ -1,7 +1,7 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
-package "tcvec"
-usage "tcvec [OPTIONS...]"
-description "Return a term count vector for terms on stdin."
+package "tf"
+usage "tf [OPTIONS...]"
+description "Return the terms frequency vector for terms on stdin."
 
 option "corpus" f
 	"Use specified corpus file."

@@ -1,4 +1,4 @@
-/*** tcvec.c -- return a term-count vector
+/*** tf.c -- return a term-count vector
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -73,8 +73,8 @@ snarf(gl_corpus_t ctx)
 # pragma warning (disable:593)
 # pragma warning (disable:181)
 #endif	/* __INTEL_COMPILER */
-#include "tcvec.xh"
-#include "tcvec.x"
+#include "tf.xh"
+#include "tf.x"
 #if defined __INTEL_COMPILER
 # pragma warning (default:593)
 # pragma warning (default:181)
@@ -110,4 +110,4 @@ out:
 	return res;
 }
 
-/* tcvec.c ends here */
+/* tf.c ends here */
