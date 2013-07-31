@@ -3,3 +3,7 @@ package "tcvec"
 usage "tcvec [OPTIONS...]"
 description "Return a term count vector for terms on stdin."
 
+option "corpus" f
+	"Use specified corpus file."
+	string typestr="FILE" optional
+

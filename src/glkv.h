@@ -41,6 +41,8 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#define GLOD_DFLT_GLKV	"corpus.tcb"
+
 typedef struct glkv_s *restrict glkv_t;
 typedef unsigned int gl_crpid_t;
 

@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include "glkv.h"
+#include "nifty.h"
 
 
 static void
@@ -83,6 +84,7 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
+	const char *db = GLOD_DFLT_GLKV;
 	glkv_t ctx;
 	int res;
 
@@ -91,7 +93,11 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	if ((ctx = make_glkv("/tmp/glkv.tcb", O_RDWR | O_CREAT)) == NULL) {
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
+	}
+
+	if (UNLIKELY((ctx = make_glkv(db, O_RDWR | O_CREAT)) == NULL)) {
 		goto out;
 	}
 
