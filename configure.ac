@@ -40,6 +40,10 @@ AC_PROG_RANLIB
 
 AM_MISSING_PROG([HELP2MAN], [help2man], ["${missing_dir}"])
 
+PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet])
+AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
+with_database="tcbdb"
+
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([src/Makefile])
 AC_CONFIG_FILES([test/Makefile])

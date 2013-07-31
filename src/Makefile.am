@@ -38,7 +38,7 @@ include $(top_builddir)/version.mk
 
 AM_CFLAGS = $(EXTRA_CFLAGS)
 AM_CPPFLAGS = -D_GNU_SOURCE -D_POSIX_C_SOURCE=201001L -D_XOPEN_SOURCE=800 -D_BSD_SOURCE
-AM_LDFLAGS = $(XCCLDFLAGS) -static
+AM_LDFLAGS = $(XCCLDFLAGS)
 
 bin_PROGRAMS =
 noinst_PROGRAMS =
@@ -63,7 +63,10 @@ libglod_a_SOURCES += boobs.h
 libglod_a_SOURCES += alrt.c alrt.h
 libglod_a_SOURCES += glep.c glep.h
 libglod_a_SOURCES += wu-manber-guts.c
+libglod_a_SOURCES += corpus.c corpus.h
 libglod_a_SOURCES += version.c version.h
+libglod_a_CPPFLAGS = $(AM_CPPFLAGS)
+libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
@@ -96,6 +99,16 @@ terms_SOURCES = terms.c
 terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
+
+noinst_PROGRAMS += tf
+tf_SOURCES = tf.c
+tf_SOURCES += tf.ggo
+tf_CPPFLAGS = $(AM_CPPFLAGS)
+tf_CPPFLAGS += -D_GNU_SOURCE
+tf_LDFLAGS = $(AM_LDFLAGS)
+tf_LDFLAGS += $(tokyocabinet_LIBS)
+tf_LDADD = libglod.a
+BUILT_SOURCES += tf.x tf.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk

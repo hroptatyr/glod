@@ -1,0 +1,17 @@
+args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
+package "tf"
+usage "tf [OPTIONS...]"
+description "Return the terms frequency vector for terms on stdin."
+
+option "corpus" f
+	"Use specified corpus file."
+	string typestr="FILE" optional
+
+option "add" a
+	"Add unknown terms to the corpus instead of mapping them to the \
+unknown-term indicator."
+	optional
+
+option "dense" -
+	"Output a (binary) dense map instead of sparse tuples (id+tf)."
+	optional
