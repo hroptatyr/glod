@@ -11,3 +11,7 @@ option "add" a
 	"Add unknown terms to the corpus instead of mapping them to the \
 unknown-term indicator."
 	optional
+
+option "dense" -
+	"Output a (binary) dense map instead of sparse tuples (id+tf)."
+	optional

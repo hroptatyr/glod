@@ -187,8 +187,17 @@ main(int argc, char *argv[])
 		snarf_get(ctx);
 	}
 
-	for (size_t i = 0; i < ctx->tf->nf; i++) {
-		printf("%zu\t%u\t\n", i, (unsigned int)ctx->tf->f[i]);
+	if (argi->dense_given) {
+		/* for people who know what they're doing(?) */
+		fwrite(ctx->tf->f, ctx->tf->nf, sizeof(*ctx->tf->f), stdout);
+	} else {
+		/* plain old sparse tuples innit */
+		for (size_t i = 0; i < ctx->tf->nf; i++) {
+			if (ctx->tf->f[i]) {
+				unsigned int f = ctx->tf->f[i];
+				printf("%zu\t%u\t\n", i, f);
+			}
+		}
 	}
 
 	free_corpus(ctx->c);
