@@ -7,3 +7,7 @@ option "corpus" f
 	"Use specified corpus file."
 	string typestr="FILE" optional
 
+option "add" a
+	"Add unknown terms to the corpus instead of mapping them to the \
+unknown-term indicator."
+	optional

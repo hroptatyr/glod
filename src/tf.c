@@ -45,7 +45,7 @@
 
 
 static void
-snarf(gl_corpus_t ctx)
+snarf_add(gl_corpus_t ctx)
 {
 	char *line = NULL;
 	size_t llen = 0U;
@@ -62,6 +62,24 @@ snarf(gl_corpus_t ctx)
 				"Error: putting `%s' into corpus\n", line);
 			break;
 		}
+		printf("%u\n", id);
+	}
+	free(line);
+	return;
+}
+
+static void
+snarf_get(gl_corpus_t ctx)
+{
+	char *line = NULL;
+	size_t llen = 0U;
+	ssize_t nrd;
+
+	while ((nrd = getline(&line, &llen, stdin)) > 0) {
+		gl_crpid_t id;
+
+		line[nrd - 1] = '\0';
+		id = corpus_get_term(ctx, line);
 		printf("%u\n", id);
 	}
 	free(line);
@@ -86,6 +104,7 @@ main(int argc, char *argv[])
 	struct glod_args_info argi[1];
 	const char *db = GLOD_DFLT_CORPUS;
 	gl_corpus_t ctx;
+	int oflags = 0;
 	int res;
 
 	if (glod_parser(argc, argv, argi)) {
@@ -97,12 +116,19 @@ main(int argc, char *argv[])
 		db = argi->corpus_arg;
 	}
 
-	if (UNLIKELY((ctx = make_corpus(db, O_RDWR | O_CREAT)) == NULL)) {
+	if (argi->add_given) {
+		oflags = O_RDWR | O_CREAT;
+	}
+	if (UNLIKELY((ctx = make_corpus(db, oflags)) == NULL)) {
 		goto out;
 	}
 
 	/* just categorise the whole shebang */
-	snarf(ctx);
+	if (argi->add_given) {
+		snarf_add(ctx);
+	} else {
+		snarf_get(ctx);
+	}
 
 	free_corpus(ctx);
 out:
