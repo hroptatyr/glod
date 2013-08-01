@@ -59,7 +59,7 @@ make_dbn(size_t UNUSED(max_nrbms))
 }
 
 dbn_t
-make_linear_dbn(size_t nargs, struct dbn_args_s args[])
+make_dbn_stack(size_t nargs, struct dbn_args_s args[])
 {
 	dbn_t res = malloc(sizeof(*res));
 
@@ -649,7 +649,7 @@ pump_dbn(const char *filename)
 	}
 
 	/* we're in the mood to create the dbn now */
-	res = make_linear_dbn(nargs, args);
+	res = make_dbn_stack(nargs, args);
 
 	/* read the weight matrix and the biases */
 	for (idx_t i = 0; i < res->nrbms; i++) {
@@ -745,7 +745,7 @@ pump_dbn_tpl(const char *filename)
 	}
 
 	/* create a dbn from that */
-	if (UNLIKELY((res = make_linear_dbn(nlayers, args)) == NULL)) {
+	if (UNLIKELY((res = make_dbn_stack(nlayers, args)) == NULL)) {
 		goto fail;
 	}
 

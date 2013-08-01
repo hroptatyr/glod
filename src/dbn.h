@@ -91,7 +91,7 @@ extern dbn_t make_dbn(size_t max_nrbms);
  * Return a newly allocated DBN prefilled with by the given specs in ARGS.
  * \param nargs the number of arguments in the args vector
  * \param args the arguments */
-extern dbn_t make_linear_dbn(size_t nargs, struct dbn_args_s args[]);
+extern dbn_t make_dbn_stack(size_t nargs, struct dbn_args_s args[]);
 
 /**
  * Destructor. */
