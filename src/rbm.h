@@ -58,9 +58,9 @@ typedef fpfloat_t learning_rate_t;
  * Publically visible portion of the rbm structure. */
 struct rbm_s {
 	/** Pointer to the visible units. */
-	layer_t visible;
+	layer_t vis;
 	/** Pointer to the hidden units. */
-	layer_t hidden;
+	layer_t hid;
 
 	/**
 	 * Weight matrix.
@@ -291,20 +291,20 @@ __aligned16_size(size_t len)
 static inline fpfloat_t
 weight_ij(rbm_t m, idx_t i, idx_t j)
 {
-	return m->weights[j * __aligned_size(layer_size(m->visible)) + i];
+	return m->weights[j * __aligned_size(layer_size(m->vis)) + i];
 }
 
 static inline void
 set_weight_ij(rbm_t m, idx_t i, idx_t j, fpfloat_t w)
 {
-	m->weights[j * __aligned_size(layer_size(m->visible)) + i] = w;
+	m->weights[j * __aligned_size(layer_size(m->vis)) + i] = w;
 	return;
 }
 
 static inline void
 inc_weight_ij(rbm_t m, idx_t i, idx_t j, fpfloat_t w)
 {
-	m->weights[j * __aligned_size(layer_size(m->visible)) + i] += w;
+	m->weights[j * __aligned_size(layer_size(m->vis)) + i] += w;
 	return;
 }
 
@@ -330,7 +330,7 @@ set_visible_bias_i(rbm_t m, idx_t i, fpfloat_t v)
 static inline fpfloat_t*
 hidden_biases(const_rbm_t m)
 {
-	return &m->biases[__aligned_size(layer_size(m->visible))];
+	return &m->biases[__aligned_size(layer_size(m->vis))];
 }
 
 static inline fpfloat_t

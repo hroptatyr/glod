@@ -113,7 +113,7 @@ dbn_add_classifier(dbn_t net, size_t nclasses)
 	layer_set_samplef(cl_layer, dr_expf_identity);
 
 	return net->rbms[net->nrbms] = make_rbm(
-		cl_layer, net->rbms[net->nrbms - 1]->hidden, NULL);
+		cl_layer, net->rbms[net->nrbms - 1]->hid, NULL);
 }
 
 

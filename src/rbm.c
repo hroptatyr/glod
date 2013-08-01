@@ -81,8 +81,8 @@ make_rbm(layer_t visible, layer_t hidden, cloud_t cloud)
 	__rbm_t res;
 
 	res = malloc(sizeof(*res));
-	res->super.visible = visible;
-	res->super.hidden = hidden;
+	res->super.vis = visible;
+	res->super.hid = hidden;
 	/* allocate the weights matrix */
 	if (LIKELY(cloud == NULL)) {
 		/* make use of the special layout of an adjacency matrix
@@ -123,7 +123,7 @@ __rbm_scratch_visible(const rbm_t m)
 static inline fpfloat_t*
 __rbm_scratch_hidden(const rbm_t m)
 {
-	return &__rbm(m)->scratch[layer_size(m->visible)];
+	return &__rbm(m)->scratch[layer_size(m->vis)];
 }
 
 void
@@ -156,8 +156,8 @@ __rbm_wm_wobbler(idx_t idx)
 void
 rbm_wobble_weight_matrix(rbm_t m)
 {
-	const size_t vz = __aligned_size(layer_size(m->visible));
-	const size_t hz = layer_size(m->hidden);
+	const size_t vz = __aligned_size(layer_size(m->vis));
+	const size_t hz = layer_size(m->hid);
 
 	/* add some small noise to the weight matrix lest we suffer from
 	 * symmetry or annihilation effects */
@@ -170,8 +170,8 @@ rbm_wobble_weight_matrix(rbm_t m)
 void
 rbm_wobble_weight_matrix_cb(rbm_t m, fpfloat_t(*cb)(idx_t))
 {
-	const size_t vz = __aligned_size(layer_size(m->visible));
-	const size_t hz = layer_size(m->hidden);
+	const size_t vz = __aligned_size(layer_size(m->vis));
+	const size_t hz = layer_size(m->hid);
 
 	/* add some small noise to the weight matrix lest we suffer from
 	 * symmetry or annihilation effects */
@@ -278,12 +278,12 @@ _hadd_dpacc_ps(fpfloat_t *tgt, __v4sf acc)
 /**
  * \private the scalar product for phj */
 static inline fpfloat_t __attribute__((always_inline))
-__phj_dp(const rbm_t m, idx_t j, const fpfloat_t *vis)
+__phj_dp(const struct rbm_s *m, idx_t j, const fpfloat_t *vis)
 {
 	fpfloat_t sum __attribute__((aligned(16))) = 0.0;
 	fpfloat_t *w __attribute__((aligned(16))) =
-		&m->weights[j * __aligned_size(layer_size(m->visible))];
-	size_t offs = (layer_size(m->visible) & -UNROLL_DEPTH);
+		&m->weights[j * __aligned_size(layer_size(m->vis))];
+	size_t offs = (layer_size(m->vis) & -UNROLL_DEPTH);
 #if defined __SSE__ && USE_SSE
 	register __v4sf sumv4 = _mm_setzero_ps();
 #endif	/* SSE */
@@ -375,7 +375,7 @@ __phj_dp(const rbm_t m, idx_t j, const fpfloat_t *vis)
 
 	/* Duff's device to handle the rest */
 	switch ((unsigned int)
-		(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 15
 	case 15:
 		sum += w[offs] * vis[offs];
@@ -463,13 +463,13 @@ __phj_dp(const rbm_t m, idx_t j, const fpfloat_t *vis)
 /**
  * \private Compute P(h_j | v), this is for binomial units. */
 static inline fpfloat_t __attribute__((always_inline))
-phj(const rbm_t m, idx_t j, const fpfloat_t *vis)
+phj(const struct rbm_s *m, idx_t j, const fpfloat_t *vis)
 {
 	fpfloat_t sum = __phj_dp(m, j, vis);
 
 	/* add the bias */
 	sum += hidden_biases(m)[j];
-	return layer_draw_expectation(m->hidden, j, sum);
+	return layer_draw_expectation(m->hid, j, sum);
 }
 #undef UNROLL_DEPTH
 
@@ -477,8 +477,9 @@ phj(const rbm_t m, idx_t j, const fpfloat_t *vis)
 /**
  * \private Compute P(hid_j | vis, lab). */
 static inline fpfloat_t __attribute__((always_inline))
-phj2(const rbm_t m1, const rbm_t m2, idx_t j,
-     const fpfloat_t *vis, const fpfloat_t *lab)
+phj2(
+	const struct rbm_s *m1, const struct rbm_s *m2, idx_t j,
+	const fpfloat_t *vis, const fpfloat_t *lab)
 {
 	fpfloat_t sum, sum1, sum2;
 
@@ -494,20 +495,21 @@ phj2(const rbm_t m1, const rbm_t m2, idx_t j,
 
 	/* add the bias */
 	sum = sum1 + sum2 + hidden_biases(m1)[j];
-	return layer_draw_expectation(m1->hidden, j, sum);
+	return layer_draw_expectation(m1->hid, j, sum);
 }
 #undef UNROLL_DEPTH
 
 #define UNROLL_DEPTH	16
 /**
  * \private Compute P(v_i | h), this is for binomial units. */
-static inline fpfloat_t __attribute__((always_inline))
-pvi(const rbm_t m, idx_t i, const fpfloat_t *hid)
+static inline __attribute__((always_inline)) fpfloat_t
+pvi(const_rbm_t m, idx_t i, const fpfloat_t hid[static layer_size(m->hid)])
 {
+/* compute BIAS + <H, W_i> */
 	fpfloat_t sum __attribute__((aligned(16))) = 0.0f;
 	fpfloat_t *w __attribute__((aligned(16))) = &m->weights[i];
-	register size_t inc = __aligned_size(layer_size(m->visible));
-	size_t offs = (layer_size(m->hidden) & -UNROLL_DEPTH);
+	register size_t inc = __aligned_size(layer_size(m->vis));
+	size_t offs = (layer_size(m->hid) & -UNROLL_DEPTH);
 #if defined __SSE__ && USE_SSE
 	register __v4sf sumv4 = _mm_setzero_ps();
 #endif	/* SSE */
@@ -608,7 +610,7 @@ pvi(const rbm_t m, idx_t i, const fpfloat_t *hid)
 
 	/* Duff's device to handle the rest */
 	switch ((unsigned int)
-		(layer_size(m->hidden) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->hid) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 15
 	case 15:
 		sum += *w * hid[offs];
@@ -704,7 +706,7 @@ pvi(const rbm_t m, idx_t i, const fpfloat_t *hid)
 
 	/* add the bias */
 	sum += visible_biases(m)[i];
-	return layer_draw_expectation(m->visible, i, sum);
+	return layer_draw_expectation(m->vis, i, sum);
 }
 #undef UNROLL_DEPTH
 
@@ -962,7 +964,11 @@ __vec_to_layer(layer_t l, fpfloat_t *vec)
 }
 #undef UNROLL_DEPTH
 
-
+
+/* the actual routines */
+#define P_GIVEN_H	pvi
+#define P_GIVEN_V	phj
+#define P_GIVEN_V_LBL	phj2
 fpfloat_t
 rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 #if UPDATE_NORM
@@ -978,21 +984,21 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 	fpfloat_t norm;
 #endif
 	/* could be bashing the stack ... we care later */
-	fpfloat_t vis0[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t vis0[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t vis1[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t vis1[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid0[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid0[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid1[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid1[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
 	struct dr_cd_data_s cd = {
 		.vis_orig = vis0,
 		.vis_recon = vis1,
 		.hid_orig = hid0,
 		.hid_recon = hid1,
-		.vis_size = layer_size(m->visible),
-		.hid_size = layer_size(m->hidden),
+		.vis_size = layer_size(m->vis),
+		.hid_size = layer_size(m->hid),
 	};
 
 
@@ -1007,7 +1013,7 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 		idx_t i = 0;
 #if defined __SSE__ && USE_SSE
 		fpfloat_t *w __attribute__((aligned(16))) =
-			&m->weights[j * __aligned_size(layer_size(m->visible))];
+			&m->weights[j * __aligned_size(layer_size(m->vis))];
 
 		/* load v_i in zero-th and first generation into regs */
 		const __v4sf h0v = _mm_load1_ps(&hid0[j]);
@@ -1024,7 +1030,7 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 #endif
 #endif
 		for (i = 0;
-		     i < (layer_size(m->visible) & -UNROLL_DEPTH);
+		     i < (layer_size(m->vis) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
 #if defined __SSE__ && USE_SSE
 			__v4sf v0v, v1v;
@@ -1164,9 +1170,9 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 #endif	/* SSE */
 		}
 		/* Duff's device to handle the rest */
-		i = (layer_size(m->visible) & -UNROLL_DEPTH);
+		i = (layer_size(m->vis) & -UNROLL_DEPTH);
 		switch ((unsigned int)
-			(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 			fpfloat_t up;
 #if UNROLL_DEPTH > 7
 		case 7:
@@ -1499,7 +1505,7 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 	 ********/
 	/* copy the stuff in the input layer over */
 	/* unrolled and omp-ised */
-	__layer_to_vec(vis0, m->visible);
+	__layer_to_vec(vis0, m->vis);
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:981)
@@ -1511,49 +1517,49 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(hid0, hid1) private(j) schedule(static)
-		for (j = 0; j < (layer_size(m->hidden) & -UNROLL_DEPTH);
+		for (j = 0; j < (layer_size(m->hid) & -UNROLL_DEPTH);
 		     j += UNROLL_DEPTH) {
 			/* store the expectation in hid0 vector,
 			 * also sample */
-			hid0[j+0] = phj(m, j+0, vis0);
+			hid0[j+0] = P_GIVEN_V(m, j+0, vis0);
 			hid1[j+0] = layer_draw_sample(
-				m->hidden, j+0, hid0[j+0]);
+				m->hid, j+0, hid0[j+0]);
 #if UNROLL_DEPTH > 1
-			hid0[j+1] = phj(m, j+1, vis0);
+			hid0[j+1] = P_GIVEN_V(m, j+1, vis0);
 			hid1[j+1] = layer_draw_sample(
-				m->hidden, j+1, hid0[j+1]);
+				m->hid, j+1, hid0[j+1]);
 #endif
 #if UNROLL_DEPTH > 2
-			hid0[j+2] = phj(m, j+2, vis0);
+			hid0[j+2] = P_GIVEN_V(m, j+2, vis0);
 			hid1[j+2] = layer_draw_sample(
-				m->hidden, j+2, hid0[j+2]);
+				m->hid, j+2, hid0[j+2]);
 #endif
 #if UNROLL_DEPTH > 3
-			hid0[j+3] = phj(m, j+3, vis0);
+			hid0[j+3] = P_GIVEN_V(m, j+3, vis0);
 			hid1[j+3] = layer_draw_sample(
-				m->hidden, j+3, hid0[j+3]);
+				m->hid, j+3, hid0[j+3]);
 #endif
 		}
 		/* Duff's device */
-		j = (layer_size(m->hidden) & -UNROLL_DEPTH);
+		j = (layer_size(m->hid) & -UNROLL_DEPTH);
 		switch ((unsigned int)
-			(layer_size(m->hidden) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->hid) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			hid0[j] = phj(m, j, vis0);
-			hid1[j] = layer_draw_sample(m->hidden, j, hid0[j]);
+			hid0[j] = P_GIVEN_V(m, j, vis0);
+			hid1[j] = layer_draw_sample(m->hid, j, hid0[j]);
 			j++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			hid0[j] = phj(m, j, vis0);
-			hid1[j] = layer_draw_sample(m->hidden, j, hid0[j]);
+			hid0[j] = P_GIVEN_V(m, j, vis0);
+			hid1[j] = layer_draw_sample(m->hid, j, hid0[j]);
 			j++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			hid0[j] = phj(m, j, vis0);
-			hid1[j] = layer_draw_sample(m->hidden, j, hid0[j]);
+			hid0[j] = P_GIVEN_V(m, j, vis0);
+			hid1[j] = layer_draw_sample(m->hid, j, hid0[j]);
 			j++;
 #endif
 		case 0:
@@ -1566,43 +1572,43 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(vis1) private(i) schedule(static)
-		for (i = 0; i < (layer_size(m->visible) & -UNROLL_DEPTH);
+		for (i = 0; i < (layer_size(m->vis) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
 			vis1[i+0] = layer_draw_sample(
-				m->visible, i+0, pvi(m, i+0, hid1));
+				m->vis, i+0, P_GIVEN_H(m, i+0, hid1));
 #if UNROLL_DEPTH > 1
 			vis1[i+1] = layer_draw_sample(
-				m->visible, i+1, pvi(m, i+1, hid1));
+				m->vis, i+1, P_GIVEN_H(m, i+1, hid1));
 #endif
 #if UNROLL_DEPTH > 2
 			vis1[i+2] = layer_draw_sample(
-				m->visible, i+2, pvi(m, i+2, hid1));
+				m->vis, i+2, P_GIVEN_H(m, i+2, hid1));
 #endif
 #if UNROLL_DEPTH > 3
 			vis1[i+3] = layer_draw_sample(
-				m->visible, i+3, pvi(m, i+3, hid1));
+				m->vis, i+3, P_GIVEN_H(m, i+3, hid1));
 #endif
 		}
 		/* Duff's device */
-		i = layer_size(m->visible) & -UNROLL_DEPTH;
+		i = layer_size(m->vis) & -UNROLL_DEPTH;
 		switch ((unsigned int)
-			(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
 			vis1[i] = layer_draw_sample(
-				m->visible, i, pvi(m, i, hid1));
+				m->vis, i, P_GIVEN_H(m, i, hid1));
 			i++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
 			vis1[i] = layer_draw_sample(
-				m->visible, i, pvi(m, i, hid1));
+				m->vis, i, P_GIVEN_H(m, i, hid1));
 			i++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
 			vis1[i] = layer_draw_sample(
-				m->visible, i, pvi(m, i, hid1));
+				m->vis, i, P_GIVEN_H(m, i, hid1));
 			i++;
 #endif
 		case 0:
@@ -1615,36 +1621,36 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(hid1) private(j) schedule(static)
-		for (j = 0; j < (layer_size(m->hidden) & -UNROLL_DEPTH);
+		for (j = 0; j < (layer_size(m->hid) & -UNROLL_DEPTH);
 		     j += UNROLL_DEPTH) {
 			/* store the expectation in hid1 vector,
 			 * don't sample */
-			hid1[j+0] = phj(m, j+0, vis1);
+			hid1[j+0] = P_GIVEN_V(m, j+0, vis1);
 #if UNROLL_DEPTH > 1
-			hid1[j+1] = phj(m, j+1, vis1);
+			hid1[j+1] = P_GIVEN_V(m, j+1, vis1);
 #endif
 #if UNROLL_DEPTH > 2
-			hid1[j+2] = phj(m, j+2, vis1);
+			hid1[j+2] = P_GIVEN_V(m, j+2, vis1);
 #endif
 #if UNROLL_DEPTH > 3
-			hid1[j+3] = phj(m, j+3, vis1);
+			hid1[j+3] = P_GIVEN_V(m, j+3, vis1);
 #endif
 		}
 		/* Duff's device */
-		j = layer_size(m->hidden) & -UNROLL_DEPTH;
+		j = layer_size(m->hid) & -UNROLL_DEPTH;
 		switch ((unsigned int)
-			(layer_size(m->hidden) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->hid) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			hid1[j] = phj(m, j, vis1), j++;
+			hid1[j] = P_GIVEN_V(m, j, vis1), j++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			hid1[j] = phj(m, j, vis1), j++;
+			hid1[j] = P_GIVEN_V(m, j, vis1), j++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			hid1[j] = phj(m, j, vis1), j++;
+			hid1[j] = P_GIVEN_V(m, j, vis1), j++;
 #endif
 		case 0:
 		default:
@@ -1663,7 +1669,7 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 			 * W <- W + eta * (h_0 o v_0 - h_1 o v_1) */
 			/* loop over the hiddens */
 #pragma omp section
-			for (j = 0; j < layer_size(m->hidden); j++) {
+			for (j = 0; j < layer_size(m->hid); j++) {
 #if UPDATE_NORM
 				norm += update_row(j);
 #else
@@ -1676,10 +1682,10 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 #pragma omp section
 #if UPDATE_NORM
 			norm += update_bias(visible_biases(m), vis0, vis1,
-					    layer_size(m->visible));
+					    layer_size(m->vis));
 #else
 			(void)update_bias(visible_biases(m), vis0, vis1,
-					  layer_size(m->visible));
+					  layer_size(m->vis));
 #endif
 
 			/* update hidden biases
@@ -1687,10 +1693,10 @@ rbm_train_cd(rbm_t m, learning_rate_t eta, size_t maxiters,
 #pragma omp section
 #if UPDATE_NORM
 			norm += update_bias(hidden_biases(m), hid0, hid1,
-					    layer_size(m->hidden));
+					    layer_size(m->hid));
 #else
 			(void)update_bias(hidden_biases(m), hid0, hid1,
-					  layer_size(m->hidden));
+					  layer_size(m->hid));
 #endif
 		}
 
@@ -1734,17 +1740,17 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 	fpfloat_t norm;
 #endif
 	/* could be bashing the stack ... we care later */
-	fpfloat_t vis0[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t vis0[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t vis1[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t vis1[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid0[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid0[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid1[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid1[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
-	fpfloat_t lab0[__aligned16_size(layer_size(mlab->visible))]
+	fpfloat_t lab0[__aligned16_size(layer_size(mlab->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t lab1[__aligned16_size(layer_size(mlab->visible))]
+	fpfloat_t lab1[__aligned16_size(layer_size(mlab->vis))]
 		__attribute__((aligned(16)));
 	struct dr_cd_data_s cd = {
 		.vis_orig = vis0,
@@ -1753,9 +1759,9 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 		.hid_recon = hid1,
 		.lab_orig = lab0,
 		.lab_recon = lab1,
-		.vis_size = layer_size(m->visible),
-		.hid_size = layer_size(m->hidden),
-		.lab_size = layer_size(mlab->visible),
+		.vis_size = layer_size(m->vis),
+		.hid_size = layer_size(m->hid),
+		.lab_size = layer_size(mlab->vis),
 	};
 
 	/**
@@ -1771,7 +1777,7 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 #if defined __SSE__ && USE_SSE
 		fpfloat_t *w __attribute__((aligned(16))) =
 			&mach->weights[
-				j * __aligned_size(layer_size(mach->visible))];
+				j * __aligned_size(layer_size(mach->vis))];
 
 		/* load v_i in zero-th and first generation into regs */
 		const __v4sf h0v = _mm_load1_ps(&hid0[j]);
@@ -1789,7 +1795,7 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 #endif
 #endif
 		for (i = 0;
-		     i < (layer_size(mach->visible) & -UNROLL_DEPTH);
+		     i < (layer_size(mach->vis) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
 			__v4sf v0v, v1v;
 			__v4sf up;
@@ -1868,7 +1874,7 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 #endif
 #endif
 		for (i = 0;
-		     i < (layer_size(mach->visible) & -UNROLL_DEPTH);
+		     i < (layer_size(mach->vis) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
 			fpfloat_t up;
 
@@ -1938,9 +1944,9 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 		}
 #endif	/* SSE */
 		/* Duff's device to handle the rest */
-		i = (layer_size(mach->visible) & -UNROLL_DEPTH);
+		i = (layer_size(mach->vis) & -UNROLL_DEPTH);
 		switch ((unsigned int)
-			(layer_size(mach->visible) & (UNROLL_DEPTH - 1))) {
+			(layer_size(mach->vis) & (UNROLL_DEPTH - 1))) {
 			fpfloat_t up;
 #if UNROLL_DEPTH > 7
 		case 7:
@@ -2276,9 +2282,9 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 	 ********/
 	/* copy the stuff in the input layer over */
 	/* unrolled and omp-ised */
-	__layer_to_vec(vis0, m->visible);
+	__layer_to_vec(vis0, m->vis);
 	/* same for the label layer */
-	__layer_to_vec(lab0, mlab->visible);
+	__layer_to_vec(lab0, mlab->vis);
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:981)
@@ -2290,49 +2296,49 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(hid0, hid1) private(j) schedule(static)
-		for (j = 0; j < (layer_size(m->hidden) & -UNROLL_DEPTH);
+		for (j = 0; j < (layer_size(m->hid) & -UNROLL_DEPTH);
 		     j += UNROLL_DEPTH) {
 			/* store the expectation in hid0 vector,
 			 * also sample */
-			hid0[j+0] = phj2(m, mlab, j+0, vis0, lab0);
+			hid0[j+0] = P_GIVEN_V_LBL(m, mlab, j+0, vis0, lab0);
 			hid1[j+0] = layer_draw_sample(
-				m->hidden, j+0, hid0[j+0]);
+				m->hid, j+0, hid0[j+0]);
 #if UNROLL_DEPTH > 1
-			hid0[j+1] = phj2(m, mlab, j+1, vis0, lab0);
+			hid0[j+1] = P_GIVEN_V_LBL(m, mlab, j+1, vis0, lab0);
 			hid1[j+1] = layer_draw_sample(
-				m->hidden, j+1, hid0[j+1]);
+				m->hid, j+1, hid0[j+1]);
 #endif
 #if UNROLL_DEPTH > 2
-			hid0[j+2] = phj2(m, mlab, j+2, vis0, lab0);
+			hid0[j+2] = P_GIVEN_V_LBL(m, mlab, j+2, vis0, lab0);
 			hid1[j+2] = layer_draw_sample(
-				m->hidden, j+2, hid0[j+2]);
+				m->hid, j+2, hid0[j+2]);
 #endif
 #if UNROLL_DEPTH > 3
-			hid0[j+3] = phj2(m, mlab, j+3, vis0, lab0);
+			hid0[j+3] = P_GIVEN_V_LBL(m, mlab, j+3, vis0, lab0);
 			hid1[j+3] = layer_draw_sample(
-				m->hidden, j+3, hid0[j+3]);
+				m->hid, j+3, hid0[j+3]);
 #endif
 		}
 		/* Duff's device */
-		j = (layer_size(m->hidden) & -UNROLL_DEPTH);
+		j = (layer_size(m->hid) & -UNROLL_DEPTH);
 		switch ((unsigned int)
-			(layer_size(m->hidden) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->hid) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			hid0[j] = phj2(m, mlab, j, vis0, lab0);
-			hid1[j] = layer_draw_sample(m->hidden, j, hid0[j]);
+			hid0[j] = P_GIVEN_V_LBL(m, mlab, j, vis0, lab0);
+			hid1[j] = layer_draw_sample(m->hid, j, hid0[j]);
 			j++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			hid0[j] = phj2(m, mlab, j, vis0, lab0);
-			hid1[j] = layer_draw_sample(m->hidden, j, hid0[j]);
+			hid0[j] = P_GIVEN_V_LBL(m, mlab, j, vis0, lab0);
+			hid1[j] = layer_draw_sample(m->hid, j, hid0[j]);
 			j++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			hid0[j] = phj2(m, mlab, j, vis0, lab0);
-			hid1[j] = layer_draw_sample(m->hidden, j, hid0[j]);
+			hid0[j] = P_GIVEN_V_LBL(m, mlab, j, vis0, lab0);
+			hid1[j] = layer_draw_sample(m->hid, j, hid0[j]);
 			j++;
 #endif
 		case 0:
@@ -2345,43 +2351,43 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(vis1) private(i) schedule(static)
-		for (i = 0; i < (layer_size(m->visible) & -UNROLL_DEPTH);
+		for (i = 0; i < (layer_size(m->vis) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
 			vis1[i+0] = layer_draw_sample(
-				m->visible, i+0, pvi(m, i+0, hid1));
+				m->vis, i+0, P_GIVEN_H(m, i+0, hid1));
 #if UNROLL_DEPTH > 1
 			vis1[i+1] = layer_draw_sample(
-				m->visible, i+1, pvi(m, i+1, hid1));
+				m->vis, i+1, P_GIVEN_H(m, i+1, hid1));
 #endif
 #if UNROLL_DEPTH > 2
 			vis1[i+2] = layer_draw_sample(
-				m->visible, i+2, pvi(m, i+2, hid1));
+				m->vis, i+2, P_GIVEN_H(m, i+2, hid1));
 #endif
 #if UNROLL_DEPTH > 3
 			vis1[i+3] = layer_draw_sample(
-				m->visible, i+3, pvi(m, i+3, hid1));
+				m->vis, i+3, P_GIVEN_H(m, i+3, hid1));
 #endif
 		}
 		/* Duff's device */
-		i = layer_size(m->visible) & -UNROLL_DEPTH;
+		i = layer_size(m->vis) & -UNROLL_DEPTH;
 		switch ((unsigned int)
-			(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
 			vis1[i] = layer_draw_sample(
-				m->visible, i, pvi(m, i, hid1));
+				m->vis, i, P_GIVEN_H(m, i, hid1));
 			i++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
 			vis1[i] = layer_draw_sample(
-				m->visible, i, pvi(m, i, hid1));
+				m->vis, i, P_GIVEN_H(m, i, hid1));
 			i++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
 			vis1[i] = layer_draw_sample(
-				m->visible, i, pvi(m, i, hid1));
+				m->vis, i, P_GIVEN_H(m, i, hid1));
 			i++;
 #endif
 		case 0:
@@ -2394,82 +2400,82 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(lab1) private(i) schedule(static)
-		for (i = 0; i < (layer_size(mlab->visible) & -UNROLL_DEPTH);
+		for (i = 0; i < (layer_size(mlab->vis) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
-			lab1[i+0] = pvi(mlab, i+0, hid1);
+			lab1[i+0] = P_GIVEN_H(mlab, i+0, hid1);
 #if UNROLL_DEPTH > 1
-			lab1[i+1] = pvi(mlab, i+1, hid1);
+			lab1[i+1] = P_GIVEN_H(mlab, i+1, hid1);
 #endif
 #if UNROLL_DEPTH > 2
-			lab1[i+2] = pvi(mlab, i+2, hid1);
+			lab1[i+2] = P_GIVEN_H(mlab, i+2, hid1);
 #endif
 #if UNROLL_DEPTH > 3
-			lab1[i+3] = pvi(mlab, i+3, hid1);
+			lab1[i+3] = P_GIVEN_H(mlab, i+3, hid1);
 #endif
 		}
 		/* Duff's device */
-		i = layer_size(mlab->visible) & -UNROLL_DEPTH;
+		i = layer_size(mlab->vis) & -UNROLL_DEPTH;
 		switch ((unsigned int)
-			(layer_size(mlab->visible) & (UNROLL_DEPTH - 1))) {
+			(layer_size(mlab->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			lab1[i] = pvi(mlab, i, hid1), i++;
+			lab1[i] = P_GIVEN_H(mlab, i, hid1), i++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			lab1[i] = pvi(mlab, i, hid1), i++;
+			lab1[i] = P_GIVEN_H(mlab, i, hid1), i++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			lab1[i] = pvi(mlab, i, hid1), i++;
+			lab1[i] = P_GIVEN_H(mlab, i, hid1), i++;
 #endif
 		case 0:
 		default:
 			break;
 		}
 #undef UNROLL_DEPTH
-		softmax_multi(lab1, lab1, layer_size(mlab->visible));
+		softmax_multi(lab1, lab1, layer_size(mlab->vis));
 #if 0
 /* we can't do just the most likely sampler here */
-		most_likely_multi(lab1, lab1, layer_size(mlab->visible));
+		most_likely_multi(lab1, lab1, layer_size(mlab->vis));
 #else
-		flip_coin_multi(lab1, lab1, layer_size(mlab->visible));
+		flip_coin_multi(lab1, lab1, layer_size(mlab->vis));
 #endif
 
 		/* now the hidden ones, reusing the samples in vis1/lab1 */
 		/* unrolled */
 #define UNROLL_DEPTH	4
 #pragma omp parallel for ordered shared(hid1) private(j) schedule(static)
-		for (j = 0; j < (layer_size(m->hidden) & -UNROLL_DEPTH);
+		for (j = 0; j < (layer_size(m->hid) & -UNROLL_DEPTH);
 		     j += UNROLL_DEPTH) {
 			/* store the expectation in hid1 vector,
 			 * don't sample */
-			hid1[j+0] = phj2(m, mlab, j+0, vis1, lab1);
+			hid1[j+0] = P_GIVEN_V_LBL(m, mlab, j+0, vis1, lab1);
 #if UNROLL_DEPTH > 1
-			hid1[j+1] = phj2(m, mlab, j+1, vis1, lab1);
+			hid1[j+1] = P_GIVEN_V_LBL(m, mlab, j+1, vis1, lab1);
 #endif
 #if UNROLL_DEPTH > 2
-			hid1[j+2] = phj2(m, mlab, j+2, vis1, lab1);
+			hid1[j+2] = P_GIVEN_V_LBL(m, mlab, j+2, vis1, lab1);
 #endif
 #if UNROLL_DEPTH > 3
-			hid1[j+3] = phj2(m, mlab, j+3, vis1, lab1);
+			hid1[j+3] = P_GIVEN_V_LBL(m, mlab, j+3, vis1, lab1);
 #endif
 		}
 		/* Duff's device */
-		j = layer_size(m->hidden) & -UNROLL_DEPTH;
+		j = layer_size(m->hid) & -UNROLL_DEPTH;
 		switch ((unsigned int)
-			(layer_size(m->hidden) & (UNROLL_DEPTH - 1))) {
+			(layer_size(m->hid) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			hid1[j] = phj2(m, mlab, j, vis1, lab1), j++;
+			hid1[j] = P_GIVEN_V_LBL(m, mlab, j, vis1, lab1), j++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			hid1[j] = phj2(m, mlab, j, vis1, lab1), j++;
+			hid1[j] = P_GIVEN_V_LBL(m, mlab, j, vis1, lab1), j++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			hid1[j] = phj2(m, mlab, j, vis1, lab1), j++;
+			hid1[j] = P_GIVEN_V_LBL(m, mlab, j, vis1, lab1), j++;
 #endif
 		case 0:
 		default:
@@ -2489,7 +2495,7 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 			 * W <- W + eta * (h_0 o v_0 - h_1 o v_1) */
 			/* loop over the hiddens */
 #pragma omp section
-			for (j = 0; j < layer_size(m->hidden); j++) {
+			for (j = 0; j < layer_size(m->hid); j++) {
 #if UPDATE_NORM
 				norm += update_row4(j, vis0, vis1, m);
 #else
@@ -2501,7 +2507,7 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 			 * W <- W + eta * (h_0 o l_0 - h_1 o l_1) */
 			/* loop over the hiddens */
 #pragma omp section
-			for (j = 0; j < layer_size(m->hidden); j++) {
+			for (j = 0; j < layer_size(m->hid); j++) {
 #if UPDATE_NORM
 				norm += update_row4(j, lab0, lab1, mlab);
 #else
@@ -2515,11 +2521,11 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 #if UPDATE_NORM
 			norm += update_bias4(
 				visible_biases(m), vis0, vis1,
-				layer_size(m->visible));
+				layer_size(m->vis));
 #else
 			(void)update_bias4(
 				visible_biases(m), vis0, vis1,
-				layer_size(m->visible));
+				layer_size(m->vis));
 #endif
 
 			/* update visible biases (of label layer)
@@ -2528,11 +2534,11 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 #if UPDATE_NORM
 			norm += update_bias4(
 				visible_biases(mlab), lab0, lab1,
-				layer_size(mlab->visible));
+				layer_size(mlab->vis));
 #else
 			(void)update_bias4(
 				visible_biases(mlab), lab0, lab1,
-				layer_size(mlab->visible));
+				layer_size(mlab->vis));
 #endif
 
 			/* update hidden biases
@@ -2541,11 +2547,11 @@ rbm_train_cd_labelled(rbm_t m, rbm_t mlab, learning_rate_t eta, size_t maxiters,
 #if UPDATE_NORM
 			norm += update_bias4(
 				hidden_biases(m), hid0, hid1,
-				layer_size(m->hidden));
+				layer_size(m->hid));
 #else
 			(void)update_bias4(
 				hidden_biases(m), hid0, hid1,
-				layer_size(m->hidden));
+				layer_size(m->hid));
 #endif
 		}
 
@@ -2575,59 +2581,59 @@ rbm_propagate(rbm_t m)
 {
 /* assumes the input has been banged into the visible layer already */
 	/* could be bashing the stack ... we care later */
-	fpfloat_t vis0[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t vis0[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
 	idx_t j;
 
 	/* copy the visible states to vis0 */
 	/* unrolled and omp-ised */
-	__layer_to_vec(vis0, m->visible);
+	__layer_to_vec(vis0, m->vis);
 
 #define UNROLL_DEPTH	4
 	/* first compute the hidden layer states, loop over 'em */
 #pragma omp parallel for shared(m) private(j) schedule(static)
-	for (j = 0; j < (layer_size(m->hidden) & -UNROLL_DEPTH);
+	for (j = 0; j < (layer_size(m->hid) & -UNROLL_DEPTH);
 	     j += UNROLL_DEPTH) {
 		/* store the expectation in hid0 vector,
 		 * also sample */
 		state_t smpl;
 
-		smpl = layer_draw_sample(m->hidden, j+0, phj(m, j+0, vis0));
-		layer_neuron_set_state(m->hidden, j+0, smpl);
+		smpl = layer_draw_sample(m->hid, j+0, P_GIVEN_V(m, j+0, vis0));
+		layer_neuron_set_state(m->hid, j+0, smpl);
 #if UNROLL_DEPTH > 1
-		smpl = layer_draw_sample(m->hidden, j+1, phj(m, j+1, vis0));
-		layer_neuron_set_state(m->hidden, j+1, smpl);
+		smpl = layer_draw_sample(m->hid, j+1, P_GIVEN_V(m, j+1, vis0));
+		layer_neuron_set_state(m->hid, j+1, smpl);
 #endif
 #if UNROLL_DEPTH > 2
-		smpl = layer_draw_sample(m->hidden, j+2, phj(m, j+2, vis0));
-		layer_neuron_set_state(m->hidden, j+2, smpl);
+		smpl = layer_draw_sample(m->hid, j+2, P_GIVEN_V(m, j+2, vis0));
+		layer_neuron_set_state(m->hid, j+2, smpl);
 #endif
 #if UNROLL_DEPTH > 3
-		smpl = layer_draw_sample(m->hidden, j+3, phj(m, j+3, vis0));
-		layer_neuron_set_state(m->hidden, j+3, smpl);
+		smpl = layer_draw_sample(m->hid, j+3, P_GIVEN_V(m, j+3, vis0));
+		layer_neuron_set_state(m->hid, j+3, smpl);
 #endif
 	}
 	/* Duff's device */
-	j = layer_size(m->hidden) & -UNROLL_DEPTH;
+	j = layer_size(m->hid) & -UNROLL_DEPTH;
 	switch ((unsigned int)
-		(layer_size(m->hidden) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->hid) & (UNROLL_DEPTH - 1))) {
 		state_t smpl;
 #if UNROLL_DEPTH > 3
 	case 3:
-		smpl = layer_draw_sample(m->hidden, j, phj(m, j, vis0));
-		layer_neuron_set_state(m->hidden, j, smpl);
+		smpl = layer_draw_sample(m->hid, j, P_GIVEN_V(m, j, vis0));
+		layer_neuron_set_state(m->hid, j, smpl);
 		j++;
 #endif
 #if UNROLL_DEPTH > 2
 	case 2:
-		smpl = layer_draw_sample(m->hidden, j, phj(m, j, vis0));
-		layer_neuron_set_state(m->hidden, j, smpl);
+		smpl = layer_draw_sample(m->hid, j, P_GIVEN_V(m, j, vis0));
+		layer_neuron_set_state(m->hid, j, smpl);
 		j++;
 #endif
 #if UNROLL_DEPTH > 1
 	case 1:
-		smpl = layer_draw_sample(m->hidden, j, phj(m, j, vis0));
-		layer_neuron_set_state(m->hidden, j, smpl);
+		smpl = layer_draw_sample(m->hid, j, P_GIVEN_V(m, j, vis0));
+		layer_neuron_set_state(m->hid, j, smpl);
 		j++;
 #endif
 	case 0:
@@ -2643,56 +2649,56 @@ rbm_dream(rbm_t m)
 {
 /* assumes the input has been propagated into the hidden layer already */
 	/* could be bashing the stack ... we care later */
-	fpfloat_t hid0[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid0[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
 	idx_t i;
 
 	/* copy the stuff in the hidden layer over to hid0 */
 	/* unrolled, omp-ised */
-	__layer_to_vec(hid0, m->hidden);
+	__layer_to_vec(hid0, m->hid);
 
 #define UNROLL_DEPTH	4
 #pragma omp parallel for shared(m) private(i) schedule(static)
-	for (i = 0; i < (layer_size(m->visible) & -UNROLL_DEPTH);
+	for (i = 0; i < (layer_size(m->vis) & -UNROLL_DEPTH);
 	     i += UNROLL_DEPTH) {
 		state_t smpl;
 
-		smpl = layer_draw_sample(m->visible, i+0, pvi(m, i+0, hid0));
-		layer_neuron_set_state(m->visible, i+0, smpl);
+		smpl = layer_draw_sample(m->vis, i+0, P_GIVEN_H(m, i+0, hid0));
+		layer_neuron_set_state(m->vis, i+0, smpl);
 #if UNROLL_DEPTH > 1
-		smpl = layer_draw_sample(m->visible, i+1, pvi(m, i+1, hid0));
-		layer_neuron_set_state(m->visible, i+1, smpl);
+		smpl = layer_draw_sample(m->vis, i+1, P_GIVEN_H(m, i+1, hid0));
+		layer_neuron_set_state(m->vis, i+1, smpl);
 #endif
 #if UNROLL_DEPTH > 2
-		smpl = layer_draw_sample(m->visible, i+2, pvi(m, i+2, hid0));
-		layer_neuron_set_state(m->visible, i+2, smpl);
+		smpl = layer_draw_sample(m->vis, i+2, P_GIVEN_H(m, i+2, hid0));
+		layer_neuron_set_state(m->vis, i+2, smpl);
 #endif
 #if UNROLL_DEPTH > 3
-		smpl = layer_draw_sample(m->visible, i+3, pvi(m, i+3, hid0));
-		layer_neuron_set_state(m->visible, i+3, smpl);
+		smpl = layer_draw_sample(m->vis, i+3, P_GIVEN_H(m, i+3, hid0));
+		layer_neuron_set_state(m->vis, i+3, smpl);
 #endif
 	}
 	/* Duff's device */
-	i = layer_size(m->visible) & -UNROLL_DEPTH;
+	i = layer_size(m->vis) & -UNROLL_DEPTH;
 	switch ((unsigned int)
-		(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 		state_t smpl;
 #if UNROLL_DEPTH > 3
 	case 3:
-		smpl = layer_draw_sample(m->visible, i, pvi(m, i, hid0));
-		layer_neuron_set_state(m->visible, i, smpl);
+		smpl = layer_draw_sample(m->vis, i, P_GIVEN_H(m, i, hid0));
+		layer_neuron_set_state(m->vis, i, smpl);
 		i++;
 #endif
 #if UNROLL_DEPTH > 2
 	case 2:
-		smpl = layer_draw_sample(m->visible, i, pvi(m, i, hid0));
-		layer_neuron_set_state(m->visible, i, smpl);
+		smpl = layer_draw_sample(m->vis, i, P_GIVEN_H(m, i, hid0));
+		layer_neuron_set_state(m->vis, i, smpl);
 		i++;
 #endif
 #if UNROLL_DEPTH > 1
 	case 1:
-		smpl = layer_draw_sample(m->visible, i, pvi(m, i, hid0));
-		layer_neuron_set_state(m->visible, i, smpl);
+		smpl = layer_draw_sample(m->vis, i, P_GIVEN_H(m, i, hid0));
+		layer_neuron_set_state(m->vis, i, smpl);
 		i++;
 #endif
 	case 0:
@@ -2708,51 +2714,51 @@ rbm_classify(rbm_t m)
 {
 /* assumes the input has been banged into the visible layer already */
 	/* could be bashing the stack ... we care later */
-	fpfloat_t lab0[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t lab0[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid0[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid0[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
 	idx_t i;
 
 	/* copy the visible states to vis0 */
 	/* unrolled and omp-ised */
-	__layer_to_vec(hid0, m->hidden);
+	__layer_to_vec(hid0, m->hid);
 
 #define UNROLL_DEPTH	4
 	/* first compute the visible layer states, loop over 'em */
 #pragma omp parallel for shared(lab0) private(i) schedule(static)
-	for (i = 0; i < (layer_size(m->visible) & -UNROLL_DEPTH);
+	for (i = 0; i < (layer_size(m->vis) & -UNROLL_DEPTH);
 	     i += UNROLL_DEPTH) {
 		/* store the expectation in hid0 vector,
 		 * also sample */
-		lab0[i+0] = pvi(m, i+0, hid0);
+		lab0[i+0] = P_GIVEN_H(m, i+0, hid0);
 #if UNROLL_DEPTH > 1
-		lab0[i+1] = pvi(m, i+1, hid0);
+		lab0[i+1] = P_GIVEN_H(m, i+1, hid0);
 #endif
 #if UNROLL_DEPTH > 2
-		lab0[i+2] = pvi(m, i+2, hid0);
+		lab0[i+2] = P_GIVEN_H(m, i+2, hid0);
 #endif
 #if UNROLL_DEPTH > 3
-		lab0[i+3] = pvi(m, i+3, hid0);
+		lab0[i+3] = P_GIVEN_H(m, i+3, hid0);
 #endif
 	}
 	/* Duff's device */
-	i = layer_size(m->visible) & -UNROLL_DEPTH;
+	i = layer_size(m->vis) & -UNROLL_DEPTH;
 	switch ((unsigned int)
-		(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 	case 3:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 #if UNROLL_DEPTH > 2
 	case 2:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 #if UNROLL_DEPTH > 1
 	case 1:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 	case 0:
@@ -2763,13 +2769,13 @@ rbm_classify(rbm_t m)
 	/* softmax activation and sampling */
 #if 0
 /* we dont need no steenkin softmax normalisation with this one */
-	softmax_multi(lab0, lab0, layer_size(m->visible));
+	softmax_multi(lab0, lab0, layer_size(m->vis));
 #else
-	most_likely_multi(lab0, lab0, layer_size(m->visible));
+	most_likely_multi(lab0, lab0, layer_size(m->vis));
 #endif
 
 	/* omp-ised and unrolled */
-	__vec_to_layer(m->visible, lab0);
+	__vec_to_layer(m->vis, lab0);
 	return;
 #undef UNROLL_DEPTH
 }
@@ -2779,51 +2785,51 @@ rbm_classify_hist(fpfloat_t *vec, rbm_t m)
 {
 /* assumes the input has been banged into the visible layer already */
 	/* could be bashing the stack ... we care later */
-	fpfloat_t lab0[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t lab0[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid0[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid0[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
 	idx_t i;
 
 	/* copy the visible states to vis0 */
 	/* unrolled and omp-ised */
-	__layer_to_vec(hid0, m->hidden);
+	__layer_to_vec(hid0, m->hid);
 
 #define UNROLL_DEPTH	4
 	/* first compute the visible layer states, loop over 'em */
 #pragma omp parallel for shared(lab0) private(i) schedule(static)
-	for (i = 0; i < (layer_size(m->visible) & -UNROLL_DEPTH);
+	for (i = 0; i < (layer_size(m->vis) & -UNROLL_DEPTH);
 	     i += UNROLL_DEPTH) {
 		/* store the expectation in hid0 vector,
 		 * also sample */
-		lab0[i+0] = pvi(m, i+0, hid0);
+		lab0[i+0] = P_GIVEN_H(m, i+0, hid0);
 #if UNROLL_DEPTH > 1
-		lab0[i+1] = pvi(m, i+1, hid0);
+		lab0[i+1] = P_GIVEN_H(m, i+1, hid0);
 #endif
 #if UNROLL_DEPTH > 2
-		lab0[i+2] = pvi(m, i+2, hid0);
+		lab0[i+2] = P_GIVEN_H(m, i+2, hid0);
 #endif
 #if UNROLL_DEPTH > 3
-		lab0[i+3] = pvi(m, i+3, hid0);
+		lab0[i+3] = P_GIVEN_H(m, i+3, hid0);
 #endif
 	}
 	/* Duff's device */
-	i = layer_size(m->visible) & -UNROLL_DEPTH;
+	i = layer_size(m->vis) & -UNROLL_DEPTH;
 	switch ((unsigned int)
-		(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 	case 3:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 #if UNROLL_DEPTH > 2
 	case 2:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 #if UNROLL_DEPTH > 1
 	case 1:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 	case 0:
@@ -2832,7 +2838,7 @@ rbm_classify_hist(fpfloat_t *vec, rbm_t m)
 	}
 
 	/* softmax activation and sampling */
-	softmax_multi(vec, lab0, layer_size(m->visible));
+	softmax_multi(vec, lab0, layer_size(m->vis));
 	return;
 #undef UNROLL_DEPTH
 }
@@ -2842,9 +2848,9 @@ rbm_classify_label(rbm_t m)
 {
 /* assumes the input has been banged into the visible layer already */
 	/* could be bashing the stack ... we care later */
-	fpfloat_t lab0[__aligned16_size(layer_size(m->visible))]
+	fpfloat_t lab0[__aligned16_size(layer_size(m->vis))]
 		__attribute__((aligned(16)));
-	fpfloat_t hid0[__aligned16_size(layer_size(m->hidden))]
+	fpfloat_t hid0[__aligned16_size(layer_size(m->hid))]
 		__attribute__((aligned(16)));
 	idx_t i;
 	label_t maxi;
@@ -2852,43 +2858,43 @@ rbm_classify_label(rbm_t m)
 
 	/* copy the visible states to vis0 */
 	/* unrolled and omp-ised */
-	__layer_to_vec(hid0, m->hidden);
+	__layer_to_vec(hid0, m->hid);
 
 #define UNROLL_DEPTH	4
 	/* first compute the visible layer states, loop over 'em */
 #pragma omp parallel for shared(lab0) private(i) schedule(static)
-	for (i = 0; i < (layer_size(m->visible) & -UNROLL_DEPTH);
+	for (i = 0; i < (layer_size(m->vis) & -UNROLL_DEPTH);
 	     i += UNROLL_DEPTH) {
 		/* store the expectation in hid0 vector,
 		 * also sample */
-		lab0[i+0] = pvi(m, i+0, hid0);
+		lab0[i+0] = P_GIVEN_H(m, i+0, hid0);
 #if UNROLL_DEPTH > 1
-		lab0[i+1] = pvi(m, i+1, hid0);
+		lab0[i+1] = P_GIVEN_H(m, i+1, hid0);
 #endif
 #if UNROLL_DEPTH > 2
-		lab0[i+2] = pvi(m, i+2, hid0);
+		lab0[i+2] = P_GIVEN_H(m, i+2, hid0);
 #endif
 #if UNROLL_DEPTH > 3
-		lab0[i+3] = pvi(m, i+3, hid0);
+		lab0[i+3] = P_GIVEN_H(m, i+3, hid0);
 #endif
 	}
 	/* Duff's device */
-	i = layer_size(m->visible) & -UNROLL_DEPTH;
+	i = layer_size(m->vis) & -UNROLL_DEPTH;
 	switch ((unsigned int)
-		(layer_size(m->visible) & (UNROLL_DEPTH - 1))) {
+		(layer_size(m->vis) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 	case 3:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 #if UNROLL_DEPTH > 2
 	case 2:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 #if UNROLL_DEPTH > 1
 	case 1:
-		lab0[i] = pvi(m, i, hid0);
+		lab0[i] = P_GIVEN_H(m, i, hid0);
 		i++;
 #endif
 	case 0:
@@ -2901,21 +2907,21 @@ rbm_classify_label(rbm_t m)
 	 * be read directly */
 	maxi = 0;
 	max = lab0[0];
-	for (i = 1; i < layer_size(m->visible); i++) {
+	for (i = 1; i < layer_size(m->vis); i++) {
 		if (UNLIKELY(max < lab0[i])) {
 			max = lab0[i];
 			maxi = i;
 		}
 	}
 #else
-	softmax_multi(lab0, lab0, layer_size(m->visible));
+	softmax_multi(lab0, lab0, layer_size(m->vis));
 
 	for (maxi = 0;;) {
 		fpfloat_t d = dr_rand_uni();
 		if (d < lab0[maxi]) {
 			break;
 		}
-		if (++maxi >= layer_size(m->visible)) {
+		if (++maxi >= layer_size(m->vis)) {
 			/* start over */
 			maxi = 0;
 		}
@@ -2930,10 +2936,10 @@ rbm_classify_label(rbm_t m)
 static inline size_t __attribute__((always_inline))
 max_vec_sz(dbn_t d, size_t depth)
 {
-	size_t max = layer_size(d->rbms[0]->visible);
+	size_t max = layer_size(d->rbms[0]->vis);
 	for (idx_t i = 0; i < depth; i++) {
-		if (UNLIKELY(max < layer_size(d->rbms[i]->hidden))) {
-			max = layer_size(d->rbms[i]->hidden);
+		if (UNLIKELY(max < layer_size(d->rbms[i]->hid))) {
+			max = layer_size(d->rbms[i]->hid);
 		}
 	}
 	return __aligned16_size(max);
@@ -2947,11 +2953,11 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 
 	/* copy the visible states to vis0 */
 	/* unrolled and omp-ised */
-	__layer_to_vec(cache, d->rbms[0]->visible);
+	__layer_to_vec(cache, d->rbms[0]->vis);
 
 	for (idx_t k = 0; k < depth; k++) {
 		rbm_t m = d->rbms[k];
-		layer_t h = m->hidden;
+		layer_t h = m->hid;
 		/* could be bashing the stack ... we care later */
 		fpfloat_t hid0[__aligned16_size(layer_size(h))]
 			__attribute__((aligned(16)));
@@ -2965,18 +2971,18 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 			/* store the expectation in hid0 vector,
 			 * also sample */
 			hid0[j+0] = layer_draw_sample(
-				h, j+0, phj(m, j+0, cache));
+				h, j+0, P_GIVEN_V(m, j+0, cache));
 #if UNROLL_DEPTH > 1
 			hid0[j+1] = layer_draw_sample(
-				h, j+1, phj(m, j+1, cache));
+				h, j+1, P_GIVEN_V(m, j+1, cache));
 #endif
 #if UNROLL_DEPTH > 2
 			hid0[j+2] = layer_draw_sample(
-				h, j+2, phj(m, j+2, cache));
+				h, j+2, P_GIVEN_V(m, j+2, cache));
 #endif
 #if UNROLL_DEPTH > 3
 			hid0[j+3] = layer_draw_sample(
-				h, j+3, phj(m, j+3, cache));
+				h, j+3, P_GIVEN_V(m, j+3, cache));
 #endif
 		}
 		/* Duff's device */
@@ -2985,17 +2991,20 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 			(layer_size(h) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			hid0[j] = layer_draw_sample(h, j, phj(m, j, cache));
+			hid0[j] = layer_draw_sample(
+				h, j, P_GIVEN_V(m, j, cache));
 			j++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			hid0[j] = layer_draw_sample(h, j, phj(m, j, cache));
+			hid0[j] = layer_draw_sample(
+				h, j, P_GIVEN_V(m, j, cache));
 			j++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			hid0[j] = layer_draw_sample(h, j, phj(m, j, cache));
+			hid0[j] = layer_draw_sample(
+				h, j, P_GIVEN_V(m, j, cache));
 			j++;
 #endif
 		case 0:
@@ -3025,7 +3034,7 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 	 * enter the dream phase */
 	for (idx_t k = depth; k > 0; /* decr inside */) {
 		rbm_t m = d->rbms[--k];
-		layer_t v = m->visible;
+		layer_t v = m->vis;
 		/* could be bashing the stack ... we care later */
 		fpfloat_t vis0[__aligned16_size(layer_size(v))]
 			__attribute__((aligned(16)));
@@ -3035,18 +3044,18 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 		for (i = 0; i < (layer_size(v) & -UNROLL_DEPTH);
 		     i += UNROLL_DEPTH) {
 			vis0[i+0] = layer_draw_sample(
-				v, i+0, pvi(m, i+0, cache));
+				v, i+0, P_GIVEN_H(m, i+0, cache));
 #if UNROLL_DEPTH > 1
 			vis0[i+1] = layer_draw_sample(
-				v, i+1, pvi(m, i+1, cache));
+				v, i+1, P_GIVEN_H(m, i+1, cache));
 #endif
 #if UNROLL_DEPTH > 2
 			vis0[i+2] = layer_draw_sample(
-				v, i+2, pvi(m, i+2, cache));
+				v, i+2, P_GIVEN_H(m, i+2, cache));
 #endif
 #if UNROLL_DEPTH > 3
 			vis0[i+3] = layer_draw_sample(
-				v, i+3, pvi(m, i+3, cache));
+				v, i+3, P_GIVEN_H(m, i+3, cache));
 #endif
 		}
 		/* Duff's device */
@@ -3055,17 +3064,20 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 			(layer_size(v) & (UNROLL_DEPTH - 1))) {
 #if UNROLL_DEPTH > 3
 		case 3:
-			vis0[i] = layer_draw_sample(v, i, pvi(m, i, cache));
+			vis0[i] = layer_draw_sample(
+				v, i, P_GIVEN_H(m, i, cache));
 			i++;
 #endif
 #if UNROLL_DEPTH > 2
 		case 2:
-			vis0[i] = layer_draw_sample(v, i, pvi(m, i, cache));
+			vis0[i] = layer_draw_sample(
+				v, i, P_GIVEN_H(m, i, cache));
 			i++;
 #endif
 #if UNROLL_DEPTH > 1
 		case 1:
-			vis0[i] = layer_draw_sample(v, i, pvi(m, i, cache));
+			vis0[i] = layer_draw_sample(
+				v, i, P_GIVEN_H(m, i, cache));
 			i++;
 #endif
 		case 0:
@@ -3094,12 +3106,12 @@ dbn_propdream(fpfloat_t *tgt, dbn_t d, size_t depth)
 
 	/* again, the final dream is in cache */
 	if (LIKELY(tgt == NULL)) {
-		__vec_to_layer(d->rbms[0]->visible, cache);
+		__vec_to_layer(d->rbms[0]->vis, cache);
 	} else {
 		/* just a memcpy here as we cannot guarantee that tgt
 		 * is 16-aligned */
 		memcpy(tgt, cache,
-		       layer_size(d->rbms[0]->visible) * sizeof(fpfloat_t));
+		       layer_size(d->rbms[0]->vis) * sizeof(fpfloat_t));
 	}
 	return;
 }
@@ -3112,12 +3124,12 @@ rbm_conjugate(rbm_t m)
  * are identical and the weight matrix is the original weight matrix times their
  * pullback (adjoint). */
 	__rbm_t res;
-	size_t dom_sz = layer_size(m->visible);
-	size_t cod_sz = layer_size(m->hidden);
+	size_t dom_sz = layer_size(m->vis);
+	size_t cod_sz = layer_size(m->hid);
 
 	res = malloc(sizeof(*res));
-	res->super.visible = m->visible;
-	res->super.hidden = m->visible;
+	res->super.vis = m->vis;
+	res->super.hid = m->vis;
 
 	res->super.weights = xnew_atomic_array(
 		dom_sz * __aligned_size(dom_sz), fpfloat_t);
