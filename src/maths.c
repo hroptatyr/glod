@@ -51,60 +51,6 @@
 # define EXP	expf
 #endif	/* FPFLOAT_T_DOUBLE_P */
 
-/**
- * Macro to define an expectation function. */
-#define DEFEXPECTF(_name, _nsh, _npn, _x, _i, _p)			\
-	static fpfloat_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p); \
-	struct closure_s SF##_name = {					\
-		.fun = {.expf = F##_name},				\
-		.n_co_params = 0,					\
-		.n_sh_params = _nsh,					\
-		.n_pn_params = _npn,					\
-	}, *_name = &SF##_name;						\
-	static fpfloat_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p)
-
-/**
- * Macro to define a sample function. */
-#define DEFSAMPLEF(_name, _nsh, _npn, _x, _i, _p)			\
-	static state_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p);	\
-	struct closure_s SF##_name = {					\
-		.fun = {.smpf = F##_name},				\
-		.n_co_params = 0,					\
-		.n_sh_params = _nsh,					\
-		.n_pn_params = _npn,					\
-	}, *_name = &SF##_name;						\
-	static state_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p)
-
-/**
- * Macro to define an expectation function template to close over. */
-#define DEFEXPECTF_TMPL(_name, _sz, _nco, _nsh, _npn, _x, _i, _p)	\
-	static fpfloat_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p)	\
-		__attribute__((section(".expf")));			\
-	struct closure_s SF##_name = {					\
-		.fun = {.expf = F##_name},				\
-		.fun_size = _sz,					\
-		.n_co_params = _nco,					\
-		.n_sh_params = _nsh,					\
-		.n_pn_params = _npn,					\
-	};								\
-	closure_template_t _name = &SF##_name;				\
-	static fpfloat_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p)
-
-/**
- * Macro to define a sample function template to close over. */
-#define DEFSAMPLEF_TMPL(_name, _sz, _nco, _nsh, _npn, _x, _i, _p)	\
-	static state_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p)	\
-		__attribute__((section(".smpf")));			\
-	struct closure_s SF##_name = {					\
-		.fun = {.smpf = F##_name},				\
-		.fun_size = _sz,					\
-		.n_co_params = 0,					\
-		.n_sh_params = _nsh,					\
-		.n_pn_params = _npn,					\
-	};								\
-	closure_template_t _name = &SF##_name;				\
-	static state_t F##_name(fpfloat_t _x, idx_t _i, fparam_t _p)
-
 
 fpfloat_t
 softmax(fpfloat_t *vec, fpfloat_t x, size_t len)
