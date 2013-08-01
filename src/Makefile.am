@@ -68,6 +68,22 @@ libglod_a_SOURCES += version.c version.h
 libglod_a_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
 
+noinst_LIBRARIES += libdbn.a
+libdbn_a_SOURCES =
+libdbn_a_SOURCES += dbn-base.c dbn-base.h
+libdbn_a_SOURCES += rand.c rand.h
+libdbn_a_SOURCES += rand-ziggurat.c rand-ziggurat.h
+libdbn_a_SOURCES += rand-taus.c rand-taus.h
+libdbn_a_SOURCES += neuron.c neuron.h
+libdbn_a_SOURCES += layer.c layer.h
+libdbn_a_SOURCES += maths.c maths.h
+libdbn_a_SOURCES += rbm.c rbm.h
+libdbn_a_SOURCES += dbn.c dbn.h
+libdbn_a_CPPFLAGS = $(AM_CPPFLAGS)
+libdbn_a_CPPFLAGS += -fopenmp
+libdbn_a_LDFLAGS = $(AM_LDFLAGS)
+libdbn_a_LDFLAGS += -lgomp
+
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
 glod_charstat_SOURCES += glod-charstat.ggo
