@@ -712,26 +712,6 @@ pvi(const_rbm_t m, idx_t i, const fpfloat_t hid[static layer_size(m->hid)])
 #undef UNROLL_DEPTH
 
 #define UNROLL_DEPTH	16
-/**
- * \private Compute P(v_i | h), this is for binomial units. */
-static inline __attribute__((always_inline)) fpfloat_t
-pvi_poiss(const_rbm_t m, idx_t i, const fpfloat_t h[static layer_size(m->hid)])
-{
-/* compute exp(BIAS + <H, W_i>) / \sum_k (exp(BIAS_k + <H, W_k>)) */
-	fpfloat_t num = exp(pvi(m, i, h));
-	fpfloat_t den = 0.;
-	size_t k;
-
-#pragma omp parallel for shared(m, h) private(k)
-	for (k = 0; k < layer_size(m->vis); k++) {
-		den += exp(pvi(m, k, h));
-	}
-
-	return layer_draw_expectation(m->vis, i, num / den);
-}
-#undef UNROLL_DEPTH
-
-#define UNROLL_DEPTH	16
 static inline void __attribute__((always_inline))
 __layer_to_vec(fpfloat_t *vec, layer_t l)
 {
@@ -987,7 +967,7 @@ __vec_to_layer(layer_t l, fpfloat_t *vec)
 
 
 /* the actual routines */
-#define P_GIVEN_H	pvi_poiss
+#define P_GIVEN_H	pvi
 #define P_GIVEN_V	phj
 #define P_GIVEN_V_LBL	phj2
 fpfloat_t
