@@ -38,6 +38,7 @@
 #include "neuron.h"
 
 typedef struct layer_s *layer_t;
+typedef const struct layer_s *const_layer_t;
 
 /**
  * A layer is a bunch of neurons of the same type.
@@ -93,19 +94,19 @@ extern void free_layer(layer_t);
 /* accessor */
 /**
  * Return the number of neural units in LAYER. */
-static inline __attribute__((always_inline)) size_t
-layer_size(layer_t l);
+static inline __attribute__((always_inline, pure, const)) size_t
+layer_size(const_layer_t l);
 
 /**
  * Return the INDEX-th neuron in layer L.
  * Note: This does not check for size constraints. */
-static inline __attribute__((always_inline)) neuron_t
-layer_neuron(layer_t l, idx_t index);
+static inline __attribute__((always_inline, pure, const)) neuron_t
+layer_neuron(const_layer_t l, idx_t index);
 
 /**
  * Return the state of the INDEX-th neuron in layer L. */
-static inline __attribute__((always_inline)) state_t
-layer_neuron_state(layer_t l, idx_t idx);
+static inline __attribute__((always_inline, pure, const)) state_t
+layer_neuron_state(const_layer_t l, idx_t idx);
 
 /**
  * Set the state of the IDX-th neuron in layer L to NEW. */
@@ -115,13 +116,13 @@ layer_neuron_set_state(layer_t l, idx_t idx, state_t new);
 /**
  * Return the sampler function parameter. */
 static inline __attribute__((always_inline)) fparam_t
-layer_smpf_param(layer_t l);
+layer_smpf_param(const_layer_t l);
 
 /**
  * Return the IDX-th sampler function parameter or the first one,
  * if the sample function has only one shared parameter. */
 static inline __attribute__((always_inline)) fpfloat_t
-layer_get_smpf_param(layer_t l, idx_t idx);
+layer_get_smpf_param(const_layer_t l, idx_t idx);
 
 /**
  * Set a per-neuron parameter (the IDX-th) of L's sampler function. */
@@ -131,13 +132,13 @@ layer_set_smpf_param(layer_t l, idx_t idx, fpfloat_t p);
 /**
  * Return the expectation function parameter. */
 static inline __attribute__((always_inline)) fparam_t
-layer_expf_param(layer_t l);
+layer_expf_param(const_layer_t l);
 
 /**
  * Return the IDX-th expectation function parameter or the first one,
  * if the expectation function has only one shared parameter. */
 static inline __attribute__((always_inline)) fpfloat_t
-layer_get_expf_param(layer_t l, idx_t idx);
+layer_get_expf_param(const_layer_t l, idx_t idx);
 
 /**
  * Set a per-neuron parameter (the IDX-th) of L's expectation function. */
@@ -168,15 +169,15 @@ layer_draw_expectation(layer_t l, idx_t idx, fpfloat_t a);
 
 /**
  * Return the function that draws a sample from an expectation value. */
-static inline __attribute__((always_inline)) sample_f
-layer_samplef(layer_t l);
+static inline __attribute__((always_inline, const, pure)) sample_f
+layer_samplef(const_layer_t l);
 
 /**
  * Return the function that computes the expectation value.
  * This is here (and not in the neuron implementation) because each
  * layer wants to carry its own expectation function. */
-static inline __attribute__((always_inline)) expect_f
-layer_expectf(layer_t l);
+static inline __attribute__((always_inline, const, pure)) expect_f
+layer_expectf(const_layer_t l);
 
 /**
  * Set the sample function of L to SMPF. */
@@ -192,20 +193,20 @@ extern void layer_unset_expectf(layer_t l);
 
 /* inlines */
 /* accessors */
-static inline size_t
-layer_size(layer_t l)
+static inline __attribute__((const, pure)) size_t
+layer_size(const_layer_t l)
 {
 	return l->size;
 }
 
-static inline fparam_t
-layer_smpf_param(layer_t l)
+static inline __attribute__((const, pure)) fparam_t
+layer_smpf_param(const_layer_t l)
 {
 	return l->smpf_param;
 }
 
-static inline fpfloat_t
-layer_get_smpf_param(layer_t l, idx_t idx)
+static inline __attribute__((const, pure)) fpfloat_t
+layer_get_smpf_param(const_layer_t l, idx_t idx)
 {
 	if (dr_clo_number_shared_params(layer_samplef(l)) <= 1 &&
 	    dr_clo_number_per_neuron_params(layer_samplef(l)) == 0) {
@@ -227,14 +228,14 @@ layer_set_smpf_param(layer_t l, idx_t idx, fpfloat_t p)
 	return;
 }
 
-static inline fparam_t
-layer_expf_param(layer_t l)
+static inline __attribute__((const, pure)) fparam_t
+layer_expf_param(const_layer_t l)
 {
 	return l->expf_param;
 }
 
-static inline fpfloat_t
-layer_get_expf_param(layer_t l, idx_t idx)
+static inline __attribute__((const, pure)) fpfloat_t
+layer_get_expf_param(const_layer_t l, idx_t idx)
 {
 	if (dr_clo_number_shared_params(layer_expectf(l)) <= 1 &&
 	    dr_clo_number_per_neuron_params(layer_expectf(l)) == 0) {
@@ -258,13 +259,13 @@ layer_set_expf_param(layer_t l, idx_t idx, fpfloat_t p)
 
 
 static inline neuron_t
-layer_neuron(layer_t l, idx_t idx)
+layer_neuron(const_layer_t l, idx_t idx)
 {
 	return (neuron_t)((char*)l->neurons + (l->ni->nsz * idx));
 }
 
 static inline state_t
-layer_neuron_state(layer_t l, idx_t idx)
+layer_neuron_state(const_layer_t l, idx_t idx)
 {
 	idx_t nu, si;
 	nu = idx / l->ni->n_per_cell, si = idx % l->ni->n_per_cell;
@@ -281,13 +282,13 @@ layer_neuron_set_state(layer_t l, idx_t idx, state_t new)
 }
 
 static inline sample_f
-layer_samplef(layer_t l)
+layer_samplef(const_layer_t l)
 {
 	return l->samplef;
 }
 
 static inline expect_f
-layer_expectf(layer_t l)
+layer_expectf(const_layer_t l)
 {
 	return l->expectf;
 }

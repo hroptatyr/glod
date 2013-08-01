@@ -46,6 +46,7 @@
 /**
  * Global type for restriced boltzmann machines. */
 typedef struct rbm_s *rbm_t;
+typedef const struct rbm_s *const_rbm_t;
 
 /** \private alibi def */
 typedef void *cloud_t;
@@ -130,13 +131,13 @@ inc_weight_ij(rbm_t m, idx_t i, idx_t j, fpfloat_t w);
 /**
  * Return an array of biases of the visible units. */
 static inline __attribute__((always_inline)) fpfloat_t*
-visible_biases(rbm_t m);
+visible_biases(const_rbm_t m);
 
 /**
  * Return the I-th bias of the visible neurons.
  * \note Bounds are not checked. */
 static inline __attribute__((always_inline)) fpfloat_t
-visible_bias_i(rbm_t m, idx_t i);
+visible_bias_i(const_rbm_t m, idx_t i);
 
 /**
  * Set the I-th bias of the visible neurons to V.
@@ -147,13 +148,13 @@ set_visible_bias_i(rbm_t m, idx_t i, fpfloat_t v);
 /**
  * Return the array of biases of the visible units. */
 static inline __attribute__((always_inline)) fpfloat_t*
-hidden_biases(rbm_t m);
+hidden_biases(const_rbm_t m);
 
 /**
  * Return the J-th bias of the hidden neurons.
  * \note Bounds are not checked. */
 static inline __attribute__((always_inline)) fpfloat_t
-hidden_bias_j(rbm_t m, idx_t j);
+hidden_bias_j(const_rbm_t m, idx_t j);
 
 /**
  * Set the J-th bias of the hidden neurons to V.
@@ -308,13 +309,13 @@ inc_weight_ij(rbm_t m, idx_t i, idx_t j, fpfloat_t w)
 }
 
 static inline fpfloat_t*
-visible_biases(rbm_t m)
+visible_biases(const_rbm_t m)
 {
 	return m->biases;
 }
 
 static inline fpfloat_t
-visible_bias_i(rbm_t m, idx_t i)
+visible_bias_i(const_rbm_t m, idx_t i)
 {
 	return visible_biases(m)[i];
 }
@@ -327,13 +328,13 @@ set_visible_bias_i(rbm_t m, idx_t i, fpfloat_t v)
 }
 
 static inline fpfloat_t*
-hidden_biases(rbm_t m)
+hidden_biases(const_rbm_t m)
 {
 	return &m->biases[__aligned_size(layer_size(m->visible))];
 }
 
 static inline fpfloat_t
-hidden_bias_j(rbm_t m, idx_t j)
+hidden_bias_j(const_rbm_t m, idx_t j)
 {
 	return hidden_biases(m)[j];
 }
