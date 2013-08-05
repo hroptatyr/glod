@@ -11,6 +11,11 @@
 #include "rand.h"
 #include "nifty.h"
 
+/* blas */
+#if defined USE_BLAS
+# include <mkl_cblas.h>
+#endif	/* USE_BLAS */
+
 #define PREFER_NUMERICAL_STABILITY_OVER_SPEED	1
 
 #if defined __INTEL_COMPILER
@@ -158,6 +163,26 @@ sigmal(long double x)
 /* my own tgmaths */
 #define poiss(x, n)	__TGMATH_BINARY_FIRST_REAL_ONLY(x, n, poiss)
 #define sigma(x)	__TGMATH_UNARY_REAL_ONLY(x, sigma)
+
+
+/* my alibi blas */
+#if !defined USE_BLAS
+typedef long int MKL_INT;
+
+static float
+cblas_sdot(
+	const MKL_INT N,
+	const float *X, const MKL_INT incX,
+	const float *Y, const MKL_INT incY)
+{
+	float sum = 0.f;
+
+	for (MKL_INT i = 0; i < N; i++, X += incX, Y += incY) {
+		sum += *X * *Y;
+	}
+	return sum;
+}
+#endif	/* !USE_BLAS */
 
 
 /* mmapping, adapted from fops.h */
@@ -360,14 +385,9 @@ prop_up(float *restrict h, dl_rbm_t m, const float *vis)
 	const float *w = m->w;
 	const float *b = m->hbias;
 
-#define w(i, j)		w[i * nhid + j]
+#define w(i, j)		(w + i * nhid + j)
 	for (size_t j = 0; j < nhid; j++) {
-		float sum = 0.0;
-
-		for (size_t i = 0; i < nvis; i++) {
-			sum += w(i,j) * vis[i];
-		}
-		h[j] = b[j] + sum;
+		h[j] = b[j] + cblas_sdot(nvis, w(0U, j), nhid, vis, 1);
 	}
 #undef w
 	return 0;
@@ -411,14 +431,9 @@ prop_down(float *restrict v, dl_rbm_t m, const float *hid)
 	const float *w = m->w;
 	const float *b = m->vbias;
 
-#define w(i, j)		w[i * nhid + j]
+#define w(i, j)		(w + i * nhid + j)
 	for (size_t i = 0; i < nvis; i++) {
-		float sum = 0.0;
-
-		for (size_t j = 0; j < nhid; j++) {
-			sum += w(i,j) * hid[j];
-		}
-		v[i] = b[i] + sum;
+		v[i] = b[i] + cblas_sdot(nhid, w(i, 0U), 1U, hid, 1U);
 	}
 #undef w
 	return 0;
