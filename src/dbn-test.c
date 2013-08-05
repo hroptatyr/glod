@@ -541,35 +541,138 @@ train(dl_rbm_t m, const uint8_t *v)
 	return;
 }
 
+static void
+dream(dl_rbm_t m, const uint8_t *v)
+{
+	const size_t nv = m->nvis;
+	const size_t nh = m->nhid;
+	float *vo;
+	float *ho;
+	float *vr;
+	float *hr;
+
+	vo = calloc(nv, sizeof(*vo));
+	vr = calloc(nv, sizeof(*vr));
+	ho = calloc(nh, sizeof(*ho));
+	hr = calloc(nh, sizeof(*hr));
+
+	/* populate from input */
+	popul_ui8(vo, v, nv);
+
+	/* vhv gibbs */
+	prop_up(ho, m, vo);
+	smpl_hid(hr, m, hr);
+	prop_down(vr, m, hr);
+	/* vh gibbs */
+	smpl_vis(vr, m, vr, v);
+
+	for (size_t i = 0; i < nv; i++) {
+		uint8_t vi = (uint8_t)(int)vr[i];
+
+		if (UNLIKELY(vi)) {
+			printf("%zu\t%u\n", i, (unsigned int)vi);
+		}
+	}
+
+	free(vo);
+	free(vr);
+	free(ho);
+	free(hr);
+	return;
+}
+
+static int
+check(dl_rbm_t m)
+{
+	int res = 0;
+
+	with (size_t nv = m->nvis, nh = m->nhid) {
+		for (size_t i = 0; i < nv; i++) {
+			if (UNLIKELY(isnan(m->vbias[i]))) {
+				printf("VBIAS[%zu] <- NAN\n", i);
+				res = 1;
+			}
+		}
+		for (size_t j = 0; j < nh; j++) {
+			if (UNLIKELY(isnan(m->hbias[j]))) {
+				printf("HBIAS[%zu] <- NAN\n", j);
+				res = 1;
+			}
+		}
+		for (size_t i = 0; i < nv; i++) {
+			for (size_t j = 0; j < nh; j++) {
+				if (UNLIKELY(isnan(m->w[i * nh + j]))) {
+					printf("W[%zu,%zu] <- NAN\n", i, j);
+					res = 1;
+				}
+			}
+		}
+	}
+	return res;
+}
+
+
+#if defined __INTEL_COMPILER
+# pragma warning (disable:593)
+# pragma warning (disable:181)
+#endif	/* __INTEL_COMPILER */
+#include "dbn-test.xh"
+#include "dbn-test.x"
+#if defined __INTEL_COMPILER
+# pragma warning (default:593)
+# pragma warning (default:181)
+#endif	/* __INTEL_COMPILER */
+
 int
 main(int argc, char *argv[])
 {
+	struct glod_args_info argi[1];
 	dl_rbm_t m = NULL;
+	int res = 0;
 
-#if 0
-	struct dl_file_s ini = {
-		.nvis = 32768U + 4096U,
-		.nhid = 256U,
-	};
-
-	/* wobble the matrices */
-	m = crea("test.rbm", ini);
-#else
-	init_rand();
-
-	if (!isatty(STDIN_FILENO)) {
-		uint8_t *v;
-
-		m = pump("test.rbm");
-		v = read_tf(STDIN_FILENO, m);
-
-		train(m, v);
-
-		free(v);
+	if (glod_parser(argc, argv, argi)) {
+		res = 1;
+		goto out;
 	}
 
+	init_rand();
+	if (argi->create_given) {
+		struct dl_file_s ini = {
+			.nvis = 32768U + 4096U,
+			.nhid = 256U,
+		};
+
+		/* wobble the matrices */
+		if ((m = crea("test.rbm", ini)) == NULL) {
+			res = 1;
+		}
+		goto wrout;
+	}
+
+	/* read the machine file */
+	m = pump("test.rbm");
+
+	if (argi->check_given) {
+		res = check(m);
+	} else if (argi->train_given) {
+		if (!isatty(STDIN_FILENO)) {
+			uint8_t *v = read_tf(STDIN_FILENO, m);
+
+			train(m, v);
+			free(v);
+		}
+	} else if (argi->dream_given) {
+		if (!isatty(STDIN_FILENO)) {
+			uint8_t *v = read_tf(STDIN_FILENO, m);
+
+			dream(m, v);
+			free(v);
+		}
+	}
+wrout:
 	deinit_rand();
-#endif
 	dump(m);
-	return 0;
+out:
+	glod_parser_free(argi);
+	return res;
 }
