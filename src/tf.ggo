@@ -15,3 +15,7 @@ unknown-term indicator."
 option "dense" -
 	"Output a (binary) dense map instead of sparse tuples (id+tf)."
 	optional
+
+option "reverse" r
+	"Given term ids on stdin construct a message of actual terms."
+	optional

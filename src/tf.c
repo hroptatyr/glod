@@ -141,6 +141,28 @@ snarf_get(ctx_t ctx)
 	return;
 }
 
+static void
+snarf_rev(ctx_t ctx)
+{
+	char *line = NULL;
+	size_t llen = 0U;
+	ssize_t nrd;
+
+	while ((nrd = getline(&line, &llen, stdin)) > 0) {
+		gl_crpid_t id;
+
+		line[nrd - 1] = '\0';
+		id = strtoul(line, NULL, 0);
+		with (const char *term = corpus_term(ctx->c, id)) {
+			if (LIKELY(term != NULL)) {
+				puts(term);
+			}
+		}
+	}
+	free(line);
+	return;
+}
+
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
@@ -184,6 +206,9 @@ main(int argc, char *argv[])
 	/* just categorise the whole shebang */
 	if (argi->add_given) {
 		snarf_add(ctx);
+	} else if (argi->reverse_given) {
+		snarf_rev(ctx);
+		goto fr;
 	} else {
 		snarf_get(ctx);
 	}
@@ -201,6 +226,7 @@ main(int argc, char *argv[])
 		}
 	}
 
+fr:
 	free_corpus(ctx->c);
 	free(ctx->tf);
 out:
