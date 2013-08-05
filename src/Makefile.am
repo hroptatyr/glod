@@ -124,6 +124,15 @@ tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
 BUILT_SOURCES += tf.x tf.xh
 
+noinst_PROGRAMS += dbn
+dbn_SOURCES = dbn-test.c
+dbn_CPPFLAGS = $(AM_CPPFLAGS)
+dbn_CPPFLAGS += -fopenmp
+dbn_LDFLAGS = $(AM_LDFLAGS)
+dbn_LDFLAGS += -static
+dbn_LDADD = libdbn.a
+dbn_LDADD += -liomp5 -lpthread
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
