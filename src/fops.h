@@ -57,12 +57,11 @@ struct glodfn_s {
 };
 
 static inline glodf_t
-mmap_fd(int fd, size_t fz, int flags)
+mmap_fd(int fd, size_t fz)
 {
 	void *p;
 
-	p = mmap(NULL, fz, PROT_READ | flags, MAP_PRIVATE, fd, 0);
-	if (p == MAP_FAILED) {
+	if ((p = mmap(NULL, fz, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
 		return (glodf_t){.z = 0U, .d = NULL};
 	}
 	return (glodf_t){.z = fz, .d = p};
@@ -85,7 +84,7 @@ mmap_fn(const char *fn, int flags)
 	} else if (fstat(res.fd, &st) < 0) {
 		res.fb = (glodf_t){.z = 0U, .d = NULL};
 		goto clo;
-	} else if ((res.fb = mmap_fd(res.fd, st.st_size, 0)).d == NULL) {
+	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
 	clo:
 		close(res.fd);
 		res.fd = -1;
