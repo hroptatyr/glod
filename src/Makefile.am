@@ -81,8 +81,6 @@ libdbn_a_SOURCES += rbm.c rbm.h
 libdbn_a_SOURCES += dbn.c dbn.h
 libdbn_a_CPPFLAGS = $(AM_CPPFLAGS)
 libdbn_a_CPPFLAGS += -fopenmp
-libdbn_a_LDFLAGS = $(AM_LDFLAGS)
-libdbn_a_LDFLAGS += -lgomp
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
