@@ -376,6 +376,19 @@ popul_ui8(float *restrict x, const uint8_t *n, size_t z)
 	return;
 }
 
+static float
+poiss_lambda_ui8(const uint8_t *n, size_t z)
+{
+	/* N is the number of total incidents (occurence times count) */
+	long unsigned int N = 0UL;
+
+	/* calc N and n */
+	for (size_t i = 0; i < z; i++) {
+		N += n[i];
+	}
+	return (float)N / (float)z;
+}
+
 static int
 prop_up(float *restrict h, dl_rbm_t m, const float *vis)
 {
@@ -463,22 +476,12 @@ expt_vis(float *restrict v, dl_rbm_t m, const float *vis, const uint8_t *n)
 }
 
 static int
-smpl_vis(float *restrict v, dl_rbm_t m, const float *vis, const uint8_t *n)
+smpl_vis(float *restrict v, dl_rbm_t m, const float *UNUSED(vis), float lambda)
 {
 /* infer visible unit states given hid(den units) */
 	const size_t nvis = m->nvis;
-	float nor = 0.f;
-	long unsigned int N;
 
-	/* calc \sum exp(v) */
-	for (size_t i = 0; i < nvis; i++) {
-		nor += v[i] = exp(vis[i]);
-	}
-	/* calc N */
-	for (size_t i = 0; i < nvis; i++) {
-		N += n[i];
-	}
-	with (const float lambda = (float)N / nor, lexp = exp(-lambda)) {
+	with (const float lexp = exp(-lambda)) {
 		for (size_t i = 0; i < nvis; i++) {
 			float p = 1.f;
 			uint8_t k = 0U;
@@ -503,6 +506,7 @@ train(dl_rbm_t m, const uint8_t *v)
 	float *ho;
 	float *vr;
 	float *hr;
+	float lambda;
 
 	vo = calloc(nv, sizeof(*vo));
 	vr = calloc(nv, sizeof(*vr));
@@ -511,13 +515,14 @@ train(dl_rbm_t m, const uint8_t *v)
 
 	/* populate from input */
 	popul_ui8(vo, v, nv);
+	lambda = poiss_lambda_ui8(v, nv);
 
 	/* vhv gibbs */
 	prop_up(ho, m, vo);
 	smpl_hid(hr, m, hr);
 	prop_down(vr, m, hr);
 	/* vh gibbs */
-	smpl_vis(vr, m, vr, v);
+	smpl_vis(vr, m, vr, lambda);
 	prop_up(hr, m, vr);
 	smpl_hid(hr, m, hr);
 
@@ -565,6 +570,7 @@ dream(dl_rbm_t m, const uint8_t *v)
 	float *ho;
 	float *vr;
 	float *hr;
+	float lambda;
 
 	vo = calloc(nv, sizeof(*vo));
 	vr = calloc(nv, sizeof(*vr));
@@ -573,13 +579,14 @@ dream(dl_rbm_t m, const uint8_t *v)
 
 	/* populate from input */
 	popul_ui8(vo, v, nv);
+	lambda = poiss_lambda_ui8(v, nv);
 
 	/* vhv gibbs */
 	prop_up(ho, m, vo);
 	smpl_hid(hr, m, hr);
 	prop_down(vr, m, hr);
 	/* vh gibbs */
-	smpl_vis(vr, m, vr, v);
+	smpl_vis(vr, m, vr, lambda);
 
 	for (size_t i = 0; i < nv; i++) {
 		uint8_t vi = (uint8_t)(int)vr[i];
