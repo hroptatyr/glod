@@ -169,7 +169,7 @@ sigmal(long double x)
 #if !defined USE_BLAS
 typedef long int MKL_INT;
 
-static float
+static inline float
 cblas_sdot(
 	const MKL_INT N,
 	const float *X, const MKL_INT incX,
