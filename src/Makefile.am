@@ -127,12 +127,10 @@ BUILT_SOURCES += tf.x tf.xh
 noinst_PROGRAMS += dbn
 dbn_SOURCES = dbn-test.c
 dbn_CPPFLAGS = $(AM_CPPFLAGS)
-dbn_CPPFLAGS += -fopenmp
 dbn_LDFLAGS = $(AM_LDFLAGS)
 dbn_LDFLAGS += -static
 dbn_LDADD = libglod.a
 dbn_LDADD += libdbn.a
-dbn_LDADD += -liomp5 -lpthread
 BUILT_SOURCES += dbn-test.x dbn-test.xh
 
 
