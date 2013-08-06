@@ -127,13 +127,12 @@ BUILT_SOURCES += tf.x tf.xh
 noinst_PROGRAMS += dbn
 dbn_SOURCES = dbn-test.c
 dbn_CPPFLAGS = $(AM_CPPFLAGS)
-dbn_CPPFLAGS += -I/opt/intel/mkl/include
+dbn_CPPFLAGS += -fopenmp
 dbn_LDFLAGS = $(AM_LDFLAGS)
-dbn_LDFLAGS += -Wl,-rpath /opt/intel/lib/intel64
-dbn_LDFLAGS += -Wl,-rpath /opt/intel/mkl/lib/intel64 -L/opt/intel/mkl/lib/intel64 -lmkl_core -lmkl_intel_lp64 -lmkl_intel_thread
-dbn_LDFLAGS += -liomp5 -lpthread
+dbn_LDFLAGS += -static
 dbn_LDADD = libglod.a
 dbn_LDADD += libdbn.a
+dbn_LDADD += -liomp5 -lpthread
 BUILT_SOURCES += dbn-test.x dbn-test.xh
 
 
