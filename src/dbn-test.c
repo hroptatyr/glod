@@ -31,6 +31,11 @@
 #define PI		3.141592654f
 #define E		2.718281828f
 
+#if !defined NDEBUG
+# define DEBUG(args...)	args
+#else  /* NDEBUG */
+# define DEBUG(args...)
+#endif	/* !NDEBUG */
 
 static float
 factorialf(uint8_t n)
@@ -348,16 +353,32 @@ crea(const char *file, struct dl_file_s fs)
 	fs.off = 0U;
 	memcpy(f.fb.d, &fs, sizeof(fs));
 
-	/* wobble */
-	with (float *xp = ((struct dl_file_s*)f.fb.d)->data) {
-		const float norm = 1 / (float)z;
-		for (size_t i = 0; i < z; i++) {
-			xp[i] = norm * dr_rand_norm();
-		}
-	}
-
 	munmap_fn(f);
-	return pump(file);
+	with (dl_rbm_t m = pump(file)) {
+		const float vnois = .1f;
+		const float hnois = .01f;
+		const float wnois = 1.f / (m->nvis * m->nhid);
+
+		/* wobble vbiasses */
+		for (size_t i = 0; i < m->nvis; i++) {
+			const float x = dr_rand_uni();
+			m->vbias[i] = log(vnois * x);
+		}
+
+		/* wobble hbiasses */
+		for (size_t j = 0; j < m->nhid; j++) {
+			const float x = dr_rand_norm();
+			m->hbias[j] = hnois * x;
+		}
+
+		/* wobble weights */
+		for (size_t k = 0; k < m->nvis * m->nhid; k++) {
+			const float x = dr_rand_norm();
+			m->w[k] = wnois * x;
+		}
+
+		return m;
+	}
 
 out:
 	close(fd);
@@ -373,7 +394,7 @@ read_tf(const int fd, dl_rbm_t m)
 	size_t vz;
 
 	/* now then */
-	v = vp = malloc(vz = m->nvis * sizeof(*v));
+	v = vp = calloc(vz = m->nvis, sizeof(*v));
 	for (ssize_t nrd; (nrd = read(fd, vp, vz)) > 0; vp += nrd, vz -= nrd);
 	return v;
 }
@@ -614,7 +635,7 @@ prop_up(float *restrict h, dl_rbm_t m, const float vis[static m->nvis])
 
 #define w(i, j)		(w + i * nhid + j)
 	for (size_t j = 0; j < nhid; j++) {
-		h[j] = b[j] + cblas_sdot(nvis, w(0U, j), nhid, vis, 1);
+		h[j] = b[j] + cblas_sdot(nvis, w(0U, j), nhid, vis, 1U);
 	}
 #undef w
 	return 0;
@@ -733,9 +754,7 @@ train(dl_rbm_t m, const uint8_t *v)
 	vr = calloc(nv, sizeof(*vr));
 	ho = calloc(nh, sizeof(*ho));
 	hr = calloc(nh, sizeof(*hr));
-#if !defined NDEBUG
-	float *hs = calloc(nh, sizeof(*hs));
-#endif	/* !NDEBUG */
+	DEBUG(float *hs = calloc(nh, sizeof(*hs)));
 
 	/* populate from input */
 	popul_ui8(vo, v, nv);
@@ -745,9 +764,7 @@ train(dl_rbm_t m, const uint8_t *v)
 	expt_hid(ho, m, ho);
 	/* don't sample into ho, use hr instead, we want the activations */
 	smpl_hid(hr, m, ho);
-#if !defined NDEBUG
-	size_t nho = count_layer(hr, nh);
-#endif	/* !NDEBUG */
+	DEBUG(size_t nho = count_layer(hr, nh));
 
 	/* hv gibbs */
 	prop_down(vr, m, hr);
@@ -757,10 +774,10 @@ train(dl_rbm_t m, const uint8_t *v)
 	prop_up(hr, m, vr);
 	expt_hid(hr, m, hr);
 
-#if !defined NDEBUG
-	smpl_hid(hs, m, hr);
-	size_t nhr = count_layer(hs, nh);
-#endif	/* !NDEBUG */
+	DEBUG(
+		smpl_hid(hs, m, hr);
+		size_t nhr = count_layer(hs, nh);
+		);
 
 	/* we won't sample the h reconstruction as we want to use the
 	 * the activations directly */
@@ -772,13 +789,29 @@ train(dl_rbm_t m, const uint8_t *v)
 	float Nsr = integ_layer(vr, nv);
 	printf("|vo| %zu  |vr| %zu  Nvo %.6g  Nvr %.6g\n", nso, nsr, Nso, Nsr);
 	printf("|ho| %zu  |hr| %zu\n", nho, nhr);
-
-	printf("using %.6g (@%p) for learning rate\n", eta, &eta);
 #endif	/* !NDEBUG */
 
 	/* bang <v_i h_j> into weights and biasses */
 	with (float *w = m->w, *vb = m->vbias, *hb = m->hbias) {
+		const float eta = 0.02f;
+		const float mom = 0.9f;
+		const float dec = 0.f;
+		static float *dh;
+		static float *dv;
+		static float *dw;
+
+		if (UNLIKELY(dw == NULL)) {
+			dw = calloc(nh * nv, sizeof(*dw));
+		}
+		if (UNLIKELY(dh == NULL)) {
+			dh = calloc(nh, sizeof(*dh));
+		}
+		if (UNLIKELY(dv == NULL)) {
+			dv = calloc(nv, sizeof(*dv));
+		}
+
 #define w(i, j)		w[i * nh + j]
+#define dw(i, j)	dw[i * nh + j]
 #if !defined NDEBUG
 		float mind;
 		float maxd;
@@ -790,17 +823,24 @@ train(dl_rbm_t m, const uint8_t *v)
 			for (size_t j = 0; j < nh; j++) {
 				float vho = vo[i] * ho[j];
 				float vhr = vr[i] * hr[j];
-				float dw = eta * (vho - vhr);
+				float d = vho - vhr;
+
+				/* decay */
+				d -= dec * w(i, j);
+				/* learning rate */
+				d *= eta;
+				/* momentum term */
+				d += mom * dw(i, j);
 
 #if !defined NDEBUG
-				if (dw < mind) {
-					mind = dw;
+				if (d < mind) {
+					mind = d;
 				}
-				if (dw > maxd) {
-					maxd = dw;
+				if (d > maxd) {
+					maxd = d;
 				}
 #endif	/* !NDEBUG */
-				w(i, j) += dw;
+				w(i, j) += dw(i, j) = d;
 			}
 		}
 #if !defined NDEBUG
@@ -809,20 +849,28 @@ train(dl_rbm_t m, const uint8_t *v)
 		maxd = -INFINITY;
 #endif	/* !NDEBUG */
 #undef w
+#undef dw
 
 		/* bias update */
 		for (size_t i = 0; i < nv; i++) {
-			float dw = eta * (vo[i] - vr[i]);
+			float d = vo[i] - vr[i];
+
+			/* decay */
+			d -= dec * vb[i];
+			/* learning rate */
+			d *= eta;
+			/* momentum */
+			d += mom * dv[i];
 
 #if !defined NDEBUG
-			if (dw < mind) {
-				mind = dw;
+			if (d < mind) {
+				mind = d;
 			}
-			if (dw > maxd) {
-				maxd = dw;
+			if (d > maxd) {
+				maxd = d;
 			}
 #endif	/* !NDEBUG */
-			vb[i] += dw;
+			vb[i] += dv[i] = d;
 		}
 #if !defined NDEBUG
 		printf("dv (%.6g  %.6g)\n", mind, maxd);
@@ -831,38 +879,31 @@ train(dl_rbm_t m, const uint8_t *v)
 #endif	/* !NDEBUG */
 
 		for (size_t j = 0; j < nh; j++) {
-			float dw = eta * (ho[j] - hr[j]);
+			float d = ho[j] - hr[j];
+
+			/* decay */
+			d -= dec * hb[j];
+			/* learning rate */
+			d *= eta;
+			/* momentum */
+			d += mom * dh[j];
 
 #if !defined NDEBUG
-			if (dw < mind) {
-				mind = dw;
+			if (d < mind) {
+				mind = d;
 			}
-			if (dw > maxd) {
-				maxd = dw;
+			if (d > maxd) {
+				maxd = d;
 			}
 #endif	/* !NDEBUG */
-			hb[j] += dw;
+			hb[j] += dh[j] = d;
 		}
 #if !defined NDEBUG
 		printf("dh (%.6g  %.6g)\n", mind, maxd);
 
 		dump_layer("h", m->hbias, nh);
 		dump_layer("v", m->vbias, nv);
-		printf("s(w)\n");
-#define w(i, j)		m->w[i * nh + j]
-		for (size_t j = 0; j < nh; j++) {
-			float min = INFINITY;
-			float max = -INFINITY;
-			for (size_t i = 0; i < nv; i++) {
-				if (w(i, j) > max) {
-					max = w(i, j);
-				}
-				if (w(i, j) < min) {
-					min = w(i, j);
-				}
-			}
-			printf("  %zu (%.6g %.6g)\n", j, min, max);
-		}
+		dump_layer("w", m->w, nh * nv);
 #undef w
 #endif	/* !NDEBUG */
 	}
@@ -871,9 +912,7 @@ train(dl_rbm_t m, const uint8_t *v)
 	free(vr);
 	free(ho);
 	free(hr);
-#if !defined NDEBUG
-	free(hs);
-#endif	/* !NDEBUG */
+	DEBUG(free(hs));
 	return;
 }
 
@@ -993,7 +1032,7 @@ main(int argc, char *argv[])
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
-			for (size_t i = 0; i < 200U; i++) {
+			for (size_t i = 0; i < 100U; i++) {
 				train(m, v);
 			}
 			free(v);
