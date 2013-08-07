@@ -81,8 +81,6 @@ libdbn_a_SOURCES += rbm.c rbm.h
 libdbn_a_SOURCES += dbn.c dbn.h
 libdbn_a_CPPFLAGS = $(AM_CPPFLAGS)
 libdbn_a_CPPFLAGS += -fopenmp
-libdbn_a_LDFLAGS = $(AM_LDFLAGS)
-libdbn_a_LDFLAGS += -lgomp
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
@@ -125,6 +123,15 @@ tf_LDFLAGS = $(AM_LDFLAGS)
 tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
 BUILT_SOURCES += tf.x tf.xh
+
+noinst_PROGRAMS += dbn
+dbn_SOURCES = dbn-test.c
+dbn_CPPFLAGS = $(AM_CPPFLAGS)
+dbn_LDFLAGS = $(AM_LDFLAGS)
+dbn_LDFLAGS += -static
+dbn_LDADD = libglod.a
+dbn_LDADD += libdbn.a
+BUILT_SOURCES += dbn-test.x dbn-test.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk

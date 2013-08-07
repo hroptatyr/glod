@@ -59,4 +59,8 @@ extern gl_crpid_t corpus_get_term(gl_corpus_t, const char *t);
  * Add T to the corpus, and return its id. */
 extern gl_crpid_t corpus_add_term(gl_corpus_t, const char *t);
 
+/**
+ * Return term for corpus id TID, or NULL if not present. */
+extern const char *corpus_term(gl_corpus_t, gl_crpid_t tid);
+
 #endif	/* INCLUDED_corpus_h_ */

@@ -1,0 +1,20 @@
+args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
+package "dbn"
+usage "dbn [OPTIONS...]"
+description "Test binary for a deep belief network."
+
+option "create" c
+	"Create a new RBM machine."
+	optional
+
+option "train" -
+	"Use stdin data as training data."
+	optional
+
+option "dream" -
+	"Reconstruct input using the network."
+	optional
+
+option "check" -
+	"Check internal structure of network."
+	optional
