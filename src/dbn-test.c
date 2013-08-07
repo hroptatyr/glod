@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <assert.h>
 #include "rand.h"
 #include "nifty.h"
 
@@ -18,9 +19,17 @@
 
 #define PREFER_NUMERICAL_STABILITY_OVER_SPEED	1
 
+/* pick an implementation */
+#if !defined SALAKHUTDINOV && !defined GEHLER
+#define GEHLER		1
+#endif	/* !SALAKHUTDINOV && !GEHLER */
+
 #if defined __INTEL_COMPILER
 # pragma warning (disable:1911)
 #endif	/* __INTEL_COMPILER */
+
+#define PI		3.141592654f
+#define E		2.718281828f
 
 static float eta;
 
@@ -342,8 +351,9 @@ crea(const char *file, struct dl_file_s fs)
 
 	/* wobble */
 	with (float *xp = ((struct dl_file_s*)f.fb.d)->data) {
+		const float norm = 1 / (float)z;
 		for (size_t i = 0; i < z; i++) {
-			xp[i] = 0.25f * dr_rand_uni();
+			xp[i] = norm * dr_rand_norm();
 		}
 	}
 
@@ -378,7 +388,7 @@ popul_ui8(float *restrict x, const uint8_t *n, size_t z)
 	return;
 }
 
-static float
+static __attribute__((unused)) float
 poiss_lambda_ui8(const uint8_t *n, size_t z)
 {
 	/* N is the number of total incidents (occurence times count) */
@@ -391,8 +401,211 @@ poiss_lambda_ui8(const uint8_t *n, size_t z)
 	return (float)N / (float)z;
 }
 
+static __attribute__((unused)) float
+poiss_lambda_f(const float *v, size_t z)
+{
+	/* incident number */
+	long unsigned int N = 0UL;
+
+	for (size_t i = 0; i < z; i++) {
+		N += (long int)v[i];
+	}
+	return log((float)N) / (float)z;
+}
+
+static float
+binom1_rnd(float /*ex*/p/*ectation*/)
+{
+	float rnd = dr_rand_uni();
+
+	if (p > rnd) {
+		return 1.f;
+	}
+	return 0.f;
+}
+
+static float
+binom_rnd(unsigned int n, float /*ex*/p/*ectation*/)
+{
+/* flip N coins and sum up their faces */
+	float res = 0.f;
+
+	while (n--) {
+		res += binom1_rnd(p);
+	}
+	return res;
+}
+
+static float
+dr_rand_gamma(float k)
+{
+/* New version based on Marsaglia and Tsang, "A Simple Method for
+ * generating gamma variables", ACM Transactions on Mathematical
+ * Software, Vol 26, No 3 (2000), p363-372.
+ *
+ * gsl's take on it. */
+
+	static float gamma_large(float k)
+	{
+		const float third = 1.f / 3.f;
+		float d = k - third;
+		float c = third / sqrt(d);
+		float v;
+
+		while (1) {
+			float u;
+			float x;
+
+			do {
+				x = dr_rand_norm();
+				v = 1.f + c * x;
+			} while (v <= 0);
+
+			v = v * v * v;
+			while (UNLIKELY((u = dr_rand_uni()) <= 0.f));
+
+			if (u < 1.f - 0.0331f * x * x * x * x) {
+				break;
+			}
+			with (float lu = log(u), lv = log(v)) {
+				if (lu < 0.5f * x * x + d * (1.f - v + lv)) {
+					break;
+				}
+			}
+		}
+		return d * v;
+	}
+
+	static float gamma_small(float k)
+	{
+		float u;
+		float scal;
+
+		while (UNLIKELY((u = dr_rand_uni()) <= 0.f));
+		scal = pow(u, 1.f / k);
+		return gamma_large(k + 1.f) * scal;
+	}
+
+
+	if (UNLIKELY(k < 1.f)) {
+		return gamma_small(k);
+	}
+	return gamma_large(k);
+}
+
+static float
+poiss_rnd(float lambda)
+{
+	static float poiss_rnd_small(float lambda)
+	{
+		const float lexp = exp(-lambda);
+		float p = 1.f;
+		uint8_t k = 0U;
+
+		while ((p *= dr_rand_uni()) > lexp) {
+			k++;
+		}
+		return (float)k;
+	}
+
+	static float poiss_rnd_ad(float lambda)
+	{
+		/* Ahrens/Dieter algo */
+		const float m = floor(7.f / 8.f * lambda);
+		const float x = dr_rand_gamma(m);
+
+		if (LIKELY(x <= lambda)) {
+			return m + poiss_rnd(lambda - x);
+		} else if ((unsigned int)m - 1U < 1048576U) {
+			return binom_rnd((unsigned int)m - 1U, lambda / x);
+		}
+		return m;
+	}
+
+	if (UNLIKELY(lambda < 0.f)) {
+		return NAN;
+	} else if (UNLIKELY(isinf(lambda))) {
+		return INFINITY;
+	} else if (LIKELY(lambda < 15.f)) {
+		return poiss_rnd_small(lambda);
+	}
+	return poiss_rnd_ad(lambda);
+}
+
+
+#if !defined NDEBUG
+#if 0
+static void
+dump_layer(const char *pre, const float *x, size_t z)
+{
+	fputs(pre, stdout);
+	putchar(' ');
+
+	if (z > 20U) {
+		z = 20U;
+	}
+	for (size_t i = 0; i < z; i++) {
+		printf("%.6g ", x[i]);
+	}
+	putchar('\n');
+	return;
+}
+#else
+static void
+dump_layer(const char *pre, const float *x, size_t z)
+{
+	float minx = INFINITY;
+	float maxx = -INFINITY;
+
+	for (size_t i = 0; i < z; i++) {
+		if (x[i] < minx) {
+			minx = x[i];
+		}
+		if (x[i] > maxx) {
+			maxx = x[i];
+		}
+	}
+	printf("%s (%.6g  %.6g)\n", pre, minx, maxx);
+	return;
+}
+#endif
+
+static size_t
+count_layer(const float *x, size_t z)
+{
+	size_t sum = 0U;
+
+	for (size_t i = 0; i < z; i++) {
+		if (x[i] > 0.f) {
+			sum++;
+		}
+	}
+	return sum;
+}
+
+static float
+integ_layer(const float *x, size_t z)
+{
+	float sum = 0U;
+
+	for (size_t i = 0; i < z; i++) {
+		if (x[i] > 0.f) {
+			sum += x[i];
+		}
+	}
+	return sum;
+}
+#else  /* NDEBUG */
+static void
+dump_layer(const char *UNUSED(pre), const float *UNUSED(x), size_t UNUSED(z))
+{
+	return;
+}
+#endif	/* !NDEBUG */
+
+
 static int
-prop_up(float *restrict h, dl_rbm_t m, const float *vis)
+prop_up(float *restrict h, dl_rbm_t m, const float vis[static m->nvis])
 {
 /* propagate visible units activation upwards to the hidden units (recon) */
 	const size_t nvis = m->nvis;
@@ -408,10 +621,12 @@ prop_up(float *restrict h, dl_rbm_t m, const float *vis)
 	return 0;
 }
 
-static __attribute__((unused)) int
-expt_hid(float *restrict h, dl_rbm_t m, const float *hid)
+static int
+expt_hid(float *restrict h, dl_rbm_t m, const float hid[static m->nhid])
 {
 	const size_t nhid = m->nhid;
+
+	dump_layer("Ha", hid, nhid);
 
 	for (size_t j = 0; j < nhid; j++) {
 		h[j] = sigma(hid[j]);
@@ -420,25 +635,24 @@ expt_hid(float *restrict h, dl_rbm_t m, const float *hid)
 }
 
 static int
-smpl_hid(float *restrict h, dl_rbm_t m, const float *hid)
+smpl_hid(float *restrict h, dl_rbm_t m, const float hid[static m->nhid])
 {
 /* infer hidden unit states given vis(ible units) */
 	const size_t nhid = m->nhid;
 
-	for (size_t j = 0; j < nhid; j++) {
-		float rnd = dr_rand_uni();
+	dump_layer("He", hid, nhid);
 
-		if (hid[j] > rnd) {
-			h[j] = 0.0;
-		} else {
-			h[j] = 1.0;
-		}
+	for (size_t j = 0; j < nhid; j++) {
+		/* just flip a coin */
+		h[j] = binom1_rnd(hid[j]);
 	}
+
+	dump_layer("Hs", h, nhid);
 	return 0;
 }
 
 static int
-prop_down(float *restrict v, dl_rbm_t m, const float *hid)
+prop_down(float *restrict v, dl_rbm_t m, const float hid[static m->nhid])
 {
 /* propagate hidden units activation downwards to the visible units */
 	const size_t nvis = m->nvis;
@@ -454,46 +668,53 @@ prop_down(float *restrict v, dl_rbm_t m, const float *hid)
 	return 0;
 }
 
-static __attribute__((unused)) int
-expt_vis(float *restrict v, dl_rbm_t m, const float *vis, const uint8_t *n)
+static int
+expt_vis(float *restrict v, dl_rbm_t m, const float vis[static m->nvis])
 {
 	const size_t nvis = m->nvis;
+#if defined SALAKHUTDINOV
 	float nor = 0.f;
-	long unsigned int N;
+	float N = 0.f;
+#endif	/* SALAKHUTDINOV */
 
+	dump_layer("Va", vis, nvis);
+
+#if defined SALAKHUTDINOV
+	/* calc N */
+	for (size_t i = 0; i < nvis; i++) {
+		N += vis[i];
+	}
 	/* calc \sum exp(v) */
 	for (size_t i = 0; i < nvis; i++) {
 		nor += v[i] = exp(vis[i]);
 	}
-	/* calc N */
-	for (size_t i = 0; i < nvis; i++) {
-		N += n[i];
-	}
-	with (const float lambda = (float)N / nor) {
+	with (const float norm = (float)106 / nor) {
 		for (size_t i = 0; i < nvis; i++) {
-			v[i] = poiss(v[i] * lambda, n[i]);
+			v[i] = v[i] * norm;
 		}
 	}
+#elif defined GEHLER
+	for (size_t i = 0; i < nvis; i++) {
+		v[i] = exp(vis[i]);
+	}
+#endif	/* impls */
 	return 0;
 }
 
 static int
-smpl_vis(float *restrict v, dl_rbm_t m, const float *UNUSED(vis), float lambda)
+smpl_vis(float *restrict v, dl_rbm_t m, const float vis[static m->nvis])
 {
 /* infer visible unit states given hid(den units) */
 	const size_t nvis = m->nvis;
 
-	with (const float lexp = exp(-lambda)) {
-		for (size_t i = 0; i < nvis; i++) {
-			float p = 1.f;
-			uint8_t k = 0U;
+	dump_layer("Ve", vis, nvis);
 
-			while ((p *= dr_rand_uni()) > lexp) {
-				k++;
-			}
-			v[i] = (float)k;
-		}
+	/* vis is expected to contain the lambda values */
+	for (size_t i = 0; i < nvis; i++) {
+		v[i] = poiss_rnd(vis[i]);
 	}
+
+	dump_layer("Vs", vis, nvis);
 	return 0;
 }
 
@@ -508,57 +729,152 @@ train(dl_rbm_t m, const uint8_t *v)
 	float *ho;
 	float *vr;
 	float *hr;
-	float lambda;
 
 	vo = calloc(nv, sizeof(*vo));
 	vr = calloc(nv, sizeof(*vr));
 	ho = calloc(nh, sizeof(*ho));
 	hr = calloc(nh, sizeof(*hr));
+#if !defined NDEBUG
+	float *hs = calloc(nh, sizeof(*hs));
+#endif	/* !NDEBUG */
 
 	/* populate from input */
 	popul_ui8(vo, v, nv);
-	lambda = poiss_lambda_ui8(v, nv);
 
-	/* vhv gibbs */
-	prop_up(ho, m, vo);
-	smpl_hid(hr, m, hr);
-	prop_down(vr, m, hr);
 	/* vh gibbs */
-	smpl_vis(vr, m, vr, lambda);
+	prop_up(ho, m, vo);
+	expt_hid(ho, m, ho);
+	/* don't sample into ho, use hr instead, we want the activations */
+	smpl_hid(hr, m, ho);
+#if !defined NDEBUG
+	size_t nho = count_layer(hr, nh);
+#endif	/* !NDEBUG */
+
+	/* hv gibbs */
+	prop_down(vr, m, hr);
+	expt_vis(vr, m, vr);
+	smpl_vis(vr, m, vr);
+	/* vh gibbs */
 	prop_up(hr, m, vr);
-	smpl_hid(hr, m, hr);
+	expt_hid(hr, m, hr);
+
+#if !defined NDEBUG
+	smpl_hid(hs, m, hr);
+	size_t nhr = count_layer(hs, nh);
+#endif	/* !NDEBUG */
+
+	/* we won't sample the h reconstruction as we want to use the
+	 * the activations directly */
+
+#if !defined NDEBUG
+	size_t nso = count_layer(vo, nv);
+	size_t nsr = count_layer(vr, nv);
+	float Nso = integ_layer(vo, nv);
+	float Nsr = integ_layer(vr, nv);
+	printf("|vo| %zu  |vr| %zu  Nvo %.6g  Nvr %.6g\n", nso, nsr, Nso, Nsr);
+	printf("|ho| %zu  |hr| %zu\n", nho, nhr);
+
+	printf("using %.6g (@%p) for learning rate\n", eta, &eta);
+#endif	/* !NDEBUG */
 
 	/* bang <v_i h_j> into weights and biasses */
-	{
-		/* learning rate */
-		float *w = m->w;
-		float *vb = m->vbias;
-		float *hb = m->hbias;
-
+	with (float *w = m->w, *vb = m->vbias, *hb = m->hbias) {
 #define w(i, j)		w[i * nh + j]
+#if !defined NDEBUG
+		float mind;
+		float maxd;
+
+		mind = INFINITY;
+		maxd = -INFINITY;
+#endif	/* !NDEBUG */
 		for (size_t i = 0; i < nv; i++) {
 			for (size_t j = 0; j < nh; j++) {
 				float vho = vo[i] * ho[j];
 				float vhr = vr[i] * hr[j];
+				float dw = eta * (vho - vhr);
 
-				w(i, j) += eta * (vho - vhr);
+#if !defined NDEBUG
+				if (dw < mind) {
+					mind = dw;
+				}
+				if (dw > maxd) {
+					maxd = dw;
+				}
+#endif	/* !NDEBUG */
+				w(i, j) += dw;
 			}
 		}
+#if !defined NDEBUG
+		printf("dw (%.6g  %.6g)\n", mind, maxd);
+		mind = INFINITY;
+		maxd = -INFINITY;
+#endif	/* !NDEBUG */
 #undef w
 
+		/* bias update */
 		for (size_t i = 0; i < nv; i++) {
-			vb[i] += eta * (vo[i] - vr[i]);
+			float dw = eta * (vo[i] - vr[i]);
+
+#if !defined NDEBUG
+			if (dw < mind) {
+				mind = dw;
+			}
+			if (dw > maxd) {
+				maxd = dw;
+			}
+#endif	/* !NDEBUG */
+			vb[i] += dw;
 		}
+#if !defined NDEBUG
+		printf("dv (%.6g  %.6g)\n", mind, maxd);
+		mind = INFINITY;
+		maxd = -INFINITY;
+#endif	/* !NDEBUG */
 
 		for (size_t j = 0; j < nh; j++) {
-			hb[j] += eta * (ho[j] - hr[j]);
+			float dw = eta * (ho[j] - hr[j]);
+
+#if !defined NDEBUG
+			if (dw < mind) {
+				mind = dw;
+			}
+			if (dw > maxd) {
+				maxd = dw;
+			}
+#endif	/* !NDEBUG */
+			hb[j] += dw;
 		}
+#if !defined NDEBUG
+		printf("dh (%.6g  %.6g)\n", mind, maxd);
+
+		dump_layer("h", m->hbias, nh);
+		dump_layer("v", m->vbias, nv);
+		printf("s(w)\n");
+#define w(i, j)		m->w[i * nh + j]
+		for (size_t j = 0; j < nh; j++) {
+			float min = INFINITY;
+			float max = -INFINITY;
+			for (size_t i = 0; i < nv; i++) {
+				if (w(i, j) > max) {
+					max = w(i, j);
+				}
+				if (w(i, j) < min) {
+					min = w(i, j);
+				}
+			}
+			printf("  %zu (%.6g %.6g)\n", j, min, max);
+		}
+#undef w
+#endif	/* !NDEBUG */
 	}
 
 	free(vo);
 	free(vr);
 	free(ho);
 	free(hr);
+#if !defined NDEBUG
+	free(hs);
+#endif	/* !NDEBUG */
 	return;
 }
 
@@ -570,24 +886,22 @@ dream(dl_rbm_t m, const uint8_t *v)
 	float *vo;
 	float *ho;
 	float *vr;
-	float *hr;
-	float lambda;
 
 	vo = calloc(nv, sizeof(*vo));
 	vr = calloc(nv, sizeof(*vr));
 	ho = calloc(nh, sizeof(*ho));
-	hr = calloc(nh, sizeof(*hr));
 
 	/* populate from input */
 	popul_ui8(vo, v, nv);
-	lambda = poiss_lambda_ui8(v, nv);
 
 	/* vhv gibbs */
 	prop_up(ho, m, vo);
-	smpl_hid(hr, m, hr);
-	prop_down(vr, m, hr);
-	/* vh gibbs */
-	smpl_vis(vr, m, vr, lambda);
+	expt_hid(ho, m, ho);
+	smpl_hid(ho, m, ho);
+	/* hv gibbs */
+	prop_down(vr, m, ho);
+	expt_vis(vr, m, vr);
+	smpl_vis(vr, m, vr);
 
 	for (size_t i = 0; i < nv; i++) {
 		uint8_t vi = (uint8_t)(int)vr[i];
@@ -600,7 +914,6 @@ dream(dl_rbm_t m, const uint8_t *v)
 	free(vo);
 	free(vr);
 	free(ho);
-	free(hr);
 	return;
 }
 
@@ -682,7 +995,9 @@ main(int argc, char *argv[])
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
-			train(m, v);
+			for (size_t i = 0; i < 200U; i++) {
+				train(m, v);
+			}
 			free(v);
 		}
 	} else if (argi->dream_given) {
