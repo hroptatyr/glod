@@ -554,23 +554,6 @@ poiss_rnd(float lambda)
 
 
 #if !defined NDEBUG
-#if 0
-static void
-dump_layer(const char *pre, const float *x, size_t z)
-{
-	fputs(pre, stdout);
-	putchar(' ');
-
-	if (z > 20U) {
-		z = 20U;
-	}
-	for (size_t i = 0; i < z; i++) {
-		printf("%.6g ", x[i]);
-	}
-	putchar('\n');
-	return;
-}
-#else
 static void
 dump_layer(const char *pre, const float *x, size_t z)
 {
@@ -588,7 +571,6 @@ dump_layer(const char *pre, const float *x, size_t z)
 	printf("%s (%.6g  %.6g)\n", pre, minx, maxx);
 	return;
 }
-#endif
 
 static size_t
 count_layer(const float *x, size_t z)
@@ -615,12 +597,6 @@ integ_layer(const float *x, size_t z)
 	}
 	return sum;
 }
-#else  /* NDEBUG */
-static void
-dump_layer(const char *UNUSED(pre), const float *UNUSED(x), size_t UNUSED(z))
-{
-	return;
-}
 #endif	/* !NDEBUG */
 
 
@@ -646,7 +622,7 @@ expt_hid(float *restrict h, dl_rbm_t m, const float hid[static m->nhid])
 {
 	const size_t nhid = m->nhid;
 
-	dump_layer("Ha", hid, nhid);
+	DEBUG(dump_layer("Ha", hid, nhid));
 
 	for (size_t j = 0; j < nhid; j++) {
 		h[j] = sigma(hid[j]);
@@ -660,14 +636,14 @@ smpl_hid(float *restrict h, dl_rbm_t m, const float hid[static m->nhid])
 /* infer hidden unit states given vis(ible units) */
 	const size_t nhid = m->nhid;
 
-	dump_layer("He", hid, nhid);
+	DEBUG(dump_layer("He", hid, nhid));
 
 	for (size_t j = 0; j < nhid; j++) {
 		/* just flip a coin */
 		h[j] = binom1_rnd(hid[j]);
 	}
 
-	dump_layer("Hs", h, nhid);
+	DEBUG(dump_layer("Hs", h, nhid));
 	return 0;
 }
 
@@ -697,7 +673,7 @@ expt_vis(float *restrict v, dl_rbm_t m, const float vis[static m->nvis])
 	float N = 0.f;
 #endif	/* SALAKHUTDINOV */
 
-	dump_layer("Va", vis, nvis);
+	DEBUG(dump_layer("Va", vis, nvis));
 
 #if defined SALAKHUTDINOV
 	/* calc N */
@@ -727,14 +703,14 @@ smpl_vis(float *restrict v, dl_rbm_t m, const float vis[static m->nvis])
 /* infer visible unit states given hid(den units) */
 	const size_t nvis = m->nvis;
 
-	dump_layer("Ve", vis, nvis);
+	DEBUG(dump_layer("Ve", vis, nvis));
 
 	/* vis is expected to contain the lambda values */
 	for (size_t i = 0; i < nvis; i++) {
 		v[i] = poiss_rnd(vis[i]);
 	}
 
-	dump_layer("Vs", vis, nvis);
+	DEBUG(dump_layer("Vs", vis, nvis));
 	return 0;
 }
 
