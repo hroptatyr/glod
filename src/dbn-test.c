@@ -22,7 +22,7 @@
 # pragma warning (disable:1911)
 #endif	/* __INTEL_COMPILER */
 
-static float eta = 0.1f;
+static float eta;
 
 static float
 factorialf(uint8_t n)
@@ -678,9 +678,7 @@ main(int argc, char *argv[])
 	if (argi->check_given) {
 		res = check(m);
 	} else if (argi->train_given) {
-		if (argi->train_arg > 0.0) {
-			eta = argi->train_arg;
-		}
+		eta = argi->train_arg;
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
