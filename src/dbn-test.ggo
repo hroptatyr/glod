@@ -8,8 +8,9 @@ option "create" c
 	optional
 
 option "train" -
-	"Use stdin data as training data."
-	optional
+	"Use stdin data as training data.  \
+Optionally the learning rate can be specified."
+	float argoptional typestr="ETA" optional
 
 option "dream" -
 	"Reconstruct input using the network."

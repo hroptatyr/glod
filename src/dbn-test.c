@@ -22,6 +22,8 @@
 # pragma warning (disable:1911)
 #endif	/* __INTEL_COMPILER */
 
+static float eta = 0.1f;
+
 static float
 factorialf(uint8_t n)
 {
@@ -529,7 +531,6 @@ train(dl_rbm_t m, const uint8_t *v)
 	/* bang <v_i h_j> into weights and biasses */
 	{
 		/* learning rate */
-		const float eta = 0.1f;
 		float *w = m->w;
 		float *vb = m->vbias;
 		float *hb = m->hbias;
@@ -677,6 +678,9 @@ main(int argc, char *argv[])
 	if (argi->check_given) {
 		res = check(m);
 	} else if (argi->train_given) {
+		if (argi->train_arg > 0.0) {
+			eta = argi->train_arg;
+		}
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
