@@ -31,7 +31,6 @@
 #define PI		3.141592654f
 #define E		2.718281828f
 
-static float eta;
 
 static float
 factorialf(uint8_t n)
@@ -991,7 +990,6 @@ main(int argc, char *argv[])
 	if (argi->check_given) {
 		res = check(m);
 	} else if (argi->train_given) {
-		eta = argi->train_arg;
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
