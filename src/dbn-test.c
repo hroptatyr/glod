@@ -1008,7 +1008,7 @@ main(int argc, char *argv[])
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
-			for (size_t i = 0; i < 10U; i++) {
+			for (size_t i = 0; i < 1U; i++) {
 				train(m, v);
 			}
 			free(v);
