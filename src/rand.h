@@ -60,6 +60,22 @@ extern float dr_rand_norm(void);
  * Return a gaussian sample, centred at MU and with variance SIGMA. */
 extern float dr_rand_gauss(float mu, float sigma);
 
+/**
+ * Return a binomial sample meeting expectation P. */
+extern float dr_rand_binom1(float p);
+
+/**
+ * Return a binomial sample meeting expectation P. */
+extern float dr_rand_binom(unsigned int n, float p);
+
+/**
+ * Return a unit-scaled gamma sampla with shape K. */
+extern float dr_rand_gamma(float k);
+
+/**
+ * Return a sample from the Poisson distribution of shape LAMBDA. */
+extern float dr_rand_poiss(float lambda);
+
 /* initialiser */
 /**
  * Initialise the rand subsystem, used for various kinds of randomness. */

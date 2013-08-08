@@ -49,6 +49,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <tgmath.h>
 
 #if defined HAVE_LIBGCRYPT && defined WITH_LIBGCRYPT
 # include <gcrypt.h>
@@ -65,6 +66,16 @@ static int _egd_sock = -1;
 #if defined HAVE_URANDOM
 static int _urnd_sock = -1;
 #endif
+
+#if !defined UNLIKELY
+# define UNLIKELY(x)	(__builtin_expect(x, 0))
+#endif	/* !UNLIKELY */
+#if !defined LIKELY
+# define LIKELY(x)	(__builtin_expect(x, 1))
+#endif	/* !LIKELY */
+#if !defined with
+# define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
+#endif	/* !with */
 
 /*! \page rand Randomness of different qualities
  *
@@ -415,6 +426,126 @@ dr_rand_uni(void)
 {
 	unsigned int tmp = dr_rand_int();
 	return (float)tmp / (float)((unsigned int)-1);
+}
+
+/* binomial samples */
+float
+dr_rand_binom1(float /*ex*/p/*ectation*/)
+{
+	float rnd = dr_rand_uni();
+
+	if (p > rnd) {
+		return 1.f;
+	}
+	return 0.f;
+}
+
+float
+dr_rand_binom(unsigned int n, float /*ex*/p/*ectation*/)
+{
+/* flip N coins and sum up their faces */
+	float res = 0.f;
+
+	while (n--) {
+		res += dr_rand_binom1(p);
+	}
+	return res;
+}
+
+float
+dr_rand_gamma(float k)
+{
+/* New version based on Marsaglia and Tsang, "A Simple Method for
+ * generating gamma variables", ACM Transactions on Mathematical
+ * Software, Vol 26, No 3 (2000), p363-372.
+ *
+ * gsl's take on it. */
+
+	static float gamma_large(float k)
+	{
+		const float third = 1.f / 3.f;
+		float d = k - third;
+		float c = third / sqrt(d);
+		float v;
+
+		while (1) {
+			float u;
+			float x;
+
+			do {
+				x = dr_rand_norm();
+				v = 1.f + c * x;
+			} while (v <= 0);
+
+			v = v * v * v;
+			while (UNLIKELY((u = dr_rand_uni()) <= 0.f));
+
+			if (u < 1.f - 0.0331f * x * x * x * x) {
+				break;
+			}
+			with (float lu = log(u), lv = log(v)) {
+				if (lu < 0.5f * x * x + d * (1.f - v + lv)) {
+					break;
+				}
+			}
+		}
+		return d * v;
+	}
+
+	static float gamma_small(float k)
+	{
+		float u;
+		float scal;
+
+		while (UNLIKELY((u = dr_rand_uni()) <= 0.f));
+		scal = pow(u, 1.f / k);
+		return gamma_large(k + 1.f) * scal;
+	}
+
+
+	if (UNLIKELY(k < 1.f)) {
+		return gamma_small(k);
+	}
+	return gamma_large(k);
+}
+
+float
+dr_rand_poiss(float lambda)
+{
+	static float poiss_rnd_small(float lambda)
+	{
+		const float lexp = exp(-lambda);
+		float p = 1.f;
+		unsigned int k = 0U;
+
+		while ((p *= dr_rand_uni()) > lexp) {
+			k++;
+		}
+		return (float)k;
+	}
+
+	static float poiss_rnd_ad(float lambda)
+	{
+		/* Ahrens/Dieter algo */
+		const float m = floor(7.f / 8.f * lambda);
+		const float x = dr_rand_gamma(m);
+
+		if (LIKELY(x <= lambda)) {
+			return m + dr_rand_poiss(lambda - x);
+		} else if ((unsigned int)m - 1U < 1048576U) {
+			return dr_rand_binom((unsigned int)m - 1U, lambda / x);
+		}
+		return m;
+	}
+
+	if (UNLIKELY(lambda < 0.f)) {
+		return NAN;
+	} else if (UNLIKELY(isinf(lambda))) {
+		return INFINITY;
+	} else if (LIKELY(lambda < 15.f)) {
+		return poiss_rnd_small(lambda);
+	}
+	return poiss_rnd_ad(lambda);
 }
 
 
