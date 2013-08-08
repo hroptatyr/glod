@@ -114,7 +114,7 @@ terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
 
-noinst_PROGRAMS += tf
+bin_PROGRAMS += tf
 tf_SOURCES = tf.c
 tf_SOURCES += tf.ggo
 tf_CPPFLAGS = $(AM_CPPFLAGS)
