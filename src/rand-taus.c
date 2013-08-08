@@ -79,10 +79,7 @@
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
-#if defined HAVE_MATH_H
-# include <math.h>
-#endif
-#include "dbn-base.h"
+#include <math.h>
 #include "rand.h"
 #include "rand-taus.h"
 

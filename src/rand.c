@@ -54,7 +54,6 @@
 # include <gcrypt.h>
 #endif	/* LIBGCRYPT */
 
-#include "dbn-base.h"
 #include "rand.h"
 /* specific implementations */
 #include "rand-ziggurat.h"
@@ -411,11 +410,11 @@ _rand_fn(dr_rand_long, long int);
 
 /**
  * Return a uniformly distributed random float in [0,1]. */
-fpfloat_t
+float
 dr_rand_uni(void)
 {
 	unsigned int tmp = dr_rand_int();
-	return (fpfloat_t)tmp / (fpfloat_t)((unsigned int)-1);
+	return (float)tmp / (float)((unsigned int)-1);
 }
 
 

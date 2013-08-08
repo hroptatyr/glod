@@ -59,7 +59,6 @@
 #endif
 #include <math.h>
 #include <stdbool.h>
-#include "dbn-base.h"
 #include "rand.h"
 #include "rand-ziggurat.h"
 
@@ -67,9 +66,9 @@
 #define ZIG_R		3.442619855899
 #define ZIG_V		9.91256303526217e-3
 
-static fpfloat_t zig_x[ZIG_NBLOCKS + 1];
+static float zig_x[ZIG_NBLOCKS + 1];
 #if defined USE_ORIGINAL_ZIGGURAT
-static fpfloat_t zig_r[ZIG_NBLOCKS];
+static float zig_r[ZIG_NBLOCKS];
 #endif	/* USE_ORIGINAL_ZIGGURAT */
 
 /* gsl's idea of it */
@@ -81,7 +80,7 @@ static fpfloat_t zig_r[ZIG_NBLOCKS];
 #endif	/* __INTEL_COMPILER */
 
 /* tabulated values for the heigt of the Ziggurat levels */
-static const fpfloat_t ytab[128] = {
+static const float ytab[128] = {
 	1, 0.963598623011, 0.936280813353, 0.913041104253,
 	0.892278506696, 0.873239356919, 0.855496407634, 0.838778928349,
 	0.822902083699, 0.807732738234, 0.793171045519, 0.779139726505,
@@ -154,7 +153,7 @@ static const long unsigned int ktab[128] = {
 };
 
 /* tabulated values of 2^{-24}*x[i] */
-static const fpfloat_t wtab[128] = {
+static const float wtab[128] = {
 	1.62318314817e-08, 2.16291505214e-08, 2.54246305087e-08, 2.84579525938e-08,
 	3.10340022482e-08, 3.33011726243e-08, 3.53439060345e-08, 3.72152672658e-08,
 	3.8950989572e-08, 4.05763964764e-08, 4.21101548915e-08, 4.35664624904e-08,
@@ -192,7 +191,7 @@ static const fpfloat_t wtab[128] = {
 
 /* auxiliary stuff */
 #if defined USE_ORIGINAL_ZIGGURAT
-static inline fpfloat_t
+static inline float
 _rand_uni(void)
 {
 	return dr_rand_uni();
@@ -204,10 +203,10 @@ _rand_uchar(void)
 	return (unsigned char)dr_rand_char();
 }
 
-static inline fpfloat_t
-_rand_norm__(fpfloat_t dmin, bool inegp)
+static inline float
+_rand_norm__(float dmin, bool inegp)
 {
-	fpfloat_t x, y;
+	float x, y;
 	do {
 		x = log(_rand_uni()) / dmin;
 		y = log(_rand_uni());
@@ -220,7 +219,7 @@ _rand_norm__(fpfloat_t dmin, bool inegp)
 void
 init_rand_ziggurat(void)
 {
-	volatile fpfloat_t f;
+	volatile float f;
 
 	f = exp(-0.5 * ZIG_R * ZIG_R);
 	zig_x[0] = ZIG_V / f;
@@ -248,11 +247,11 @@ fini_rand_ziggurat(void)
 
 /* accessor */
 #if defined USE_ORIGINAL_ZIGGURAT
-fpfloat_t
+float
 dr_rand_norm(void)
 {
 	unsigned char i;
-	fpfloat_t x, u, f0, f1;
+	float x, u, f0, f1;
 
 	while (1) {
 		u = 2 * _rand_uni() - 1;
@@ -278,12 +277,12 @@ dr_rand_norm(void)
 #else  /* !USE_ORIGINAL_ZIGGURAT */
 
 /* gsl's ziggurat */
-fpfloat_t
+float
 dr_rand_norm(void)
 {
 	unsigned int i, j;
 	int sign;
-	fpfloat_t x, y;
+	float x, y;
 
 	while (1) {
 		unsigned int k = dr_rand_int();
@@ -322,8 +321,8 @@ dr_rand_norm(void)
 }
 #endif	/* USE_ORIGINAL_ZIGGURAT */
 
-fpfloat_t
-dr_rand_gauss(fpfloat_t mu, fpfloat_t sigma)
+float
+dr_rand_gauss(float mu, float sigma)
 {
 	return dr_rand_norm() * sigma + mu;
 }
