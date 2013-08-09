@@ -51,6 +51,8 @@ typedef struct tf_s *tf_t;
 struct ctx_s {
 	gl_corpus_t c;
 	tf_t tf;
+	/* snarf routine to use */
+	gl_crpid_t(*snarf)();
 };
 
 struct tf_s {
@@ -100,45 +102,38 @@ rec_t(ctx_t ctx, gl_crpid_t id)
 }
 
 static void
-snarf_add(ctx_t ctx)
+rns_t(ctx_t ctx)
 {
-	char *line = NULL;
-	size_t llen = 0U;
-	ssize_t nrd;
-
-	while ((nrd = getline(&line, &llen, stdin)) > 0) {
-		gl_crpid_t id;
-
-		line[nrd - 1] = '\0';
-		if ((id = corpus_add_term(ctx->c, line))) {
-			;
-		} else {
-			fprintf(stderr,
-				"Error: putting `%s' into corpus\n", line);
-			break;
-		}
-		rec_t(ctx, id);
+/* rinse count vector */
+	if (ctx->tf == NULL) {
+		return;
 	}
-	free(line);
+	/* otherwise zero out the slots we've alloc'd so far */
+	memset(ctx->tf->f, 0, ctx->tf->nf * sizeof(*ctx->tf->f));
 	return;
 }
 
-static void
-snarf_get(ctx_t ctx)
+static int
+snarf(ctx_t ctx)
 {
 	char *line = NULL;
 	size_t llen = 0U;
 	ssize_t nrd;
 
+	rns_t(ctx);
 	while ((nrd = getline(&line, &llen, stdin)) > 0) {
 		gl_crpid_t id;
 
+		/* check for form feeds, and maybe yield */
+		if (*line == '\f') {
+			break;
+		}
 		line[nrd - 1] = '\0';
-		id = corpus_get_term(ctx->c, line);
+		id = ctx->snarf(ctx->c, line);
 		rec_t(ctx, id);
 	}
 	free(line);
-	return;
+	return (int)nrd;
 }
 
 static void
@@ -160,6 +155,23 @@ snarf_rev(ctx_t ctx)
 		}
 	}
 	free(line);
+	return;
+}
+
+static void
+print(ctx_t ctx)
+{
+/* output plain old sparse tuples innit */
+	but_first {
+		puts("\f");
+	}
+
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		if (ctx->tf->f[i]) {
+			unsigned int f = ctx->tf->f[i];
+			printf("%zu\t%u\t\n", i, f);
+		}
+	}
 	return;
 }
 
@@ -205,20 +217,18 @@ main(int argc, char *argv[])
 
 	/* just categorise the whole shebang */
 	if (argi->add_given) {
-		snarf_add(ctx);
+		ctx->snarf = corpus_add_term;
 	} else if (argi->reverse_given) {
 		snarf_rev(ctx);
 		goto fr;
 	} else {
-		snarf_get(ctx);
+		/* plain old get */
+		ctx->snarf = corpus_get_term;
 	}
 
-	/* plain old sparse tuples innit */
-	for (size_t i = 0; i < ctx->tf->nf; i++) {
-		if (ctx->tf->f[i]) {
-			unsigned int f = ctx->tf->f[i];
-			printf("%zu\t%u\t\n", i, f);
-		}
+	for (int r = 1; r > 0;) {
+		r = snarf(ctx);
+		print(ctx);
 	}
 
 fr:
