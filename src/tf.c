@@ -51,6 +51,8 @@ typedef struct tf_s *tf_t;
 struct ctx_s {
 	gl_corpus_t c;
 	tf_t tf;
+	/* snarf routine to use */
+	gl_crpid_t(*snarf)();
 };
 
 struct tf_s {
@@ -58,6 +60,21 @@ struct tf_s {
 	size_t nf;
 	uint_fast8_t f[];
 };
+
+
+/* provide a trick snarfing routine for the reverse problem */
+static gl_crpid_t
+__rev(gl_corpus_t c, const char *ln)
+{
+	gl_crpid_t id = strtoul(ln, NULL, 0);
+
+	with (const char *term = corpus_term(c, id)) {
+		if (LIKELY(term != NULL)) {
+			puts(term);
+		}
+	}
+	return (gl_crpid_t)-1;
+}
 
 
 static void
@@ -86,7 +103,7 @@ resize_tf(ctx_t ctx, gl_crpid_t id)
 }
 
 static void
-rec_t(ctx_t ctx, gl_crpid_t id)
+rec_tid(ctx_t ctx, gl_crpid_t id)
 {
 /* record term (identified by its ID) */
 
@@ -100,7 +117,32 @@ rec_t(ctx_t ctx, gl_crpid_t id)
 }
 
 static void
-snarf_add(ctx_t ctx)
+rns_tid(ctx_t ctx)
+{
+/* rinse count vector */
+	if (ctx->tf == NULL) {
+		return;
+	}
+	/* otherwise zero out the slots we've alloc'd so far */
+	memset(ctx->tf->f, 0, ctx->tf->nf * sizeof(*ctx->tf->f));
+	return;
+}
+
+
+/* the trilogy of co-routines, prep work, then snarfing, then printing */
+static void
+prepare(ctx_t ctx)
+{
+	but_first {
+		puts("\f");
+	}
+
+	rns_tid(ctx);
+	return;
+}
+
+static int
+snarf(ctx_t ctx)
 {
 	char *line = NULL;
 	size_t llen = 0U;
@@ -109,57 +151,35 @@ snarf_add(ctx_t ctx)
 	while ((nrd = getline(&line, &llen, stdin)) > 0) {
 		gl_crpid_t id;
 
-		line[nrd - 1] = '\0';
-		if ((id = corpus_add_term(ctx->c, line))) {
-			;
-		} else {
-			fprintf(stderr,
-				"Error: putting `%s' into corpus\n", line);
+		/* check for form feeds, and maybe yield */
+		if (*line == '\f') {
 			break;
 		}
-		rec_t(ctx, id);
-	}
-	free(line);
-	return;
-}
-
-static void
-snarf_get(ctx_t ctx)
-{
-	char *line = NULL;
-	size_t llen = 0U;
-	ssize_t nrd;
-
-	while ((nrd = getline(&line, &llen, stdin)) > 0) {
-		gl_crpid_t id;
-
 		line[nrd - 1] = '\0';
-		id = corpus_get_term(ctx->c, line);
-		rec_t(ctx, id);
-	}
-	free(line);
-	return;
-}
-
-static void
-snarf_rev(ctx_t ctx)
-{
-	char *line = NULL;
-	size_t llen = 0U;
-	ssize_t nrd;
-
-	while ((nrd = getline(&line, &llen, stdin)) > 0) {
-		gl_crpid_t id;
-
-		line[nrd - 1] = '\0';
-		id = strtoul(line, NULL, 0);
-		with (const char *term = corpus_term(ctx->c, id)) {
-			if (LIKELY(term != NULL)) {
-				puts(term);
-			}
+		if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
+			rec_tid(ctx, id);
 		}
 	}
 	free(line);
+	return (int)nrd;
+}
+
+static void
+print(ctx_t ctx)
+{
+/* output plain old sparse tuples innit */
+
+	if (UNLIKELY(ctx->tf == NULL)) {
+		/* nothing recorded, may happen in reverse mode */
+		return;
+	}
+
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		if (ctx->tf->f[i]) {
+			unsigned int f = ctx->tf->f[i];
+			printf("%zu\t%u\t\n", i, f);
+		}
+	}
 	return;
 }
 
@@ -205,28 +225,23 @@ main(int argc, char *argv[])
 
 	/* just categorise the whole shebang */
 	if (argi->add_given) {
-		snarf_add(ctx);
+		ctx->snarf = corpus_add_term;
 	} else if (argi->reverse_given) {
-		snarf_rev(ctx);
-		goto fr;
+		ctx->snarf = __rev;
 	} else {
-		snarf_get(ctx);
+		/* plain old get */
+		ctx->snarf = corpus_get_term;
 	}
 
-	if (argi->dense_given) {
-		/* for people who know what they're doing(?) */
-		fwrite(ctx->tf->f, ctx->tf->nf, sizeof(*ctx->tf->f), stdout);
-	} else {
-		/* plain old sparse tuples innit */
-		for (size_t i = 0; i < ctx->tf->nf; i++) {
-			if (ctx->tf->f[i]) {
-				unsigned int f = ctx->tf->f[i];
-				printf("%zu\t%u\t\n", i, f);
-			}
-		}
+	/* this is the main loop, for one document the loop is traversed
+	 * once, for multiple documents (sep'd by \f\n the snarfer will
+	 * yield (r > 0) and we print and prep and then snarf again */
+	for (int r = 1; r > 0;) {
+		prepare(ctx);
+		r = snarf(ctx);
+		print(ctx);
 	}
 
-fr:
 	free_corpus(ctx->c);
 	free(ctx->tf);
 out:
