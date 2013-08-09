@@ -56,6 +56,8 @@ DISTCLEANFILES += version.mk
 ## stuff from the tmpl/ dir
 EXTRA_DIST += tmpl/date.tmpl
 
+EXTRA_DIST += README.md
+
 dist-hook:
 	echo $(VERSION) > $(distdir)/version \
 	&& touch -r $(top_builddir)/version.mk $(distdir)/version
