@@ -31,6 +31,7 @@ terms_TESTS =
 TESTS += $(terms_TESTS)
 terms_TESTS += terms.01.tst
 terms_TESTS += terms.02.tst
+EXTRA_DIST += 1206796.txt
 
 
 ## our friendly helpers
