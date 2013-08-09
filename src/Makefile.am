@@ -68,26 +68,6 @@ libglod_a_SOURCES += version.c version.h
 libglod_a_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
 
-noinst_LIBRARIES += libdbn.a
-libdbn_a_SOURCES =
-libdbn_a_SOURCES += dbn-base.c dbn-base.h
-libdbn_a_SOURCES += rand.c rand.h
-libdbn_a_SOURCES += rand-ziggurat.c rand-ziggurat.h
-libdbn_a_SOURCES += rand-taus.c rand-taus.h
-libdbn_a_SOURCES += neuron.c neuron.h
-libdbn_a_SOURCES += layer.c layer.h
-libdbn_a_SOURCES += maths.c maths.h
-libdbn_a_SOURCES += rbm.c rbm.h
-libdbn_a_SOURCES += dbn.c dbn.h
-libdbn_a_CPPFLAGS = $(AM_CPPFLAGS)
-libdbn_a_CPPFLAGS += -fopenmp
-
-noinst_LIBRARIES += librnd.a
-librnd_a_SOURCES =
-librnd_a_SOURCES += rand.c rand.h
-librnd_a_SOURCES += rand-ziggurat.c rand-ziggurat.h
-librnd_a_SOURCES += rand-taus.c rand-taus.h
-librnd_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
@@ -130,15 +110,6 @@ tf_LDFLAGS = $(AM_LDFLAGS)
 tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
 BUILT_SOURCES += tf.x tf.xh
-
-noinst_PROGRAMS += dbn
-dbn_SOURCES = dbn-test.c
-dbn_CPPFLAGS = $(AM_CPPFLAGS)
-dbn_LDFLAGS = $(AM_LDFLAGS)
-dbn_LDFLAGS += -static
-dbn_LDADD = libglod.a
-dbn_LDADD += librnd.a
-BUILT_SOURCES += dbn-test.x dbn-test.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk
