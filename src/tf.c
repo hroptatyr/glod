@@ -213,16 +213,11 @@ main(int argc, char *argv[])
 		snarf_get(ctx);
 	}
 
-	if (argi->dense_given) {
-		/* for people who know what they're doing(?) */
-		fwrite(ctx->tf->f, ctx->tf->nf, sizeof(*ctx->tf->f), stdout);
-	} else {
-		/* plain old sparse tuples innit */
-		for (size_t i = 0; i < ctx->tf->nf; i++) {
-			if (ctx->tf->f[i]) {
-				unsigned int f = ctx->tf->f[i];
-				printf("%zu\t%u\t\n", i, f);
-			}
+	/* plain old sparse tuples innit */
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		if (ctx->tf->f[i]) {
+			unsigned int f = ctx->tf->f[i];
+			printf("%zu\t%u\t\n", i, f);
 		}
 	}
 
