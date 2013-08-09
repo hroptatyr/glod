@@ -88,7 +88,7 @@ resize_tf(ctx_t ctx, gl_crpid_t id)
 }
 
 static void
-rec_t(ctx_t ctx, gl_crpid_t id)
+rec_tid(ctx_t ctx, gl_crpid_t id)
 {
 /* record term (identified by its ID) */
 
@@ -102,7 +102,7 @@ rec_t(ctx_t ctx, gl_crpid_t id)
 }
 
 static void
-rns_t(ctx_t ctx)
+rns_tid(ctx_t ctx)
 {
 /* rinse count vector */
 	if (ctx->tf == NULL) {
@@ -120,7 +120,7 @@ snarf(ctx_t ctx)
 	size_t llen = 0U;
 	ssize_t nrd;
 
-	rns_t(ctx);
+	rns_tid(ctx);
 	while ((nrd = getline(&line, &llen, stdin)) > 0) {
 		gl_crpid_t id;
 
@@ -130,7 +130,7 @@ snarf(ctx_t ctx)
 		}
 		line[nrd - 1] = '\0';
 		id = ctx->snarf(ctx->c, line);
-		rec_t(ctx, id);
+		rec_tid(ctx, id);
 	}
 	free(line);
 	return (int)nrd;
