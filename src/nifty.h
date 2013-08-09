@@ -60,6 +60,15 @@
 # define with(args...)	for (args, *__ep__ = (void*)1; __ep__; __ep__ = 0)
 #endif	/* !with */
 
+#define _paste(x, y)	x ## y
+#define paste(x, y)	_paste(x, y)
+#define once					\
+	static int paste(__, __LINE__);		\
+	if (!paste(__, __LINE__)++)
+#define but_first				\
+	static int paste(__, __LINE__);		\
+	if (paste(__, __LINE__)++)
+
 static inline void*
 deconst(const void *cp)
 {
