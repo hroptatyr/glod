@@ -82,6 +82,13 @@ libdbn_a_SOURCES += dbn.c dbn.h
 libdbn_a_CPPFLAGS = $(AM_CPPFLAGS)
 libdbn_a_CPPFLAGS += -fopenmp
 
+noinst_LIBRARIES += librnd.a
+librnd_a_SOURCES =
+librnd_a_SOURCES += rand.c rand.h
+librnd_a_SOURCES += rand-ziggurat.c rand-ziggurat.h
+librnd_a_SOURCES += rand-taus.c rand-taus.h
+librnd_a_CPPFLAGS = $(AM_CPPFLAGS)
+
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
 glod_charstat_SOURCES += glod-charstat.ggo
@@ -130,7 +137,7 @@ dbn_CPPFLAGS = $(AM_CPPFLAGS)
 dbn_LDFLAGS = $(AM_LDFLAGS)
 dbn_LDFLAGS += -static
 dbn_LDADD = libglod.a
-dbn_LDADD += libdbn.a
+dbn_LDADD += librnd.a
 BUILT_SOURCES += dbn-test.x dbn-test.xh
 
 

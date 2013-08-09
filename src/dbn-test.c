@@ -433,125 +433,6 @@ poiss_lambda_f(const float *v, size_t z)
 	return log((float)N) / (float)z;
 }
 
-static float
-binom1_rnd(float /*ex*/p/*ectation*/)
-{
-	float rnd = dr_rand_uni();
-
-	if (p > rnd) {
-		return 1.f;
-	}
-	return 0.f;
-}
-
-static float
-binom_rnd(unsigned int n, float /*ex*/p/*ectation*/)
-{
-/* flip N coins and sum up their faces */
-	float res = 0.f;
-
-	while (n--) {
-		res += binom1_rnd(p);
-	}
-	return res;
-}
-
-static float
-dr_rand_gamma(float k)
-{
-/* New version based on Marsaglia and Tsang, "A Simple Method for
- * generating gamma variables", ACM Transactions on Mathematical
- * Software, Vol 26, No 3 (2000), p363-372.
- *
- * gsl's take on it. */
-
-	static float gamma_large(float k)
-	{
-		const float third = 1.f / 3.f;
-		float d = k - third;
-		float c = third / sqrt(d);
-		float v;
-
-		while (1) {
-			float u;
-			float x;
-
-			do {
-				x = dr_rand_norm();
-				v = 1.f + c * x;
-			} while (v <= 0);
-
-			v = v * v * v;
-			while (UNLIKELY((u = dr_rand_uni()) <= 0.f));
-
-			if (u < 1.f - 0.0331f * x * x * x * x) {
-				break;
-			}
-			with (float lu = log(u), lv = log(v)) {
-				if (lu < 0.5f * x * x + d * (1.f - v + lv)) {
-					break;
-				}
-			}
-		}
-		return d * v;
-	}
-
-	static float gamma_small(float k)
-	{
-		float u;
-		float scal;
-
-		while (UNLIKELY((u = dr_rand_uni()) <= 0.f));
-		scal = pow(u, 1.f / k);
-		return gamma_large(k + 1.f) * scal;
-	}
-
-
-	if (UNLIKELY(k < 1.f)) {
-		return gamma_small(k);
-	}
-	return gamma_large(k);
-}
-
-static float
-poiss_rnd(float lambda)
-{
-	static float poiss_rnd_small(float lambda)
-	{
-		const float lexp = exp(-lambda);
-		float p = 1.f;
-		uint8_t k = 0U;
-
-		while ((p *= dr_rand_uni()) > lexp) {
-			k++;
-		}
-		return (float)k;
-	}
-
-	static float poiss_rnd_ad(float lambda)
-	{
-		/* Ahrens/Dieter algo */
-		const float m = floor(7.f / 8.f * lambda);
-		const float x = dr_rand_gamma(m);
-
-		if (LIKELY(x <= lambda)) {
-			return m + poiss_rnd(lambda - x);
-		} else if ((unsigned int)m - 1U < 1048576U) {
-			return binom_rnd((unsigned int)m - 1U, lambda / x);
-		}
-		return m;
-	}
-
-	if (UNLIKELY(lambda < 0.f)) {
-		return NAN;
-	} else if (UNLIKELY(isinf(lambda))) {
-		return INFINITY;
-	} else if (LIKELY(lambda < 15.f)) {
-		return poiss_rnd_small(lambda);
-	}
-	return poiss_rnd_ad(lambda);
-}
-
 
 #if !defined NDEBUG
 static void
@@ -640,7 +521,7 @@ smpl_hid(float *restrict h, dl_rbm_t m, const float hid[static m->nhid])
 
 	for (size_t j = 0; j < nhid; j++) {
 		/* just flip a coin */
-		h[j] = binom1_rnd(hid[j]);
+		h[j] = dr_rand_binom1(hid[j]);
 	}
 
 	DEBUG(dump_layer("Hs", h, nhid));
@@ -707,7 +588,7 @@ smpl_vis(float *restrict v, dl_rbm_t m, const float vis[static m->nvis])
 
 	/* vis is expected to contain the lambda values */
 	for (size_t i = 0; i < nvis; i++) {
-		v[i] = poiss_rnd(vis[i]);
+		v[i] = dr_rand_poiss(vis[i]);
 	}
 
 	DEBUG(dump_layer("Vs", vis, nvis));
@@ -1008,7 +889,7 @@ main(int argc, char *argv[])
 		if (!isatty(STDIN_FILENO)) {
 			uint8_t *v = read_tf(STDIN_FILENO, m);
 
-			for (size_t i = 0; i < 10U; i++) {
+			for (size_t i = 0; i < 1U; i++) {
 				train(m, v);
 			}
 			free(v);

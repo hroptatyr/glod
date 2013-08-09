@@ -35,8 +35,6 @@
 #if !defined INCLUDED_rand_h_
 #define INCLUDED_rand_h_
 
-#include "dbn-base.h"
-
 /* uniform stuff */
 /**
  * Return a random signed char, uniformly distributed. */
@@ -51,16 +49,32 @@ extern int dr_rand_int(void);
  * Return a random long int, uniformly distributed. */
 extern long int dr_rand_long(void);
 /**
- * Return a uniformly distributed random fpfloat_t in [0,1]. */
-extern fpfloat_t dr_rand_uni(void);
+ * Return a uniformly distributed random float in [0,1]. */
+extern float dr_rand_uni(void);
 
 /**
  * Return a sample drawn from a unit gaussian distribution. */
 /* defined in rand-ziggurat.c */
-extern fpfloat_t dr_rand_norm(void);
+extern float dr_rand_norm(void);
 /**
  * Return a gaussian sample, centred at MU and with variance SIGMA. */
-extern fpfloat_t dr_rand_gauss(fpfloat_t mu, fpfloat_t sigma);
+extern float dr_rand_gauss(float mu, float sigma);
+
+/**
+ * Return a binomial sample meeting expectation P. */
+extern float dr_rand_binom1(float p);
+
+/**
+ * Return a binomial sample meeting expectation P. */
+extern float dr_rand_binom(unsigned int n, float p);
+
+/**
+ * Return a unit-scaled gamma sampla with shape K. */
+extern float dr_rand_gamma(float k);
+
+/**
+ * Return a sample from the Poisson distribution of shape LAMBDA. */
+extern float dr_rand_poiss(float lambda);
 
 /* initialiser */
 /**
