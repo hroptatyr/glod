@@ -177,7 +177,7 @@ print(ctx_t ctx)
 	for (size_t i = 0; i < ctx->tf->nf; i++) {
 		if (ctx->tf->f[i]) {
 			unsigned int f = ctx->tf->f[i];
-			printf("%zu\t%u\t\n", i, f);
+			printf("%zu\t%u\n", i, f);
 		}
 	}
 	return;
