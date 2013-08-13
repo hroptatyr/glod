@@ -142,8 +142,9 @@ classify1(const char *fn)
 		goto out;
 	}
 
-	/* otherwise print our findings */
-	;
+	/* we printed our findings by side-effect already,
+	 * finalise the output here */
+	puts("\f");
 
 	/* total success innit? */
 	res = 0;
@@ -374,18 +375,10 @@ main(int argc, char *argv[])
 
 	/* run stats on that one file */
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		switch (i) {
-			const char *file;
-		default:
-			puts("\f");
-		case 0:
-			file = argi->inputs[i];
+		const char *file = argi->inputs[i];
 
-			if ((res = classify1(file)) < 0) {
-				error(errno, "\
-Error: processing `%s' failed", file);
-			}
-			break;
+		if ((res = classify1(file)) < 0) {
+			error(errno, "Error: processing `%s' failed", file);
 		}
 	}
 
