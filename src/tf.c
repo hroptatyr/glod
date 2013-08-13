@@ -144,8 +144,8 @@ prepare(ctx_t ctx)
 static int
 snarf(ctx_t ctx)
 {
-	char *line = NULL;
-	size_t llen = 0U;
+	static char *line = NULL;
+	static size_t llen = 0U;
 	ssize_t nrd;
 
 	while ((nrd = getline(&line, &llen, stdin)) > 0) {
@@ -153,7 +153,7 @@ snarf(ctx_t ctx)
 
 		/* check for form feeds, and maybe yield */
 		if (*line == '\f') {
-			break;
+			goto out;
 		}
 		line[nrd - 1] = '\0';
 		if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
@@ -161,6 +161,9 @@ snarf(ctx_t ctx)
 		}
 	}
 	free(line);
+	line = NULL;
+	llen = 0U;
+out:
 	return (int)nrd;
 }
 
