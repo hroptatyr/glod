@@ -40,4 +40,5 @@ Bankgesellschaft
 Berlin
 eine
 Verkaufsempfehlung
+
 $
