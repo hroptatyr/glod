@@ -111,6 +111,10 @@ tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
 BUILT_SOURCES += tf.x tf.xh
 
+noinst_PROGRAMS += porter-stemmer
+porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
+porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
