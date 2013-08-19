@@ -46,6 +46,7 @@
 
 #include "corpus.h"
 #include "nifty.h"
+#include "boobs.h"
 
 struct gl_corpus_s {
 	TCBDB *db;
@@ -214,6 +215,81 @@ corpus_term(gl_corpus_t g, gl_crpid_t tid)
 	}
 out:
 	return grev[tid];
+}
+
+
+/* freq counting */
+#define MAX_TID		((gl_crpid_t)16777215U)
+#define MAX_F		((gl_freq_t)255U)
+
+static __attribute__((pure)) gl_crpid_t
+get_tfid(gl_crpid_t tid, gl_freq_t f)
+{
+	gl_crpid_t res;
+
+	if (UNLIKELY(tid > MAX_TID)) {
+		return 0U;
+	}
+	/* produce a common int out of tid and f */
+	res = ((tid & MAX_TID) << 8U) | (LIKELY(f < MAX_F) ? f : MAX_F);
+	return res;
+}
+
+static gl_freq_t
+get_freq(gl_corpus_t g, gl_crpid_t tf)
+{
+	gl_freq_t res;
+	const int *rp;
+	int rz[1];
+
+	/* big-endianify TF */
+	tf = htobe32(tf);
+
+	if (UNLIKELY((rp = tcbdbget3(g->db, &tf, sizeof(tf), rz)) == NULL)) {
+		return 0U;
+	} else if (UNLIKELY(*rz != sizeof(*rp))) {
+		return 0U;
+	} else if (UNLIKELY(*rp < 0)) {
+		return 0U;
+	}
+	res = (gl_freq_t)*rp;
+	return res;
+}
+
+static gl_freq_t
+add_freq(gl_corpus_t g, gl_crpid_t tf)
+{
+	int tmp;
+
+	/* big-endianify TF */
+	tf = htobe32(tf);
+
+	if (UNLIKELY((tmp = tcbdbaddint(g->db, &tf, sizeof(tf), 1)) <= 0)) {
+		return 0U;
+	}
+	return (gl_freq_t)tmp;
+}
+
+gl_freq_t
+corpus_get_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t f)
+{
+	gl_crpid_t id;
+
+	if (UNLIKELY((id = get_tfid(tid, f)) == 0U)) {
+		return 0U;
+	}
+	return get_freq(g, id);
+}
+
+gl_freq_t
+corpus_add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t f)
+{
+	gl_crpid_t id;
+
+	if (UNLIKELY((id = get_tfid(tid, f)) == 0U)) {
+		return 0U;
+	}
+	return add_freq(g, id);
 }
 
 /* corpus.c ends here */
