@@ -45,6 +45,7 @@
 
 typedef struct gl_corpus_s *restrict gl_corpus_t;
 typedef unsigned int gl_crpid_t;
+typedef unsigned int gl_freq_t;
 
 
 /* lower level graph api */
@@ -62,5 +63,13 @@ extern gl_crpid_t corpus_add_term(gl_corpus_t, const char *t);
 /**
  * Return term for corpus id TID, or NULL if not present. */
 extern const char *corpus_term(gl_corpus_t, gl_crpid_t tid);
+
+/**
+ * Return the count of frequency F of term TID. */
+extern gl_freq_t corpus_get_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
+
+/**
+ * Record a count for frequency F of term TID. */
+extern gl_freq_t corpus_add_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
 
 #endif	/* INCLUDED_corpus_h_ */

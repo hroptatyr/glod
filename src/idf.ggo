@@ -1,0 +1,8 @@
+args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
+package "idf"
+usage "idf [OPTIONS...]"
+description "Return the frequency frequency vector for terms and freqs on stdin."
+
+option "corpus" f
+	"Use specified corpus file."
+	string typestr="FILE" optional
