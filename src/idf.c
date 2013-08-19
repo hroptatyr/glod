@@ -89,6 +89,10 @@ snarf(ctx_t ctx)
 			if (UNLIKELY((tid = strtoul(line, &p, 0)) > MAX_TID)) {
 				continue;
 			} else if (UNLIKELY(*p++ != '\t')) {
+				/* bit of a service really */
+				if (*p == '\n') {
+					print(ctx, tid);
+				}
 				continue;
 			}
 			/* snarf the frequency (should be in [0,255]) */
