@@ -52,18 +52,26 @@ struct ctx_s {
 };
 
 
-/* the trilogy of co-routines, prep work, then snarfing, then printing */
-static void
-prepare(ctx_t UNUSED(ctx))
+#define MAX_TID		(16777215U)
+#define MAX_F		(255U)
+
+static int
+print(ctx_t ctx, gl_crpid_t tid)
 {
-	return;
+	/* just go through the frequency list(?) */
+	for (gl_freq_t i = 0; i <= MAX_F; i++) {
+		gl_freq_t f;
+
+		if (UNLIKELY((f = corpus_get_freq(ctx->c, tid, i)) > 0U)) {
+			printf("%u\t%u\t%u\n", tid, i, f);
+		}
+	}
+	return 0;
 }
 
 static int
 snarf(ctx_t ctx)
 {
-#define MAX_TID		(16777215U)
-#define MAX_F		(255U)
 	static char *line = NULL;
 	static size_t llen = 0U;
 	ssize_t nrd;
@@ -102,12 +110,6 @@ out:
 	return (int)nrd;
 }
 
-static void
-print(ctx_t UNUSED(ctx))
-{
-	return;
-}
-
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
@@ -144,13 +146,25 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	/* this is the main loop, for one document the loop is traversed
-	 * once, for multiple documents (sep'd by \f\n the snarfer will
-	 * yield (r > 0) and we print and prep and then snarf again */
-	for (int r = 1; r > 0;) {
-		prepare(ctx);
-		r = snarf(ctx);
-		print(ctx);
+	switch (argi->inputs_num) {
+	default:
+		for (unsigned int i = 0; i < argi->inputs_num; i++) {
+			const char *arg = argi->inputs[i];
+			gl_crpid_t tid;
+			char *p;
+
+			if ((tid = strtoul(arg, &p, 0)) && !*p) {
+				print(ctx, tid);
+			}
+		}
+		break;
+
+	case 0:
+		/* read TID \t F pairs and record the frequency */
+		for (int r = 1; r > 0;) {
+			r = snarf(ctx);
+		}
+		break;
 	}
 
 	free_corpus(ctx->c);
