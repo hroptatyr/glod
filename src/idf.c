@@ -144,8 +144,12 @@ main(int argc, char *argv[])
 		db = argi->corpus_arg;
 	}
 
-	oflags |= O_RDWR;
-	oflags |= O_CREAT;
+	if (!argi->inputs_num) {
+		oflags |= O_RDWR;
+		oflags |= O_CREAT;
+	} else {
+		oflags |= O_RDONLY;
+	}
 	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
 		goto out;
 	}
