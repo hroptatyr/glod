@@ -95,6 +95,14 @@ corpus_get_freqs(gl_freq_t f[static 256U], gl_corpus_t, gl_crpid_t tid);
 extern gl_freq_t corpus_add_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
 
 /**
+ * Obtain the total document count. */
+extern size_t corpus_get_ndoc(gl_corpus_t);
+
+/**
+ * Increment the total document count. */
+extern size_t corpus_add_ndoc(gl_corpus_t);
+
+/**
  * Iterating through the corpus. */
 extern gl_crpiter_t corpus_init_iter(gl_corpus_t);
 extern void corpus_fini_iter(gl_corpus_t g, gl_crpiter_t i);
