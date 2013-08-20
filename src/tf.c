@@ -40,7 +40,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
+#include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include <fcntl.h>
 #include "corpus.h"
 #include "nifty.h"
@@ -62,16 +65,40 @@ struct tf_s {
 };
 
 
+static void
+__attribute__((format(printf, 1, 2)))
+error(const char *fmt, ...)
+{
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	if (errno) {
+		fputc(':', stderr);
+		fputc(' ', stderr);
+		fputs(strerror(errno), stderr);
+	}
+	fputc('\n', stderr);
+	return;
+}
+
+
 /* provide a trick snarfing routine for the reverse problem */
 static gl_crpid_t
-__rev(gl_corpus_t c, const char *ln)
+__corpus_list(gl_corpus_t c, const char *ln)
 {
-	gl_crpid_t id = strtoul(ln, NULL, 0);
+/* trick snarfing routine to list terms (or the term ids) */
+	const char *term = NULL;
+	gl_crpid_t tid;
 
-	with (const char *term = corpus_term(c, id)) {
-		if (LIKELY(term != NULL)) {
-			puts(term);
-		}
+	if ((tid = corpus_get_term(c, ln)) > 0U) {
+		term = ln;
+	} else if ((tid = strtoul(ln, NULL, 0))) {
+		term = corpus_term(c, tid);
+	}
+
+	if (LIKELY(term != NULL)) {
+		printf("%u\t%s\n", tid, term);
 	}
 	return (gl_crpid_t)-1;
 }
@@ -133,10 +160,6 @@ rns_tid(ctx_t ctx)
 static void
 prepare(ctx_t ctx)
 {
-	but_first {
-		puts("\f");
-	}
-
 	rns_tid(ctx);
 	return;
 }
@@ -171,6 +194,7 @@ static void
 print(ctx_t ctx)
 {
 /* output plain old sparse tuples innit */
+	size_t npr = 0U;
 
 	if (UNLIKELY(ctx->tf == NULL)) {
 		/* nothing recorded, may happen in reverse mode */
@@ -179,8 +203,32 @@ print(ctx_t ctx)
 
 	for (size_t i = 0; i < ctx->tf->nf; i++) {
 		if (ctx->tf->f[i]) {
-			unsigned int f = ctx->tf->f[i];
+			gl_freq_t f = ctx->tf->f[i];
+
 			printf("%zu\t%u\n", i, f);
+			npr++;
+		}
+	}
+	if (LIKELY(npr > 0U)) {
+		puts("\f");
+	}
+	return;
+}
+
+static void
+upd_idf(ctx_t ctx)
+{
+/* take information from the tf vector and update the doc freqs */
+
+	if (UNLIKELY(ctx->tf == NULL)) {
+		/* nothing recorded, just bugger off */
+		return;
+	}
+
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		if (ctx->tf->f[i]) {
+			gl_freq_t f = ctx->tf->f[i];
+			corpus_add_freq(ctx->c, i, f);
 		}
 	}
 	return;
@@ -198,42 +246,35 @@ print(ctx_t ctx)
 # pragma warning (default:181)
 #endif	/* __INTEL_COMPILER */
 
-int
-main(int argc, char *argv[])
+static int
+cmd_addget(struct glod_args_info argi[static 1U], int addp)
 {
-	struct glod_args_info argi[1];
 	const char *db = GLOD_DFLT_CORPUS;
 	static struct ctx_s ctx[1];
-	int oflags = 0;
-	int res;
+	int oflags;
 
-	if (glod_parser(argc, argv, argi)) {
-		res = 1;
-		goto out;
-	}
-
-	if (argi->corpus_given) {
-		db = argi->corpus_arg;
-	}
-
-	if (argi->add_given) {
-		oflags = O_RDWR | O_CREAT;
-	}
-	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
-		goto out;
+	if (argi->inputs_num >= 2U) {
+		db = argi->inputs[1U];
 	}
 
 	/* initialise the freq vector */
 	ctx->tf = NULL;
-
-	/* just categorise the whole shebang */
-	if (argi->add_given) {
+	if (addp) {
 		ctx->snarf = corpus_add_term;
-	} else if (argi->reverse_given) {
-		ctx->snarf = __rev;
 	} else {
-		/* plain old get */
 		ctx->snarf = corpus_get_term;
+	}
+
+	if (addp || argi->idf_given) {
+		oflags = O_RDWR | O_CREAT;
+	} else {
+		oflags = O_RDONLY;
+	}
+
+	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+		/* shell exit codes here */
+		error("Error: cannot open corpus file `%s'", db);
+		return 1;
 	}
 
 	/* this is the main loop, for one document the loop is traversed
@@ -242,11 +283,83 @@ main(int argc, char *argv[])
 	for (int r = 1; r > 0;) {
 		prepare(ctx);
 		r = snarf(ctx);
-		print(ctx);
+		if (argi->idf_given) {
+			upd_idf(ctx);
+		}
+		if (argi->verbose_given) {
+			print(ctx);
+		}
 	}
 
 	free_corpus(ctx->c);
 	free(ctx->tf);
+	return 0;
+}
+
+static int
+cmd_list(struct glod_args_info argi[static 1U])
+{
+	const char *db = GLOD_DFLT_CORPUS;
+	static struct ctx_s ctx[1];
+	int oflags = O_RDONLY;
+
+	if (argi->inputs_num >= 2U) {
+		db = argi->inputs[1U];
+	}
+
+	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+		/* shell exit codes here */
+		error("Error: cannot open corpus file `%s'", db);
+		return 1;
+	}
+
+	if (argi->inputs_num > 2U) {
+		/* list the ones on the command line */
+		for (unsigned i = 2U; i < argi->inputs_num; i++) {
+			__corpus_list(ctx->c, argi->inputs[i]);
+		}
+	} else if (!isatty(STDIN_FILENO)) {
+		/* list terms from stdin */
+		ctx->snarf = __corpus_list;
+		while (snarf(ctx) > 0);
+	} else {
+		/* list everything */
+		;
+	}
+	return 0;
+}
+
+int
+main(int argc, char *argv[])
+{
+	struct glod_args_info argi[1];
+	int res;
+
+	if (glod_parser(argc, argv, argi)) {
+		res = 1;
+		goto out;
+	} else if (argi->inputs_num < 1) {
+		glod_parser_print_help();
+		res = 1;
+		goto out;
+	}
+
+	/* check the commands */
+	with (const char *cmd = argi->inputs[0U]) {
+		if (!strcmp(cmd, "get")) {
+			res = cmd_addget(argi, 0);
+		} else if (!strcmp(cmd, "add")) {
+			res = cmd_addget(argi, 1);
+		} else if (!strcmp(cmd, "list")) {
+			res = cmd_list(argi);
+		} else {
+			/* print help */
+			fprintf(stderr, "Unknown command `%s'\n\n", cmd);
+			glod_parser_print_help();
+			res = 1;
+		}
+	}
+
 out:
 	glod_parser_free(argi);
 	return res;
