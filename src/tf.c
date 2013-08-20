@@ -340,17 +340,26 @@ cmd_list(struct glod_args_info argi[static 1U])
 		return 1;
 	}
 
-	if (argi->inputs_num > 1U) {
+	if (argi->inputs_num > 1U && !argi->idf_given) {
 		/* list the ones on the command line */
 		for (unsigned i = 1U; i < argi->inputs_num; i++) {
 			__corpus_list(ctx->c, argi->inputs[i]);
 		}
+	} else if (argi->inputs_num > 1U) {
+		/* list the ones on the command line */
+		for (unsigned i = 1U; i < argi->inputs_num; i++) {
+			__corpus_lidf(ctx->c, argi->inputs[i]);
+		}
 	} else if (!isatty(STDIN_FILENO)) {
 		/* list terms from stdin */
-		ctx->snarf = __corpus_list;
+		if (!argi->idf_given) {
+			ctx->snarf = __corpus_list;
+		} else {
+			ctx->snarf = __corpus_lidf;
+		}
 		while (snarf(ctx) > 0);
 	} else {
-		/* list everything */
+		/* list everything, only without --idf */
 		gl_crpiter_t i = corpus_init_iter(ctx->c);
 
 		for (gl_crpitit_t v; (v = corpus_iter_next(ctx->c, i)).tid;) {
