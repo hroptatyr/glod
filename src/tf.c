@@ -368,6 +368,8 @@ cmd_list(struct glod_args_info argi[static 1U])
 
 		corpus_fini_iter(ctx->c, i);
 	}
+
+	free_corpus(ctx->c);
 	return 0;
 }
 
