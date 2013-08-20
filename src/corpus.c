@@ -292,4 +292,52 @@ corpus_add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t f)
 	return add_freq(g, id);
 }
 
+
+/* iterators */
+gl_crpiter_t
+corpus_init_iter(gl_corpus_t g)
+{
+	BDBCUR *c = tcbdbcurnew(g->db);
+
+	/* start with the strings */
+	tcbdbcurjump(c, " ", 1);
+	return c;
+}
+
+void
+corpus_fini_iter(gl_corpus_t UNUSED(g), gl_crpiter_t i)
+{
+	tcbdbcurdel(i);
+	return;
+}
+
+gl_crpitit_t
+corpus_iter_next(gl_corpus_t UNUSED(g), gl_crpiter_t i)
+{
+	static const gl_crpitit_t itit_null = {};
+	gl_crpitit_t res;
+	const void *vp;
+	int z[1];
+
+	if (UNLIKELY((vp = tcbdbcurval3(i, z)) == NULL)) {
+		goto null;
+	} else if (*z != sizeof(int)) {
+		goto null;
+	}
+	/* snarf the id before it goes out of fashion */
+	res.tid = *(const int*)vp;
+
+	if (UNLIKELY((vp = tcbdbcurkey3(i, z)) == NULL)) {
+		goto null;
+	}
+	/* otherwise fill res */
+	res.term = vp;
+	/* and also iterate to the next thing */
+	tcbdbcurnext(i);
+	return res;
+
+null:
+	return itit_null;
+}
+
 /* corpus.c ends here */
