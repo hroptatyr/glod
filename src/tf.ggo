@@ -1,6 +1,6 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
 package "tf"
-usage "tf [OPTIONS...] COMMAND [CORPUS] [TERM...]"
+usage "tf [OPTIONS...] COMMAND [TERM...]"
 description "Control terms frequency corpora."
 
 section "Commands:
@@ -16,6 +16,10 @@ Options common to all commands"
 option "verbose" v
 	"Be verbose."
 	optional
+
+option "corpus" f
+	"Use specified corpus file instead of `corpus.tcb'."
+	string typestr="FILE" optional
 
 section "Options affecting the add and get commands"
 

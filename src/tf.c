@@ -253,8 +253,8 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 	static struct ctx_s ctx[1];
 	int oflags;
 
-	if (argi->inputs_num >= 2U) {
-		db = argi->inputs[1U];
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
 	}
 
 	/* initialise the freq vector */
@@ -303,8 +303,8 @@ cmd_list(struct glod_args_info argi[static 1U])
 	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
 
-	if (argi->inputs_num >= 2U) {
-		db = argi->inputs[1U];
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
 	}
 
 	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
@@ -313,9 +313,9 @@ cmd_list(struct glod_args_info argi[static 1U])
 		return 1;
 	}
 
-	if (argi->inputs_num > 2U) {
+	if (argi->inputs_num > 1U) {
 		/* list the ones on the command line */
-		for (unsigned i = 2U; i < argi->inputs_num; i++) {
+		for (unsigned i = 1U; i < argi->inputs_num; i++) {
 			__corpus_list(ctx->c, argi->inputs[i]);
 		}
 	} else if (!isatty(STDIN_FILENO)) {
