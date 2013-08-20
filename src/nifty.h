@@ -65,6 +65,12 @@
 	     paste(__ep, __LINE__); paste(__ep, __LINE__)= 0)
 #endif	/* !with */
 
+#if !defined if_with
+# define if_with(init, args...)					\
+	for (init, *paste(__ep, __LINE__) = (void*)1;			\
+	     paste(__ep, __LINE__) && (args); paste(__ep, __LINE__)= 0)
+#endif	/* !if_with */
+
 #define once					\
 	static int paste(__, __LINE__);		\
 	if (!paste(__, __LINE__)++)
