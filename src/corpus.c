@@ -292,6 +292,21 @@ corpus_add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t f)
 	return add_freq(g, id);
 }
 
+size_t
+corpus_get_freqs(gl_freq_t ff[static 256U], gl_corpus_t g, gl_crpid_t tid)
+{
+	gl_fiter_t i = corpus_init_fiter(g, tid);
+	size_t res = 0U;
+
+	for (gl_fitit_t f; (f = corpus_fiter_next(g, i)).tf;) {
+		if ((ff[f.tf] = f.df) > 0) {
+			res++;
+		}
+	}
+	corpus_fini_fiter(g, i);
+	return res;
+}
+
 
 /* iterators */
 gl_crpiter_t
@@ -334,6 +349,79 @@ corpus_iter_next(gl_corpus_t UNUSED(g), gl_crpiter_t i)
 	res.term = vp;
 	/* and also iterate to the next thing */
 	tcbdbcurnext(i);
+	return res;
+
+null:
+	return itit_null;
+}
+
+/* frequency iterators */
+gl_fiter_t
+corpus_init_fiter(gl_corpus_t g, gl_crpid_t tid)
+{
+	gl_crpid_t id;
+	BDBCUR *c;
+
+	if (UNLIKELY((id = get_tfid(tid, 0U)) == 0U)) {
+		return NULL;
+	}
+	/* now then */
+	c = tcbdbcurnew(g->db);
+	/* jump to where it's good */
+	id = htobe32(id);
+	tcbdbcurjump(c, &id, sizeof(id));
+	return c;
+}
+
+void
+corpus_fini_fiter(gl_corpus_t UNUSED(g), gl_fiter_t i)
+{
+	tcbdbcurdel(i);
+	return;
+}
+
+gl_fitit_t
+corpus_fiter_next(gl_corpus_t UNUSED(g), gl_fiter_t i)
+{
+	static const gl_fitit_t itit_null = {};
+	gl_crpid_t tid;
+	gl_fitit_t res;
+	const void *vp;
+	int z[1];
+
+	if (UNLIKELY((vp = tcbdbcurkey3(i, z)) == NULL)) {
+		goto null;
+	} else if (*z != sizeof(int)) {
+		goto null;
+	}
+	/* snarf the tid before it goes out of fashion */
+	with (unsigned int tmp = be32toh(*(const unsigned int*)vp)) {
+		tid = tmp >> 8U;
+		res.tf = tmp & 0xffU;
+	}
+
+	if (UNLIKELY((vp = tcbdbcurval3(i, z)) == NULL)) {
+		goto null;
+	} else if (*z != sizeof(int)) {
+		goto null;
+	}
+	/* snarf the id before it goes out of fashion */
+	res.df = *(const unsigned int*)vp;
+
+	/* and also iterate to the next thing */
+	tcbdbcurnext(i);
+
+	if (UNLIKELY((vp = tcbdbcurkey3(i, z)) == NULL)) {
+		;
+	} else if (*z != sizeof(int)) {
+		;
+	} else {
+		unsigned int tmp = be32toh(*(const unsigned int*)vp);
+		gl_crpid_t tmpid = tmp >> 8U;
+		if (UNLIKELY(tmpid != tid)) {
+			tcbdbcurlast(i);
+		}
+	}
 	return res;
 
 null:

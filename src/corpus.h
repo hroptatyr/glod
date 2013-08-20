@@ -50,10 +50,18 @@ typedef unsigned int gl_freq_t;
 typedef void *gl_crpiter_t;
 typedef struct gl_crpitit_s gl_crpitit_t;
 
+typedef void *gl_fiter_t;
+typedef struct gl_fitit_s gl_fitit_t;
+
 /* iterator items */
 struct gl_crpitit_s {
 	const char *term;
 	gl_crpid_t tid;
+};
+
+struct gl_fitit_s {
+	gl_freq_t tf;
+	gl_freq_t df;
 };
 
 
@@ -78,6 +86,11 @@ extern const char *corpus_term(gl_corpus_t, gl_crpid_t tid);
 extern gl_freq_t corpus_get_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
 
 /**
+ * Return a the spectrum of frequencies of TID. */
+extern size_t
+corpus_get_freqs(gl_freq_t f[static 256U], gl_corpus_t, gl_crpid_t tid);
+
+/**
  * Record a count for frequency F of term TID. */
 extern gl_freq_t corpus_add_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
 
@@ -86,5 +99,11 @@ extern gl_freq_t corpus_add_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
 extern gl_crpiter_t corpus_init_iter(gl_corpus_t);
 extern void corpus_fini_iter(gl_corpus_t g, gl_crpiter_t i);
 extern gl_crpitit_t corpus_iter_next(gl_corpus_t g, gl_crpiter_t i);
+
+/**
+ * Iterating through the frequencies. */
+extern gl_fiter_t corpus_init_fiter(gl_corpus_t, gl_crpid_t tid);
+extern void corpus_fini_fiter(gl_corpus_t g, gl_fiter_t i);
+extern gl_fitit_t corpus_fiter_next(gl_corpus_t g, gl_fiter_t i);
 
 #endif	/* INCLUDED_corpus_h_ */
