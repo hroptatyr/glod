@@ -103,6 +103,33 @@ __corpus_list(gl_corpus_t c, const char *ln)
 	return (gl_crpid_t)-1;
 }
 
+static gl_crpid_t
+__corpus_lidf(gl_corpus_t c, const char *ln)
+{
+/* trick snarfing routine to list terms (or the term ids) */
+	const char *term = NULL;
+	gl_crpid_t tid;
+
+	if ((tid = corpus_get_term(c, ln)) > 0U) {
+		term = ln;
+	} else if ((tid = strtoul(ln, NULL, 0))) {
+		term = corpus_term(c, tid);
+	}
+
+	if (LIKELY(term != NULL)) {
+		gl_fiter_t i = corpus_init_fiter(c, tid);
+
+		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
+			if (LIKELY(f.tf == 0U)) {
+				continue;
+			}
+			printf("%u\t%s\t%u\t%u\n", tid, term, f.tf, f.df);
+		}
+		corpus_fini_fiter(c, i);
+	}
+	return (gl_crpid_t)-1;
+}
+
 
 static void
 resize_tf(ctx_t ctx, gl_crpid_t id)
@@ -335,6 +362,36 @@ cmd_list(struct glod_args_info argi[static 1U])
 	return 0;
 }
 
+static int
+cmd_idf(struct glod_args_info argi[static 1U])
+{
+	const char *db = GLOD_DFLT_CORPUS;
+	static struct ctx_s ctx[1];
+	int oflags = O_RDONLY;
+
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
+	}
+
+	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+		/* shell exit codes here */
+		error("Error: cannot open corpus file `%s'", db);
+		return 1;
+	}
+
+	if (argi->inputs_num > 1U) {
+		/* list the ones on the command line */
+		for (unsigned i = 1U; i < argi->inputs_num; i++) {
+			__corpus_lidf(ctx->c, argi->inputs[i]);
+		}
+	} else if (!isatty(STDIN_FILENO)) {
+		/* list terms from stdin */
+		ctx->snarf = __corpus_lidf;
+		while (snarf(ctx) > 0);
+	}
+	return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -358,6 +415,8 @@ main(int argc, char *argv[])
 			res = cmd_addget(argi, 1);
 		} else if (!strcmp(cmd, "list")) {
 			res = cmd_list(argi);
+		} else if (!strcmp(cmd, "idf")) {
+			res = cmd_idf(argi);
 		} else {
 			/* print help */
 			fprintf(stderr, "Unknown command `%s'\n\n", cmd);
