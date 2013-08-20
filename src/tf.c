@@ -324,7 +324,13 @@ cmd_list(struct glod_args_info argi[static 1U])
 		while (snarf(ctx) > 0);
 	} else {
 		/* list everything */
-		;
+		gl_crpiter_t i = corpus_init_iter(ctx->c);
+
+		for (gl_crpitit_t v; (v = corpus_iter_next(ctx->c, i)).tid;) {
+			printf("%u\t%s\n", v.tid, v.term);
+		}
+
+		corpus_fini_iter(ctx->c, i);
 	}
 	return 0;
 }
