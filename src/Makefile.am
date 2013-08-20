@@ -115,16 +115,6 @@ noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
 porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
 
-noinst_PROGRAMS += idf
-idf_SOURCES = idf.c
-idf_SOURCES += idf.ggo
-idf_CPPFLAGS = $(AM_CPPFLAGS)
-idf_CPPFLAGS += -D_GNU_SOURCE
-idf_LDFLAGS = $(AM_LDFLAGS)
-idf_LDFLAGS += $(tokyocabinet_LIBS)
-idf_LDADD = libglod.a
-BUILT_SOURCES += idf.x idf.xh
-
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@

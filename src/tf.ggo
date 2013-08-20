@@ -1,16 +1,18 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
 package "tf"
 usage "tf [OPTIONS...] COMMAND [TERM...]"
-description "Control terms frequency corpora."
+description "Control terms frequency corpora.
 
-section "Commands:
-
-get     Obtain term frequencies from terms on stdin, or
+COMMAND may be one of:
+  get   Obtain term frequencies from terms on stdin, or
         if terms are given on the command line return their term id.
-add     Like get but also add the terms to the corpus file.
-list    List all terms in the corpus file or the ones specified on the
+  add   Like get but also add the terms to the corpus file.
+  list  List all terms in the corpus file or the ones specified on the
         command line.
+  idf   Perform a document/corpus frequency analysis.
+"
 
+text "
 Options common to all commands"
 
 option "verbose" v
@@ -21,9 +23,16 @@ option "corpus" f
 	"Use specified corpus file instead of `corpus.tcb'."
 	string typestr="FILE" optional
 
-section "Options affecting the add and get commands"
+text "
+Options affecting the add and get commands:"
 
 option "idf" -
 	"Also update the document frequency information.  \
 Note: this operation is NOT idempotent."
 	optional
+
+## cant double list --idf
+text "
+Options affecting the list command:
+      --idf          Also output the idf statistics.
+"

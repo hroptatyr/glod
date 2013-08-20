@@ -45,6 +45,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <tgmath.h>
 #include "corpus.h"
 #include "nifty.h"
 
@@ -99,6 +100,33 @@ __corpus_list(gl_corpus_t c, const char *ln)
 
 	if (LIKELY(term != NULL)) {
 		printf("%u\t%s\n", tid, term);
+	}
+	return (gl_crpid_t)-1;
+}
+
+static gl_crpid_t
+__corpus_lidf(gl_corpus_t c, const char *ln)
+{
+/* trick snarfing routine to list terms (or the term ids) */
+	const char *term = NULL;
+	gl_crpid_t tid;
+
+	if ((tid = corpus_get_term(c, ln)) > 0U) {
+		term = ln;
+	} else if ((tid = strtoul(ln, NULL, 0))) {
+		term = corpus_term(c, tid);
+	}
+
+	if (LIKELY(term != NULL)) {
+		gl_fiter_t i = corpus_init_fiter(c, tid);
+
+		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
+			if (LIKELY(f.tf == 0U)) {
+				continue;
+			}
+			printf("%u\t%s\t%u\t%u\n", tid, term, f.tf, f.df);
+		}
+		corpus_fini_fiter(c, i);
 	}
 	return (gl_crpid_t)-1;
 }
@@ -231,6 +259,50 @@ upd_idf(ctx_t ctx)
 			corpus_add_freq(ctx->c, i, f);
 		}
 	}
+	/* also up the doc counter */
+	corpus_add_ndoc(ctx->c);
+	return;
+}
+
+static void
+prnt_idf(ctx_t ctx)
+{
+/* output plain old sparse tuples innit */
+	size_t npr = 0U;
+	size_t nd;
+
+	if (UNLIKELY(ctx->tf == NULL)) {
+		/* nothing recorded, may happen in reverse mode */
+		return;
+	} else if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
+		/* no document count, no need to do idf analysis then */
+		return;
+	}
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		gl_freq_t cf;
+		gl_freq_t tf;
+		gl_fiter_t it;
+
+		if (LIKELY(!ctx->tf->f[i])) {
+			continue;
+		}
+		/* this term's document frequency */
+		tf = ctx->tf->f[i];
+		/* aaah, get this terms corpus frequency */
+		cf = 0U;
+		it = corpus_init_fiter(ctx->c, i);
+		for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).tf;) {
+			cf += f.df;
+		}
+		corpus_fini_fiter(ctx->c, it);
+
+		with (double idf = log((double)nd / (double)cf)) {
+			printf("%zu\t%g\n", i, (double)tf * idf);
+		}
+	}
+	if (LIKELY(npr > 0U)) {
+		puts("\f");
+	}
 	return;
 }
 
@@ -313,17 +385,26 @@ cmd_list(struct glod_args_info argi[static 1U])
 		return 1;
 	}
 
-	if (argi->inputs_num > 1U) {
+	if (argi->inputs_num > 1U && !argi->idf_given) {
 		/* list the ones on the command line */
 		for (unsigned i = 1U; i < argi->inputs_num; i++) {
 			__corpus_list(ctx->c, argi->inputs[i]);
 		}
+	} else if (argi->inputs_num > 1U) {
+		/* list the ones on the command line */
+		for (unsigned i = 1U; i < argi->inputs_num; i++) {
+			__corpus_lidf(ctx->c, argi->inputs[i]);
+		}
 	} else if (!isatty(STDIN_FILENO)) {
 		/* list terms from stdin */
-		ctx->snarf = __corpus_list;
+		if (!argi->idf_given) {
+			ctx->snarf = __corpus_list;
+		} else {
+			ctx->snarf = __corpus_lidf;
+		}
 		while (snarf(ctx) > 0);
 	} else {
-		/* list everything */
+		/* list everything, only without --idf */
 		gl_crpiter_t i = corpus_init_iter(ctx->c);
 
 		for (gl_crpitit_t v; (v = corpus_iter_next(ctx->c, i)).tid;) {
@@ -332,6 +413,43 @@ cmd_list(struct glod_args_info argi[static 1U])
 
 		corpus_fini_iter(ctx->c, i);
 	}
+
+	free_corpus(ctx->c);
+	return 0;
+}
+
+static int
+cmd_idf(struct glod_args_info argi[static 1U])
+{
+	const char *db = GLOD_DFLT_CORPUS;
+	static struct ctx_s ctx[1];
+	int oflags = O_RDONLY;
+
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
+	}
+
+	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+		/* shell exit codes here */
+		error("Error: cannot open corpus file `%s'", db);
+		return 1;
+	}
+
+	/* initialise the freq vector */
+	ctx->tf = NULL;
+	ctx->snarf = corpus_get_term;
+
+	/* this is the main loop, for one document the loop is traversed
+	 * once, for multiple documents (sep'd by \f\n the snarfer will
+	 * yield (r > 0) and we print and prep and then snarf again */
+	for (int r = 1; r > 0;) {
+		prepare(ctx);
+		r = snarf(ctx);
+		prnt_idf(ctx);
+	}
+
+	free_corpus(ctx->c);
+	free(ctx->tf);
 	return 0;
 }
 
@@ -358,6 +476,8 @@ main(int argc, char *argv[])
 			res = cmd_addget(argi, 1);
 		} else if (!strcmp(cmd, "list")) {
 			res = cmd_list(argi);
+		} else if (!strcmp(cmd, "idf")) {
+			res = cmd_idf(argi);
 		} else {
 			/* print help */
 			fprintf(stderr, "Unknown command `%s'\n\n", cmd);
