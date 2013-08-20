@@ -45,6 +45,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <tgmath.h>
 #include "corpus.h"
 #include "nifty.h"
 
@@ -258,6 +259,50 @@ upd_idf(ctx_t ctx)
 			corpus_add_freq(ctx->c, i, f);
 		}
 	}
+	/* also up the doc counter */
+	corpus_add_ndoc(ctx->c);
+	return;
+}
+
+static void
+prnt_idf(ctx_t ctx)
+{
+/* output plain old sparse tuples innit */
+	size_t npr = 0U;
+	size_t nd;
+
+	if (UNLIKELY(ctx->tf == NULL)) {
+		/* nothing recorded, may happen in reverse mode */
+		return;
+	} else if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
+		/* no document count, no need to do idf analysis then */
+		return;
+	}
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		gl_freq_t cf;
+		gl_freq_t tf;
+		gl_fiter_t it;
+
+		if (LIKELY(!ctx->tf->f[i])) {
+			continue;
+		}
+		/* this term's document frequency */
+		tf = ctx->tf->f[i];
+		/* aaah, get this terms corpus frequency */
+		cf = 0U;
+		it = corpus_init_fiter(ctx->c, i);
+		for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).tf;) {
+			cf += f.df;
+		}
+		corpus_fini_fiter(ctx->c, it);
+
+		with (double idf = log((double)nd / (double)cf)) {
+			printf("%zu\t%g\n", i, (double)tf * idf);
+		}
+	}
+	if (LIKELY(npr > 0U)) {
+		puts("\f");
+	}
 	return;
 }
 
@@ -390,16 +435,21 @@ cmd_idf(struct glod_args_info argi[static 1U])
 		return 1;
 	}
 
-	if (argi->inputs_num > 1U) {
-		/* list the ones on the command line */
-		for (unsigned i = 1U; i < argi->inputs_num; i++) {
-			__corpus_lidf(ctx->c, argi->inputs[i]);
-		}
-	} else if (!isatty(STDIN_FILENO)) {
-		/* list terms from stdin */
-		ctx->snarf = __corpus_lidf;
-		while (snarf(ctx) > 0);
+	/* initialise the freq vector */
+	ctx->tf = NULL;
+	ctx->snarf = corpus_get_term;
+
+	/* this is the main loop, for one document the loop is traversed
+	 * once, for multiple documents (sep'd by \f\n the snarfer will
+	 * yield (r > 0) and we print and prep and then snarf again */
+	for (int r = 1; r > 0;) {
+		prepare(ctx);
+		r = snarf(ctx);
+		prnt_idf(ctx);
 	}
+
+	free_corpus(ctx->c);
+	free(ctx->tf);
 	return 0;
 }
 

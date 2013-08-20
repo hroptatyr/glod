@@ -9,6 +9,7 @@ COMMAND may be one of:
   add   Like get but also add the terms to the corpus file.
   list  List all terms in the corpus file or the ones specified on the
         command line.
+  idf   Perform a document/corpus frequency analysis.
 "
 
 text "
