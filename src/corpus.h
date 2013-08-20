@@ -47,6 +47,15 @@ typedef struct gl_corpus_s *restrict gl_corpus_t;
 typedef unsigned int gl_crpid_t;
 typedef unsigned int gl_freq_t;
 
+typedef void *gl_crpiter_t;
+typedef struct gl_crpitit_s gl_crpitit_t;
+
+/* iterator items */
+struct gl_crpitit_s {
+	const char *term;
+	gl_crpid_t tid;
+};
+
 
 /* lower level graph api */
 extern gl_corpus_t make_corpus(const char *dbfile, ...);
@@ -71,5 +80,11 @@ extern gl_freq_t corpus_get_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
 /**
  * Record a count for frequency F of term TID. */
 extern gl_freq_t corpus_add_freq(gl_corpus_t, gl_crpid_t tid, gl_freq_t f);
+
+/**
+ * Iterating through the corpus. */
+extern gl_crpiter_t corpus_init_iter(gl_corpus_t);
+extern void corpus_fini_iter(gl_corpus_t g, gl_crpiter_t i);
+extern gl_crpitit_t corpus_iter_next(gl_corpus_t g, gl_crpiter_t i);
 
 #endif	/* INCLUDED_corpus_h_ */

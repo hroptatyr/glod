@@ -1,17 +1,29 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
 package "tf"
-usage "tf [OPTIONS...]"
-description "Return the terms frequency vector for terms on stdin."
+usage "tf [OPTIONS...] COMMAND [TERM...]"
+description "Control terms frequency corpora."
 
-option "corpus" f
-	"Use specified corpus file."
-	string typestr="FILE" optional
+section "Commands:
 
-option "add" a
-	"Add unknown terms to the corpus instead of mapping them to the \
-unknown-term indicator."
+get     Obtain term frequencies from terms on stdin, or
+        if terms are given on the command line return their term id.
+add     Like get but also add the terms to the corpus file.
+list    List all terms in the corpus file or the ones specified on the
+        command line.
+
+Options common to all commands"
+
+option "verbose" v
+	"Be verbose."
 	optional
 
-option "reverse" r
-	"Given term ids on stdin construct a message of actual terms."
+option "corpus" f
+	"Use specified corpus file instead of `corpus.tcb'."
+	string typestr="FILE" optional
+
+section "Options affecting the add and get commands"
+
+option "idf" -
+	"Also update the document frequency information.  \
+Note: this operation is NOT idempotent."
 	optional
