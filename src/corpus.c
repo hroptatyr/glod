@@ -299,7 +299,7 @@ corpus_get_freqs(gl_freq_t ff[static 256U], gl_corpus_t g, gl_crpid_t tid)
 	size_t res = 0U;
 
 	for (gl_fitit_t f; (f = corpus_fiter_next(g, i)).tf;) {
-		if ((ff[f.tf] = f.df) > 0) {
+		if (LIKELY((ff[f.tf] = f.df) > 0)) {
 			res++;
 		}
 	}
