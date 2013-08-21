@@ -4,9 +4,8 @@ usage "tf [OPTIONS...] COMMAND [TERM...]"
 description "Control terms frequency corpora.
 
 COMMAND may be one of:
-  get   Obtain term frequencies from terms on stdin, or
-        if terms are given on the command line return their term id.
-  add   Like get but also add the terms to the corpus file.
+  calc  Obtain term frequencies from terms on stdin.
+  add   Like `calc' but also add the terms to the corpus file.
   list  List all terms in the corpus file or the ones specified on the
         command line.
   idf   Perform a document/corpus frequency analysis.
@@ -24,7 +23,7 @@ option "corpus" f
 	string typestr="FILE" optional
 
 text "
-Options affecting the add and get commands:"
+Options affecting the add and calc commands:"
 
 option "idf" -
 	"Also update the document frequency information.  \
@@ -36,3 +35,10 @@ text "
 Options affecting the list command:
       --idf          Also output the idf statistics.
 "
+
+text "
+Options affecting the idf command:"
+
+option "augmented" -
+	"Use the augmented terms frequency instead of the raw frequency."
+	optional

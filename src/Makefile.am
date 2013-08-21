@@ -64,6 +64,7 @@ libglod_a_SOURCES += alrt.c alrt.h
 libglod_a_SOURCES += glep.c glep.h
 libglod_a_SOURCES += wu-manber-guts.c
 libglod_a_SOURCES += corpus.c corpus.h
+libglod_a_SOURCES += doc.c doc.h
 libglod_a_SOURCES += version.c version.h
 libglod_a_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
