@@ -264,10 +264,49 @@ upd_idf(ctx_t ctx)
 	return;
 }
 
+static gl_freq_t
+get_tf(ctx_t ctx, gl_crpid_t tid)
+{
+	return ctx->tf->f[tid];
+}
+
+static gl_freq_t
+get_cf(ctx_t ctx, gl_crpid_t tid)
+{
+	gl_fiter_t it;
+	gl_freq_t cf = 0U;
+
+	it = corpus_init_fiter(ctx->c, tid);
+	for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).tf;) {
+		cf += f.df;
+	}
+	corpus_fini_fiter(ctx->c, it);
+	return cf;
+}
+
+static gl_freq_t
+get_maxtf(ctx_t ctx)
+{
+	gl_freq_t max = 0U;
+
+	for (size_t i = 0; i < ctx->tf->nf; i++) {
+		gl_freq_t tf;
+
+		if (LIKELY(!(tf = ctx->tf->f[i]))) {
+			continue;
+		}
+		if (tf > max) {
+			max = tf;
+		}
+	}
+	return max;
+}
+
 static void
-prnt_idf(ctx_t ctx)
+prnt_idf(ctx_t ctx, int augp)
 {
 /* output plain old sparse tuples innit */
+	double max;
 	size_t npr = 0U;
 	size_t nd;
 
@@ -278,26 +317,29 @@ prnt_idf(ctx_t ctx)
 		/* no document count, no need to do idf analysis then */
 		return;
 	}
+
+	/* pre-compute max tf here */
+	if (augp) {
+		max = get_maxtf(ctx);
+	}
 	for (size_t i = 0; i < ctx->tf->nf; i++) {
-		gl_freq_t cf;
-		gl_freq_t tf;
-		gl_fiter_t it;
+		double cf;
+		double tf;
 
 		if (LIKELY(!ctx->tf->f[i])) {
 			continue;
 		}
 		/* this term's document frequency */
-		tf = ctx->tf->f[i];
-		/* aaah, get this terms corpus frequency */
-		cf = 0U;
-		it = corpus_init_fiter(ctx->c, i);
-		for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).tf;) {
-			cf += f.df;
+		if (!augp) {
+			tf = get_tf(ctx, i);
+		} else {
+			tf = 0.5 + 0.5 * get_tf(ctx, i) / max;
 		}
-		corpus_fini_fiter(ctx->c, it);
+		/* get this terms corpus frequency */
+		cf = get_cf(ctx, i);
 
-		with (double idf = log((double)nd / (double)cf)) {
-			printf("%zu\t%g\n", i, (double)tf * idf);
+		with (double idf = log((double)nd / cf)) {
+			printf("%zu\t%g\n", i, tf * idf);
 		}
 	}
 	if (LIKELY(npr > 0U)) {
@@ -445,7 +487,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	for (int r = 1; r > 0;) {
 		prepare(ctx);
 		r = snarf(ctx);
-		prnt_idf(ctx);
+		prnt_idf(ctx, argi->augmented_given);
 	}
 
 	free_corpus(ctx->c);

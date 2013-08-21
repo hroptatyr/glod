@@ -35,3 +35,10 @@ text "
 Options affecting the list command:
       --idf          Also output the idf statistics.
 "
+
+text "
+Options affecting the idf command:"
+
+option "augmented" -
+	"Use the augmented terms frequency instead of the raw frequency."
+	optional
