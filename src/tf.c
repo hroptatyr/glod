@@ -297,6 +297,17 @@ prnt_idf(ctx_t ctx, int augp)
 	return;
 }
 
+static void
+prnt_stat(gl_corpus_t c, const char *name)
+{
+	/* collect some stats */
+	size_t nd = corpus_get_ndoc(c);
+	size_t nt = corpus_get_nterm(c);
+
+	printf("%s\t%zu docs\t%zu terms\n", name, nd, nt);
+	return;
+}
+
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
@@ -444,6 +455,29 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	return 0;
 }
 
+static int
+cmd_info(struct glod_args_info argi[static 1U])
+{
+	const char *db = GLOD_DFLT_CORPUS;
+	gl_corpus_t c;
+	int oflags = O_RDONLY;
+
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
+	}
+
+	if (UNLIKELY((c = make_corpus(db, oflags)) == NULL)) {
+		/* shell exit codes here */
+		error("Error: cannot open corpus file `%s'", db);
+		return 1;
+	}
+	/* collect some stats */
+	prnt_stat(c, db);
+
+	free_corpus(c);
+	return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -469,6 +503,8 @@ main(int argc, char *argv[])
 			res = cmd_list(argi);
 		} else if (!strcmp(cmd, "idf")) {
 			res = cmd_idf(argi);
+		} else if (!strcmp(cmd, "info")) {
+			res = cmd_info(argi);
 		} else {
 			/* print help */
 			fprintf(stderr, "Unknown command `%s'\n\n", cmd);
