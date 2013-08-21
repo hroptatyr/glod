@@ -37,6 +37,10 @@ Options affecting the list command:
       --idf          Also output the idf statistics.
 "
 
+option "reverse" r
+	"Go from term id to term string."
+	optional
+
 text "
 Options affecting the idf command:"
 
