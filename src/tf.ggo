@@ -9,6 +9,7 @@ COMMAND may be one of:
   list  List all terms in the corpus file or the ones specified on the
         command line.
   idf   Perform a document/corpus frequency analysis.
+  info  Obtain some information on a corpus file.
 "
 
 text "

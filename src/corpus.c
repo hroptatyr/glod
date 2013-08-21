@@ -469,4 +469,19 @@ corpus_add_ndoc(gl_corpus_t g)
 	return (size_t)res;
 }
 
+size_t
+corpus_get_nterm(gl_corpus_t g)
+{
+	static const char nid[] = "\x1d";
+	const void *vp;
+	int z[1];
+
+	if (UNLIKELY((vp = tcbdbget3(g->db, nid, sizeof(nid), z)) == NULL)) {
+		return 0U;
+	} else if (*z != sizeof(int)) {
+		return 0U;
+	}
+	return *(const unsigned int*)vp;
+}
+
 /* corpus.c ends here */
