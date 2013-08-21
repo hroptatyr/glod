@@ -118,8 +118,7 @@ next_id(gl_corpus_t g)
 static gl_crpid_t
 get_term(gl_corpus_t g, const char *t, size_t z)
 {
-	gl_crpid_t res;
-	const int *rp;
+	const gl_crpid_t *rp;
 	int rz[1];
 
 	if (UNLIKELY((rp = tcbdbget3(g->db, t, z, rz)) == NULL)) {
@@ -127,14 +126,13 @@ get_term(gl_corpus_t g, const char *t, size_t z)
 	} else if (UNLIKELY(*rz != sizeof(*rp))) {
 		return 0U;
 	}
-	res = (gl_crpid_t)*rp;
-	return res;
+	return *rp;
 }
 
 static int
 add_term(gl_corpus_t g, const char *t, size_t z, gl_crpid_t id)
 {
-	return tcbdbaddint(g->db, t, z, (int)id) - 1;
+	return tcbdbput(g->db, t, z, &id, sizeof(id)) - 1;
 }
 
 
