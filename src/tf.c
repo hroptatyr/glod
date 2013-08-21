@@ -470,7 +470,7 @@ main(int argc, char *argv[])
 
 	/* check the commands */
 	with (const char *cmd = argi->inputs[0U]) {
-		if (!strcmp(cmd, "get")) {
+		if (!strcmp(cmd, "calc")) {
 			res = cmd_addget(argi, 0);
 		} else if (!strcmp(cmd, "add")) {
 			res = cmd_addget(argi, 1);
