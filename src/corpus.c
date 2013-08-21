@@ -103,10 +103,15 @@ free_corpus(gl_corpus_t ctx)
 }
 
 
+#define DID_SPACE	"\x1c"
+#define TID_SPACE	"\x1d"
+#define AKA_SPACE	"\x1e"
+#define FRQ_SPACE	"\x1f"
+
 static gl_crpid_t
 next_id(gl_corpus_t g)
 {
-	static const char nid[] = "\x1d";
+	static const char nid[] = TID_SPACE;
 	int res;
 
 	if (UNLIKELY((res = tcbdbaddint(g->db, nid, sizeof(nid), 1)) <= 0)) {
@@ -139,7 +144,7 @@ add_term(gl_corpus_t g, const char *t, size_t z, gl_crpid_t id)
 static struct {
 	char pre[2U];
 	gl_crpid_t tid __attribute__((aligned(sizeof(gl_crpid_t))));
-} ktid = {"\x1e"};
+} ktid = {AKA_SPACE};
 
 static gl_alias_t
 get_alias(gl_corpus_t g, gl_crpid_t tid)
@@ -489,7 +494,7 @@ null:
 static gl_crpid_t
 next_doc_id(gl_corpus_t g)
 {
-	static const char nid[] = "\x1c";
+	static const char nid[] = DID_SPACE;
 	int res;
 
 	if (UNLIKELY((res = tcbdbaddint(g->db, nid, sizeof(nid), 1)) <= 0)) {
@@ -501,7 +506,7 @@ next_doc_id(gl_corpus_t g)
 size_t
 corpus_get_ndoc(gl_corpus_t g)
 {
-	static const char nid[] = "\x1c";
+	static const char nid[] = DID_SPACE;
 	const void *vp;
 	int z[1];
 
@@ -528,7 +533,7 @@ corpus_add_ndoc(gl_corpus_t g)
 size_t
 corpus_get_nterm(gl_corpus_t g)
 {
-	static const char nid[] = "\x1d";
+	static const char nid[] = TID_SPACE;
 	const void *vp;
 	int z[1];
 
