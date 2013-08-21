@@ -135,6 +135,32 @@ add_term(gl_corpus_t g, const char *t, size_t z, gl_crpid_t id)
 	return tcbdbput(g->db, t, z, &id, sizeof(id)) - 1;
 }
 
+/* key to use for reverse lookups */
+static struct {
+	char pre[2U];
+	gl_crpid_t tid __attribute__((aligned(sizeof(gl_crpid_t))));
+} ktid = {"\x1e"};
+
+static gl_alias_t
+get_alias(gl_corpus_t g, gl_crpid_t tid)
+{
+	const char *t;
+	int z[1];
+
+	ktid.tid = tid;
+	if (UNLIKELY((t = tcbdbget3(g->db, &ktid, sizeof(ktid), z)) == NULL)) {
+		return (gl_alias_t){0U, NULL};
+	}
+	return (gl_alias_t){*z, t};
+}
+
+static int
+add_alias(gl_corpus_t g, gl_crpid_t tid, const char *t, size_t z)
+{
+	ktid.tid = tid;
+	return tcbdbputcat(g->db, &ktid, sizeof(ktid), t, z + 1U) - 1;
+}
+
 
 gl_crpid_t
 corpus_get_term(gl_corpus_t g, const char *t)
@@ -157,8 +183,40 @@ corpus_add_term(gl_corpus_t g, const char *t)
 		;
 	} else if (add_term(g, t, z, res) < 0) {
 		res = 0U;
+	} else if (add_alias(g, res, t, z) < 0) {
+		res = 0U;
 	}
 	return res;
+}
+
+gl_alias_t
+corpus_get_alias(gl_corpus_t g, gl_crpid_t tid)
+{
+	return get_alias(g, tid);
+}
+
+gl_alias_t
+corpus_add_alias(gl_corpus_t g, gl_crpid_t tid, const char *t)
+{
+	size_t z = strlen(t);
+	gl_alias_t r;
+
+	add_term(g, t, z, tid);
+	r = get_alias(g, tid);
+
+	for (gl_alias_t cand = r;
+	     (cand.s = memmem(cand.s, cand.z, t, z + 1U)) != NULL;
+		cand.s += z + 1U) {
+		if (cand.s == r.s || cand.s[-1] == '\0') {
+			/* bingo, found 'em */
+			return r;
+		}
+	}
+	/* unfound, add him */
+	if (UNLIKELY(add_alias(g, tid, t, z) < 0)) {
+		return (gl_alias_t){0U};
+	}
+	return r;
 }
 
 
