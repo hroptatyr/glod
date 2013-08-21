@@ -103,6 +103,10 @@ extern size_t corpus_get_ndoc(gl_corpus_t);
 extern size_t corpus_add_ndoc(gl_corpus_t);
 
 /**
+ * Obtain the total term count (estimate). */
+extern size_t corpus_get_nterm(gl_corpus_t);
+
+/**
  * Iterating through the corpus. */
 extern gl_crpiter_t corpus_init_iter(gl_corpus_t);
 extern void corpus_fini_iter(gl_corpus_t g, gl_crpiter_t i);
