@@ -47,22 +47,16 @@
 #include <fcntl.h>
 #include <tgmath.h>
 #include "corpus.h"
+#include "doc.h"
 #include "nifty.h"
 
 typedef struct ctx_s ctx_t[1];
-typedef struct tf_s *tf_t;
 
 struct ctx_s {
 	gl_corpus_t c;
-	tf_t tf;
+	gl_doc_t d;
 	/* snarf routine to use */
 	gl_crpid_t(*snarf)();
-};
-
-struct tf_s {
-#define TF_MAX	((sizeof(uint_fast8_t) << 8U) - 1U)
-	size_t nf;
-	uint_fast8_t f[];
 };
 
 
@@ -132,63 +126,18 @@ __corpus_lidf(gl_corpus_t c, const char *ln)
 }
 
 
-static void
-resize_tf(ctx_t ctx, gl_crpid_t id)
-{
-#define TF_RESZ_STEP	(64U)
-	size_t ol;
-
-	if (UNLIKELY(ctx->tf == NULL)) {
-		ol = 0U;
-	} else if (UNLIKELY((ol = ctx->tf->nf) <= id)) {
-		;
-	} else {
-		/* already covered */
-		return;
-	}
-	/* resize then */
-	with (size_t nu = ((id / TF_RESZ_STEP) + 1U) * TF_RESZ_STEP) {
-		ctx->tf = realloc(
-			ctx->tf, nu * sizeof(*ctx->tf->f) + sizeof(*ctx->tf));
-		/* bzero */
-		memset(ctx->tf->f + ol, 0, TF_RESZ_STEP * sizeof(*ctx->tf->f));
-		ctx->tf->nf = nu;
-	}
-	return;
-}
-
-static void
-rec_tid(ctx_t ctx, gl_crpid_t id)
-{
-/* record term (identified by its ID) */
-
-	/* check if stuff is big enough */
-	resize_tf(ctx, id);
-	/* just inc the counter */
-	if (LIKELY(ctx->tf->f[id] < TF_MAX)) {
-		ctx->tf->f[id]++;
-	}
-	return;
-}
-
-static void
-rns_tid(ctx_t ctx)
-{
-/* rinse count vector */
-	if (ctx->tf == NULL) {
-		return;
-	}
-	/* otherwise zero out the slots we've alloc'd so far */
-	memset(ctx->tf->f, 0, ctx->tf->nf * sizeof(*ctx->tf->f));
-	return;
-}
-
-
 /* the trilogy of co-routines, prep work, then snarfing, then printing */
 static void
 prepare(ctx_t ctx)
 {
-	rns_tid(ctx);
+	ctx->d = make_doc();
+	return;
+}
+
+static void
+postpare(ctx_t ctx)
+{
+	free_doc(ctx->d);
 	return;
 }
 
@@ -208,7 +157,7 @@ snarf(ctx_t ctx)
 		}
 		line[nrd - 1] = '\0';
 		if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
-			rec_tid(ctx, id);
+			doc_add_term(ctx->d, id);
 		}
 	}
 	free(line);
@@ -223,20 +172,20 @@ print(ctx_t ctx)
 {
 /* output plain old sparse tuples innit */
 	size_t npr = 0U;
+	gl_dociter_t di;
 
-	if (UNLIKELY(ctx->tf == NULL)) {
+	if (UNLIKELY(ctx->d == NULL)) {
 		/* nothing recorded, may happen in reverse mode */
 		return;
 	}
 
-	for (size_t i = 0; i < ctx->tf->nf; i++) {
-		if (ctx->tf->f[i]) {
-			gl_freq_t f = ctx->tf->f[i];
-
-			printf("%zu\t%u\n", i, f);
-			npr++;
-		}
+	di = doc_init_iter(ctx->d);
+	for (gl_doctf_t tf; (tf = doc_iter_next(ctx->d, di)).tid;) {
+		printf("%u\t%u\n", tf.tid, tf.f);
+		npr++;
 	}
+	doc_fini_iter(ctx->d, di);
+
 	if (LIKELY(npr > 0U)) {
 		puts("\f");
 	}
@@ -247,18 +196,19 @@ static void
 upd_idf(ctx_t ctx)
 {
 /* take information from the tf vector and update the doc freqs */
+	gl_dociter_t di;
 
-	if (UNLIKELY(ctx->tf == NULL)) {
+	if (UNLIKELY(ctx->d == NULL)) {
 		/* nothing recorded, just bugger off */
 		return;
 	}
 
-	for (size_t i = 0; i < ctx->tf->nf; i++) {
-		if (ctx->tf->f[i]) {
-			gl_freq_t f = ctx->tf->f[i];
-			corpus_add_freq(ctx->c, i, f);
-		}
+	di = doc_init_iter(ctx->d);
+	for (gl_doctf_t tf; (tf = doc_iter_next(ctx->d, di)).tid;) {
+		corpus_add_freq(ctx->c, tf.tid, tf.f);
 	}
+	doc_fini_iter(ctx->d, di);
+
 	/* also up the doc counter */
 	corpus_add_ndoc(ctx->c);
 	return;
@@ -267,7 +217,7 @@ upd_idf(ctx_t ctx)
 static gl_freq_t
 get_tf(ctx_t ctx, gl_crpid_t tid)
 {
-	return ctx->tf->f[tid];
+	return doc_get_term(ctx->d, tid);
 }
 
 static gl_freq_t
@@ -287,18 +237,16 @@ get_cf(ctx_t ctx, gl_crpid_t tid)
 static gl_freq_t
 get_maxtf(ctx_t ctx)
 {
+	gl_dociter_t di;
 	gl_freq_t max = 0U;
 
-	for (size_t i = 0; i < ctx->tf->nf; i++) {
-		gl_freq_t tf;
-
-		if (LIKELY(!(tf = ctx->tf->f[i]))) {
-			continue;
-		}
-		if (tf > max) {
-			max = tf;
+	di = doc_init_iter(ctx->d);
+	for (gl_doctf_t tf; (tf = doc_iter_next(ctx->d, di)).tid;) {
+		if (tf.f > max) {
+			max = tf.f;
 		}
 	}
+	doc_fini_iter(ctx->d, di);
 	return max;
 }
 
@@ -306,11 +254,12 @@ static void
 prnt_idf(ctx_t ctx, int augp)
 {
 /* output plain old sparse tuples innit */
+	gl_dociter_t di;
 	double max;
 	size_t npr = 0U;
 	size_t nd;
 
-	if (UNLIKELY(ctx->tf == NULL)) {
+	if (UNLIKELY(ctx->d == NULL)) {
 		/* nothing recorded, may happen in reverse mode */
 		return;
 	} else if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
@@ -322,26 +271,26 @@ prnt_idf(ctx_t ctx, int augp)
 	if (augp) {
 		max = get_maxtf(ctx);
 	}
-	for (size_t i = 0; i < ctx->tf->nf; i++) {
+	di = doc_init_iter(ctx->d);
+	for (gl_doctf_t dtf; (dtf = doc_iter_next(ctx->d, di)).tid;) {
 		double cf;
 		double tf;
 
-		if (LIKELY(!ctx->tf->f[i])) {
-			continue;
-		}
 		/* this term's document frequency */
 		if (!augp) {
-			tf = get_tf(ctx, i);
+			tf = get_tf(ctx, dtf.tid);
 		} else {
-			tf = 0.5 + 0.5 * get_tf(ctx, i) / max;
+			tf = 0.5 + 0.5 * get_tf(ctx, dtf.tid) / max;
 		}
 		/* get this terms corpus frequency */
-		cf = get_cf(ctx, i);
+		cf = get_cf(ctx, dtf.tid);
 
 		with (double idf = log((double)nd / cf)) {
-			printf("%zu\t%g\n", i, tf * idf);
+			printf("%u\t%g\n", dtf.tid, tf * idf);
 		}
 	}
+	doc_fini_iter(ctx->d, di);
+
 	if (LIKELY(npr > 0U)) {
 		puts("\f");
 	}
@@ -372,7 +321,7 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 	}
 
 	/* initialise the freq vector */
-	ctx->tf = NULL;
+	ctx->d = NULL;
 	if (addp) {
 		ctx->snarf = corpus_add_term;
 	} else {
@@ -403,10 +352,10 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 		if (argi->verbose_given) {
 			print(ctx);
 		}
+		postpare(ctx);
 	}
 
 	free_corpus(ctx->c);
-	free(ctx->tf);
 	return 0;
 }
 
@@ -478,7 +427,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 
 	/* initialise the freq vector */
-	ctx->tf = NULL;
+	ctx->d = NULL;
 	ctx->snarf = corpus_get_term;
 
 	/* this is the main loop, for one document the loop is traversed
@@ -488,10 +437,10 @@ cmd_idf(struct glod_args_info argi[static 1U])
 		prepare(ctx);
 		r = snarf(ctx);
 		prnt_idf(ctx, argi->augmented_given);
+		postpare(ctx);
 	}
 
 	free_corpus(ctx->c);
-	free(ctx->tf);
 	return 0;
 }
 
