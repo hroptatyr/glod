@@ -708,6 +708,7 @@ corpus_fix(gl_corpus_t g, int problems)
 		/* establish reverse lookups */
 		BDBCUR *c = tcbdbcurnew(g->db);
 		const size_t nterm_by_id = corpus_get_nterm(g);
+		bool outp;
 
 		/* jump to where it's good */
 		tcbdbcurjump(c, TRM_SPACE, sizeof(TRM_SPACE));
@@ -717,6 +718,9 @@ corpus_fix(gl_corpus_t g, int problems)
 			const gl_freq_t *vp;
 			gl_crpid_t tff;
 			int kz[1];
+
+			/* indicates whether out was successful */
+			outp = false;
 
 			if ((kp = tcbdbcurkey3(c, kz)) == NULL) {
 				break;
@@ -740,7 +744,8 @@ corpus_fix(gl_corpus_t g, int problems)
 			with (gl_freq_t cf = *vp) {
 				set_freq(g, tff >> 8U, tff & 0xffU, cf);
 			}
-		} while (tcbdbcurnext(c));
+			outp = tcbdbcurout(c);
+		} while (outp || tcbdbcurnext(c));
 
 		tcbdbcurdel(c);
 		p.old_cfreq = 0U;
