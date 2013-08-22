@@ -284,30 +284,26 @@ out:
 #define MAX_TID		((gl_crpid_t)16777215U)
 #define MAX_F		((gl_freq_t)255U)
 
-static __attribute__((pure)) gl_crpid_t
-get_tfid(gl_crpid_t tid, gl_freq_t f)
-{
-	gl_crpid_t res;
-
-	if (UNLIKELY(tid > MAX_TID)) {
-		return 0U;
-	}
-	/* produce a common int out of tid and f */
-	res = ((tid & MAX_TID) << 8U) | (LIKELY(f < MAX_F) ? f : MAX_F);
-	return res;
-}
+/* key to use for reverse lookups */
+struct frq_space_s {
+	char pre[2U];
+	gl_crpid_t tid __attribute__((aligned(sizeof(gl_crpid_t))));
+	gl_freq_t df __attribute__((aligned(sizeof(gl_freq_t))));
+};
+static struct frq_space_s ktf = {FRQ_SPACE};
 
 static gl_freq_t
-get_freq(gl_corpus_t g, gl_crpid_t tf)
+get_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 {
 	gl_freq_t res;
 	const int *rp;
 	int rz[1];
 
-	/* big-endianify TF */
-	tf = htobe32(tf);
+	/* use FRQ_SPACE */
+	ktf.tid = tid;
+	ktf.df = df;
 
-	if (UNLIKELY((rp = tcbdbget3(g->db, &tf, sizeof(tf), rz)) == NULL)) {
+	if (UNLIKELY((rp = tcbdbget3(g->db, &ktf, sizeof(ktf), rz)) == NULL)) {
 		return 0U;
 	} else if (UNLIKELY(*rz != sizeof(*rp))) {
 		return 0U;
@@ -319,49 +315,41 @@ get_freq(gl_corpus_t g, gl_crpid_t tf)
 }
 
 static gl_freq_t
-add_freq(gl_corpus_t g, gl_crpid_t tf)
+add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 {
 	int tmp;
 
-	/* big-endianify TF */
-	tf = htobe32(tf);
+	/* use FRQ_SPACE */
+	ktf.tid = tid;
+	ktf.df = df;
 
-	if (UNLIKELY((tmp = tcbdbaddint(g->db, &tf, sizeof(tf), 1)) <= 0)) {
+	if (UNLIKELY((tmp = tcbdbaddint(g->db, &ktf, sizeof(ktf), 1)) <= 0)) {
 		return 0U;
 	}
 	return (gl_freq_t)tmp;
 }
 
 static int
-set_freq(gl_corpus_t g, gl_crpid_t tf, gl_freq_t f)
+set_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df, gl_freq_t cf)
 {
-/* for internal use */
+/* for internal use, directly assign corpus frequency CF to tid+df */
 
-	/* big-endianify TF */
-	tf = htobe32(tf);
-	return tcbdbput(g->db, &tf, sizeof(tf), &f, sizeof(f)) - 1;
+	/* use FRQ_SPACE */
+	ktf.tid = tid;
+	ktf.df = df;
+	return tcbdbput(g->db, &ktf, sizeof(ktf), &cf, sizeof(cf)) - 1;
 }
 
 gl_freq_t
-corpus_get_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t f)
+corpus_get_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 {
-	gl_crpid_t id;
-
-	if (UNLIKELY((id = get_tfid(tid, f)) == 0U)) {
-		return 0U;
-	}
-	return get_freq(g, id);
+	return get_freq(g, tid, df);
 }
 
 gl_freq_t
-corpus_add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t f)
+corpus_add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 {
-	gl_crpid_t id;
-
-	if (UNLIKELY((id = get_tfid(tid, f)) == 0U)) {
-		return 0U;
-	}
-	return add_freq(g, id);
+	return add_freq(g, tid, df);
 }
 
 size_t
@@ -370,8 +358,8 @@ corpus_get_freqs(gl_freq_t ff[static 256U], gl_corpus_t g, gl_crpid_t tid)
 	gl_fiter_t i = corpus_init_fiter(g, tid);
 	size_t res = 0U;
 
-	for (gl_fitit_t f; (f = corpus_fiter_next(g, i)).tf;) {
-		if (LIKELY((ff[f.tf] = f.df) > 0)) {
+	for (gl_fitit_t f; (f = corpus_fiter_next(g, i)).df;) {
+		if (LIKELY((ff[f.df] = f.cf) > 0)) {
 			res++;
 		}
 	}
@@ -431,17 +419,16 @@ null:
 gl_fiter_t
 corpus_init_fiter(gl_corpus_t g, gl_crpid_t tid)
 {
-	gl_crpid_t id;
 	BDBCUR *c;
 
-	if (UNLIKELY((id = get_tfid(tid, 0U)) == 0U)) {
-		return NULL;
-	}
+	/* use FRQ_SPACE */
+	ktf.tid = tid;
+	ktf.df = 0U;
+
 	/* now then */
 	c = tcbdbcurnew(g->db);
 	/* jump to where it's good */
-	id = htobe32(id);
-	tcbdbcurjump(c, &id, sizeof(id));
+	tcbdbcurjump(c, &ktf, sizeof(ktf));
 	return c;
 }
 
@@ -456,41 +443,39 @@ gl_fitit_t
 corpus_fiter_next(gl_corpus_t UNUSED(g), gl_fiter_t i)
 {
 	static const gl_fitit_t itit_null = {};
-	gl_crpid_t tid;
+	struct frq_space_s tmp;
 	gl_fitit_t res;
 	const void *vp;
 	int z[1];
 
 	if (UNLIKELY((vp = tcbdbcurkey3(i, z)) == NULL)) {
 		goto null;
-	} else if (*z != sizeof(int)) {
+	} else if (*z != sizeof(tmp)) {
 		goto null;
 	}
 	/* snarf the tid before it goes out of fashion */
-	with (unsigned int tmp = be32toh(*(const unsigned int*)vp)) {
-		tid = tmp >> 8U;
-		res.tf = tmp & 0xffU;
-	}
+	tmp = *(const struct frq_space_s*)vp;
+	res.df = tmp.df;
 
 	if (UNLIKELY((vp = tcbdbcurval3(i, z)) == NULL)) {
 		goto null;
-	} else if (*z != sizeof(int)) {
+	} else if (*z != sizeof(res.cf)) {
 		goto null;
 	}
 	/* snarf the id before it goes out of fashion */
-	res.df = *(const unsigned int*)vp;
+	res.cf = *(const unsigned int*)vp;
 
 	/* and also iterate to the next thing */
 	tcbdbcurnext(i);
 
 	if (UNLIKELY((vp = tcbdbcurkey3(i, z)) == NULL)) {
 		;
-	} else if (*z != sizeof(int)) {
+	} else if (*z != sizeof(tmp)) {
 		;
 	} else {
-		unsigned int tmp = be32toh(*(const unsigned int*)vp);
-		gl_crpid_t tmpid = tmp >> 8U;
-		if (UNLIKELY(tmpid != tid)) {
+		struct frq_space_s nex = *(const struct frq_space_s*)vp;
+
+		if (UNLIKELY(nex.tid != tmp.tid)) {
 			tcbdbcurlast(i);
 		}
 	}
@@ -752,8 +737,8 @@ corpus_fix(gl_corpus_t g, int problems)
 			}
 
 			/* snarf the ids and freqs */
-			with (gl_freq_t f = *vp) {
-				set_freq(g, tff, f);
+			with (gl_freq_t cf = *vp) {
+				set_freq(g, tff >> 8U, tff & 0xffU, cf);
 			}
 		} while (tcbdbcurnext(c));
 

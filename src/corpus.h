@@ -62,8 +62,10 @@ struct gl_crpitit_s {
 };
 
 struct gl_fitit_s {
-	gl_freq_t tf;
+	/* frequency in the document */
 	gl_freq_t df;
+	/* frequency of that frequency in the corpus */
+	gl_freq_t cf;
 };
 
 /* aliases */
