@@ -710,8 +710,8 @@ corpus_fix(gl_corpus_t g, int problems)
 		const size_t nterm_by_id = corpus_get_nterm(g);
 		bool outp;
 
-		/* jump to where it's good */
-		tcbdbcurjump(c, TRM_SPACE, sizeof(TRM_SPACE));
+		/* jump to the very beginning of time */
+		tcbdbcurfirst(c);
 
 		do {
 			const char *kp;
