@@ -110,11 +110,11 @@ __corpus_lidf(gl_corpus_t c, const char *ln)
 	if (LIKELY(term != NULL)) {
 		gl_fiter_t i = corpus_init_fiter(c, tid);
 
-		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
-			if (LIKELY(f.tf == 0U)) {
+		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).df;) {
+			if (LIKELY(f.cf == 0U)) {
 				continue;
 			}
-			printf("%u\t%s\t%u\t%u\n", tid, term, f.tf, f.df);
+			printf("%u\t%s\t%u\t%u\n", tid, term, f.df, f.cf);
 		}
 		corpus_fini_fiter(c, i);
 	}
@@ -156,11 +156,11 @@ __corpus_lidf_r(gl_corpus_t c, const char *ln)
 	} else {
 		gl_fiter_t i = corpus_init_fiter(c, tid);
 
-		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
-			if (LIKELY(f.tf == 0U)) {
+		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).df;) {
+			if (LIKELY(f.cf == 0U)) {
 				continue;
 			}
-			printf("%u\t%s\t%u\t%u\n", tid, al.s, f.tf, f.df);
+			printf("%u\t%s\t%u\t%u\n", tid, al.s, f.df, f.cf);
 		}
 		corpus_fini_fiter(c, i);
 	}
@@ -269,8 +269,8 @@ get_cf(ctx_t ctx, gl_crpid_t tid)
 	gl_freq_t cf = 0U;
 
 	it = corpus_init_fiter(ctx->c, tid);
-	for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).tf;) {
-		cf += f.df;
+	for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).df;) {
+		cf += f.cf;
 	}
 	corpus_fini_fiter(ctx->c, it);
 	return cf;
