@@ -387,7 +387,7 @@ corpus_init_iter(gl_corpus_t g)
 	BDBCUR *c = tcbdbcurnew(g->db);
 
 	/* start with the strings */
-	tcbdbcurjump(c, " ", 1);
+	tcbdbcurjump(c, TRM_SPACE, sizeof(TRM_SPACE));
 	return c;
 }
 
