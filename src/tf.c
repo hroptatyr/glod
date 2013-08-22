@@ -125,15 +125,18 @@ static gl_crpid_t
 __corpus_list_r(gl_corpus_t c, const char *ln)
 {
 /* trick snarfing routine to list terms (or the term ids) */
-	const char *term = NULL;
+	gl_alias_t al;
 	gl_crpid_t tid;
 
-	if ((tid = strtoul(ln, NULL, 0))) {
-		term = corpus_term(c, tid);
-	}
-
-	if (LIKELY(term != NULL)) {
-		printf("%u\t%s\n", tid, term);
+	if (UNLIKELY((tid = strtoul(ln, NULL, 0)) == 0U)) {
+		/* don't worry then */
+		;
+	} else if (UNLIKELY((al = corpus_get_alias(c, tid)).z == 0U)) {
+		/* no aliases */
+		;
+	} else {
+		/* beef case */
+		printf("%u\t%s\n", tid, al.s);
 	}
 	return (gl_crpid_t)-1;
 }
@@ -141,21 +144,23 @@ __corpus_list_r(gl_corpus_t c, const char *ln)
 static gl_crpid_t
 __corpus_lidf_r(gl_corpus_t c, const char *ln)
 {
-	const char *term = NULL;
+	gl_alias_t al;
 	gl_crpid_t tid;
 
-	if ((tid = strtoul(ln, NULL, 0))) {
-		term = corpus_term(c, tid);
-	}
-
-	if (LIKELY(term != NULL)) {
+	if (UNLIKELY((tid = strtoul(ln, NULL, 0)) == 0U)) {
+		/* don't worry then */
+		;
+	} else if (UNLIKELY((al = corpus_get_alias(c, tid)).z == 0U)) {
+		/* no aliases */
+		;
+	} else {
 		gl_fiter_t i = corpus_init_fiter(c, tid);
 
 		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
 			if (LIKELY(f.tf == 0U)) {
 				continue;
 			}
-			printf("%u\t%s\t%u\t%u\n", tid, term, f.tf, f.df);
+			printf("%u\t%s\t%u\t%u\n", tid, al.s, f.tf, f.df);
 		}
 		corpus_fini_fiter(c, i);
 	}
