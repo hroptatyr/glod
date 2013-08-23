@@ -49,6 +49,10 @@ option "augmented" -
 	"Use the augmented terms frequency instead of the raw frequency."
 	optional
 
+option "top" -
+	"Display the top N idf scores."
+	int typestr="N" optional
+
 text "
 Options affecting the fsck command:"
 
