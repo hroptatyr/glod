@@ -62,14 +62,25 @@ struct gl_crpitit_s {
 };
 
 struct gl_fitit_s {
-	gl_freq_t tf;
+	/* frequency in the document */
 	gl_freq_t df;
+	/* frequency of that frequency in the corpus */
+	gl_freq_t cf;
 };
 
 /* aliases */
 struct gl_alias_s {
 	size_t z;
 	const char *s;
+};
+
+union gl_crpprobl_u {
+	int i;
+	struct {
+		unsigned int nterm_mismatch:1;
+		unsigned int old_cfreq:1;
+		unsigned int no_rev:1;
+	};
 };
 
 
@@ -134,5 +145,14 @@ extern gl_crpitit_t corpus_iter_next(gl_corpus_t g, gl_crpiter_t i);
 extern gl_fiter_t corpus_init_fiter(gl_corpus_t, gl_crpid_t tid);
 extern void corpus_fini_fiter(gl_corpus_t g, gl_fiter_t i);
 extern gl_fitit_t corpus_fiter_next(gl_corpus_t g, gl_fiter_t i);
+
+
+/**
+ * Run routine check on corpus C, return a (bit)set of problems. */
+extern int corpus_fsck(gl_corpus_t);
+
+/**
+ * Fix up mentioned PROBLEMS in corpus C. */
+extern int corpus_fix(gl_corpus_t, int problems);
 
 #endif	/* INCLUDED_corpus_h_ */

@@ -110,11 +110,11 @@ __corpus_lidf(gl_corpus_t c, const char *ln)
 	if (LIKELY(term != NULL)) {
 		gl_fiter_t i = corpus_init_fiter(c, tid);
 
-		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
-			if (LIKELY(f.tf == 0U)) {
+		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).df;) {
+			if (LIKELY(f.cf == 0U)) {
 				continue;
 			}
-			printf("%u\t%s\t%u\t%u\n", tid, term, f.tf, f.df);
+			printf("%u\t%s\t%u\t%u\n", tid, term, f.df, f.cf);
 		}
 		corpus_fini_fiter(c, i);
 	}
@@ -156,11 +156,11 @@ __corpus_lidf_r(gl_corpus_t c, const char *ln)
 	} else {
 		gl_fiter_t i = corpus_init_fiter(c, tid);
 
-		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).tf;) {
-			if (LIKELY(f.tf == 0U)) {
+		for (gl_fitit_t f; (f = corpus_fiter_next(c, i)).df;) {
+			if (LIKELY(f.cf == 0U)) {
 				continue;
 			}
-			printf("%u\t%s\t%u\t%u\n", tid, al.s, f.tf, f.df);
+			printf("%u\t%s\t%u\t%u\n", tid, al.s, f.df, f.cf);
 		}
 		corpus_fini_fiter(c, i);
 	}
@@ -269,8 +269,8 @@ get_cf(ctx_t ctx, gl_crpid_t tid)
 	gl_freq_t cf = 0U;
 
 	it = corpus_init_fiter(ctx->c, tid);
-	for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).tf;) {
-		cf += f.df;
+	for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).df;) {
+		cf += f.cf;
 	}
 	corpus_fini_fiter(ctx->c, it);
 	return cf;
@@ -521,6 +521,56 @@ cmd_info(struct glod_args_info argi[static 1U])
 	return 0;
 }
 
+static int
+cmd_fsck(struct glod_args_info argi[static 1U])
+{
+	const char *db = GLOD_DFLT_CORPUS;
+	gl_corpus_t c;
+	int oflags;
+	int res = 0;
+
+	if (argi->corpus_given) {
+		db = argi->corpus_arg;
+	}
+	if (argi->dry_run_given) {
+		oflags = O_RDONLY;
+	} else {
+		oflags = O_RDWR;
+	}
+
+	if (UNLIKELY((c = make_corpus(db, oflags)) == NULL)) {
+		/* shell exit codes here */
+		error("Error: cannot open corpus file `%s'", db);
+		return 1;
+	}
+
+	/* problems are bitwise or'd */
+	for (int problms; (problms = corpus_fsck(c)); corpus_fix(c, problms)) {
+		res = 1;
+		if (argi->verbose_given) {
+			/* grrr, gotta explain now */
+			union gl_crpprobl_u p = {problms};
+
+			if (p.nterm_mismatch) {
+				puts("term count and nterm mismatch");
+			}
+			if (p.old_cfreq) {
+				puts("old corpus-wide frequencies");
+			}
+			if (p.no_rev) {
+				puts("no reverse lookups");
+			}
+		}
+		if (argi->dry_run_given) {
+			/* make sure nothing gets fixed */
+			break;
+		}
+	}
+
+	free_corpus(c);
+	return res;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -548,6 +598,8 @@ main(int argc, char *argv[])
 			res = cmd_idf(argi);
 		} else if (!strcmp(cmd, "info")) {
 			res = cmd_info(argi);
+		} else if (!strcmp(cmd, "fsck")) {
+			res = cmd_fsck(argi);
 		} else {
 			/* print help */
 			fprintf(stderr, "Unknown command `%s'\n\n", cmd);
