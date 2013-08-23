@@ -48,10 +48,6 @@
 #include "nifty.h"
 #include "boobs.h"
 
-struct gl_corpus_s {
-	TCBDB *db;
-};
-
 
 /* low level graph lib */
 gl_corpus_t
@@ -60,7 +56,7 @@ make_corpus(const char *db, ...)
 	va_list ap;
 	int omode = BDBOREADER;
 	int oparam;
-	struct gl_corpus_s res;
+	gl_corpus_t res;
 
 	va_start(ap, db);
 	oparam = va_arg(ap, int);
@@ -73,32 +69,26 @@ make_corpus(const char *db, ...)
 		omode |= BDBOCREAT;
 	}
 
-	if (UNLIKELY((res.db = tcbdbnew()) == NULL)) {
+	if (UNLIKELY((res = tcbdbnew()) == NULL)) {
 		goto out;
-	} else if (UNLIKELY(!tcbdbopen(res.db, db, omode))) {
+	} else if (UNLIKELY(!tcbdbopen(res, db, omode))) {
 		goto free_out;
 	}
 
 	/* success, clone and out */
-	{
-		struct gl_corpus_s *x = malloc(sizeof(*x));
-
-		*x = res;
-		return x;
-	}
+	return res;
 
 free_out:
-	tcbdbdel(res.db);
+	tcbdbdel(res);
 out:
 	return NULL;
 }
 
 void
-free_corpus(gl_corpus_t ctx)
+free_corpus(gl_corpus_t c)
 {
-	tcbdbclose(ctx->db);
-	tcbdbdel(ctx->db);
-	free(ctx);
+	tcbdbclose(c);
+	tcbdbdel(c);
 	return;
 }
 
@@ -115,7 +105,7 @@ next_id(gl_corpus_t g)
 	static const char nid[] = TID_SPACE;
 	int res;
 
-	if (UNLIKELY((res = tcbdbaddint(g->db, nid, sizeof(nid), 1)) <= 0)) {
+	if (UNLIKELY((res = tcbdbaddint(g, nid, sizeof(nid), 1)) <= 0)) {
 		return 0U;
 	}
 	return (gl_crpid_t)res;
@@ -127,7 +117,7 @@ get_term(gl_corpus_t g, const char *t, size_t z)
 	const gl_crpid_t *rp;
 	int rz[1];
 
-	if (UNLIKELY((rp = tcbdbget3(g->db, t, z, rz)) == NULL)) {
+	if (UNLIKELY((rp = tcbdbget3(g, t, z, rz)) == NULL)) {
 		return 0U;
 	} else if (UNLIKELY(*rz != sizeof(*rp))) {
 		return 0U;
@@ -138,7 +128,7 @@ get_term(gl_corpus_t g, const char *t, size_t z)
 static int
 add_term(gl_corpus_t g, const char *t, size_t z, gl_crpid_t id)
 {
-	return tcbdbput(g->db, t, z, &id, sizeof(id)) - 1;
+	return tcbdbput(g, t, z, &id, sizeof(id)) - 1;
 }
 
 /* key to use for reverse lookups */
@@ -154,7 +144,7 @@ get_alias(gl_corpus_t g, gl_crpid_t tid)
 	int z[1];
 
 	ktid.tid = tid;
-	if (UNLIKELY((t = tcbdbget3(g->db, &ktid, sizeof(ktid), z)) == NULL)) {
+	if (UNLIKELY((t = tcbdbget3(g, &ktid, sizeof(ktid), z)) == NULL)) {
 		return (gl_alias_t){0U, NULL};
 	}
 	return (gl_alias_t){*z, t};
@@ -164,7 +154,7 @@ static int
 add_alias(gl_corpus_t g, gl_crpid_t tid, const char *t, size_t z)
 {
 	ktid.tid = tid;
-	return tcbdbputcat(g->db, &ktid, sizeof(ktid), t, z + 1U) - 1;
+	return tcbdbputcat(g, &ktid, sizeof(ktid), t, z + 1U) - 1;
 }
 
 
@@ -230,7 +220,7 @@ static void
 fill_rev(const char **terms, size_t termz, gl_corpus_t g, size_t nterms)
 {
 /* read terms between NTERMS and TERMZ and append them to array */
-	BDBCUR *c = tcbdbcurnew(g->db);
+	BDBCUR *c = tcbdbcurnew(g);
 
 #define B	(const_buf_t)
 	tcbdbcurjump(c, NULL, 0);
@@ -303,7 +293,7 @@ get_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 	ktf.tid = tid;
 	ktf.df = df;
 
-	if (UNLIKELY((rp = tcbdbget3(g->db, &ktf, sizeof(ktf), rz)) == NULL)) {
+	if (UNLIKELY((rp = tcbdbget3(g, &ktf, sizeof(ktf), rz)) == NULL)) {
 		return 0U;
 	} else if (UNLIKELY(*rz != sizeof(*rp))) {
 		return 0U;
@@ -323,7 +313,7 @@ add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 	ktf.tid = tid;
 	ktf.df = df;
 
-	if (UNLIKELY((tmp = tcbdbaddint(g->db, &ktf, sizeof(ktf), 1)) <= 0)) {
+	if (UNLIKELY((tmp = tcbdbaddint(g, &ktf, sizeof(ktf), 1)) <= 0)) {
 		return 0U;
 	}
 	return (gl_freq_t)tmp;
@@ -337,7 +327,7 @@ set_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df, gl_freq_t cf)
 	/* use FRQ_SPACE */
 	ktf.tid = tid;
 	ktf.df = df;
-	return tcbdbput(g->db, &ktf, sizeof(ktf), &cf, sizeof(cf)) - 1;
+	return tcbdbput(g, &ktf, sizeof(ktf), &cf, sizeof(cf)) - 1;
 }
 
 gl_freq_t
@@ -372,7 +362,7 @@ corpus_get_freqs(gl_freq_t ff[static 256U], gl_corpus_t g, gl_crpid_t tid)
 gl_crpiter_t
 corpus_init_iter(gl_corpus_t g)
 {
-	BDBCUR *c = tcbdbcurnew(g->db);
+	BDBCUR *c = tcbdbcurnew(g);
 
 	/* start with the strings */
 	tcbdbcurjump(c, TRM_SPACE, sizeof(TRM_SPACE));
@@ -426,7 +416,7 @@ corpus_init_fiter(gl_corpus_t g, gl_crpid_t tid)
 	ktf.df = 0U;
 
 	/* now then */
-	c = tcbdbcurnew(g->db);
+	c = tcbdbcurnew(g);
 	/* jump to where it's good */
 	tcbdbcurjump(c, &ktf, sizeof(ktf));
 	return c;
@@ -493,7 +483,7 @@ next_doc_id(gl_corpus_t g)
 	static const char nid[] = DID_SPACE;
 	int res;
 
-	if (UNLIKELY((res = tcbdbaddint(g->db, nid, sizeof(nid), 1)) <= 0)) {
+	if (UNLIKELY((res = tcbdbaddint(g, nid, sizeof(nid), 1)) <= 0)) {
 		return 0U;
 	}
 	return (gl_crpid_t)res;
@@ -506,7 +496,7 @@ corpus_get_ndoc(gl_corpus_t g)
 	const void *vp;
 	int z[1];
 
-	if (UNLIKELY((vp = tcbdbget3(g->db, nid, sizeof(nid), z)) == NULL)) {
+	if (UNLIKELY((vp = tcbdbget3(g, nid, sizeof(nid), z)) == NULL)) {
 		return 0U;
 	} else if (*z != sizeof(int)) {
 		return 0U;
@@ -533,7 +523,7 @@ corpus_get_nterm(gl_corpus_t g)
 	const int *vp;
 	int z[1];
 
-	if (UNLIKELY((vp = tcbdbget3(g->db, nid, sizeof(nid), z)) == NULL)) {
+	if (UNLIKELY((vp = tcbdbget3(g, nid, sizeof(nid), z)) == NULL)) {
 		return 0U;
 	} else if (*z != sizeof(*vp)) {
 		return 0U;
@@ -575,7 +565,7 @@ corpus_fsck(gl_corpus_t g)
 
 	/* first off check terms */
 	{
-		BDBCUR *c = tcbdbcurnew(g->db);
+		BDBCUR *c = tcbdbcurnew(g);
 
 		/* jump to where it's good */
 		tcbdbcurjump(c, TRM_SPACE, sizeof(TRM_SPACE));
@@ -604,7 +594,7 @@ corpus_fsck(gl_corpus_t g)
 
 	/* check the old term freq space */
 	{
-		BDBCUR *c = tcbdbcurnew(g->db);
+		BDBCUR *c = tcbdbcurnew(g);
 		gl_crpid_t id = 0U;
 
 		/* jump to old term space */
@@ -634,7 +624,7 @@ corpus_fsck(gl_corpus_t g)
 
 	/* check reverse lookups (tid->term aliases) */
 	{
-		BDBCUR *c = tcbdbcurnew(g->db);
+		BDBCUR *c = tcbdbcurnew(g);
 
 		/* jump to old term space */
 		tcbdbcurjump(c, AKA_SPACE, sizeof(AKA_SPACE));
@@ -674,7 +664,7 @@ corpus_fix(gl_corpus_t g, int problems)
 
 	if (p.no_rev) {
 		/* establish reverse lookups */
-		BDBCUR *c = tcbdbcurnew(g->db);
+		BDBCUR *c = tcbdbcurnew(g);
 		const size_t nterm_by_id = corpus_get_nterm(g);
 
 		/* jump to where it's good */
@@ -706,7 +696,7 @@ corpus_fix(gl_corpus_t g, int problems)
 	if (p.old_cfreq) {
 		/* get the old cfreqs and put them in new cfreq space */
 		/* establish reverse lookups */
-		BDBCUR *c = tcbdbcurnew(g->db);
+		BDBCUR *c = tcbdbcurnew(g);
 		const size_t nterm_by_id = corpus_get_nterm(g);
 		bool outp;
 
