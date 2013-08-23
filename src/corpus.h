@@ -53,6 +53,8 @@ typedef struct gl_crpitit_s gl_crpitit_t;
 typedef void *gl_fiter_t;
 typedef struct gl_fitit_s gl_fitit_t;
 
+typedef struct gl_alias_s gl_alias_t;
+
 /* iterator items */
 struct gl_crpitit_s {
 	const char *term;
@@ -62,6 +64,12 @@ struct gl_crpitit_s {
 struct gl_fitit_s {
 	gl_freq_t tf;
 	gl_freq_t df;
+};
+
+/* aliases */
+struct gl_alias_s {
+	size_t z;
+	const char *s;
 };
 
 
@@ -79,7 +87,16 @@ extern gl_crpid_t corpus_add_term(gl_corpus_t, const char *t);
 
 /**
  * Return term for corpus id TID, or NULL if not present. */
-extern const char *corpus_term(gl_corpus_t, gl_crpid_t tid);
+extern __attribute__((deprecated)) const char*
+corpus_term(gl_corpus_t, gl_crpid_t tid);
+
+/**
+ * Return the textual alias(es) for term TID. */
+extern gl_alias_t corpus_get_alias(gl_corpus_t, gl_crpid_t tid);
+
+/**
+ * Make T an alias for TID. */
+extern gl_alias_t corpus_add_alias(gl_corpus_t, gl_crpid_t tid, const char *t);
 
 /**
  * Return the count of frequency F of term TID. */
