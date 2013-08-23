@@ -57,6 +57,11 @@ struct ctx_s {
 	gl_doc_t d;
 	/* snarf routine to use */
 	gl_crpid_t(*snarf)();
+
+	struct {
+		gl_crpid_t tid;
+		float v;
+	} *idfs;
 };
 
 
@@ -293,7 +298,35 @@ get_maxtf(ctx_t ctx)
 }
 
 static void
-prnt_idf(ctx_t ctx, int augp)
+prnt_idf(gl_crpid_t tid, float tfidf)
+{
+/* the actual printing routine */
+	printf("%u\t%g\n", tid, tfidf);
+	return;
+}
+
+static void
+rec_idf(ctx_t ctx, gl_crpid_t tid, float tfidf, int top)
+{
+	size_t pos;
+
+	if (LIKELY(ctx->idfs[0].v >= tfidf)) {
+		/* definitely no place in the topN */
+		return;
+	}
+	for (pos = 1U; pos < (size_t)top && ctx->idfs[pos].v < tfidf; pos++) {
+		/* bubble down */
+		ctx->idfs[pos - 1U] = ctx->idfs[pos];
+	}
+	/* we found our place */
+	pos--;
+	ctx->idfs[pos].tid = tid;
+	ctx->idfs[pos].v = tfidf;
+	return;
+}
+
+static void
+prnt_idfs(ctx_t ctx, int augp, int top)
 {
 /* output plain old sparse tuples innit */
 	gl_dociter_t di;
@@ -317,6 +350,8 @@ prnt_idf(ctx_t ctx, int augp)
 	for (gl_doctf_t dtf; (dtf = doc_iter_next(ctx->d, di)).tid;) {
 		double cf;
 		double tf;
+		double idf;
+		float ti;
 
 		/* this term's document frequency */
 		if (!augp) {
@@ -326,9 +361,16 @@ prnt_idf(ctx_t ctx, int augp)
 		}
 		/* get this terms corpus frequency */
 		cf = get_cf(ctx, dtf.tid);
+		/* and compute the idf now */
+		idf = log((double)nd / cf);
+		/* and the final result */
+		ti = (float)(tf * idf);
 
-		with (double idf = log((double)nd / cf)) {
-			printf("%u\t%g\n", dtf.tid, tf * idf);
+		if (top) {
+			rec_idf(ctx, dtf.tid, ti, top);
+		} else {
+			prnt_idf(dtf.tid, ti);
+			npr++;
 		}
 	}
 	doc_fini_iter(ctx->d, di);
@@ -484,14 +526,28 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	ctx->d = NULL;
 	ctx->snarf = corpus_get_term;
 
+	if (argi->top_given) {
+		ctx->idfs = calloc(argi->top_arg, sizeof(*ctx->idfs));
+	} else {
+		argi->top_arg = 0;
+	}
+
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
 	for (int r = 1; r > 0;) {
 		prepare(ctx);
 		r = snarf(ctx);
-		prnt_idf(ctx, argi->augmented_given);
+		prnt_idfs(ctx, argi->augmented_given, argi->top_arg);
 		postpare(ctx);
+	}
+	/* might have to print off the top N now */
+	if (argi->top_given) {
+		for (int i = argi->top_arg - 1; i >= 0; i--) {
+			prnt_idf(ctx->idfs[i].tid, ctx->idfs[i].v);
+		}
+		free(ctx->idfs);
+		ctx->idfs = NULL;
 	}
 
 	free_corpus(ctx->c);
