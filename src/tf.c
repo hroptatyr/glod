@@ -306,6 +306,15 @@ prnt_idf(gl_crpid_t tid, float tfidf)
 }
 
 static void
+prnt_ridf(ctx_t ctx, gl_crpid_t tid, float tfidf)
+{
+/* the actual printing routine, with the reverse lookup for TID */
+	gl_alias_t a = corpus_get_alias(ctx->c, tid);
+	printf("%s\t%g\n", a.s, tfidf);
+	return;
+}
+
+static void
 rec_idf(ctx_t ctx, gl_crpid_t tid, float tfidf, int top)
 {
 	size_t pos;
@@ -326,7 +335,7 @@ rec_idf(ctx_t ctx, gl_crpid_t tid, float tfidf, int top)
 }
 
 static void
-prnt_idfs(ctx_t ctx, int augp, int top)
+prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 {
 /* output plain old sparse tuples innit */
 	gl_dociter_t di;
@@ -368,14 +377,16 @@ prnt_idfs(ctx_t ctx, int augp, int top)
 
 		if (top) {
 			rec_idf(ctx, dtf.tid, ti, top);
+		} else if (revp) {
+			prnt_ridf(ctx, dtf.tid, ti);
 		} else {
 			prnt_idf(dtf.tid, ti);
-			npr++;
 		}
+		npr++;
 	}
 	doc_fini_iter(ctx->d, di);
 
-	if (LIKELY(npr > 0U)) {
+	if (LIKELY(npr > 0U) && !top) {
 		puts("\f");
 	}
 	return;
@@ -528,23 +539,31 @@ cmd_idf(struct glod_args_info argi[static 1U])
 
 	if (argi->top_given) {
 		ctx->idfs = calloc(argi->top_arg, sizeof(*ctx->idfs));
-	} else {
-		argi->top_arg = 0;
 	}
 
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
+	const int augp = argi->augmented_given;
+	const int revp = argi->reverse_given;
+	const int topN = argi->top_given ? argi->top_arg : 0;
 	for (int r = 1; r > 0;) {
 		prepare(ctx);
 		r = snarf(ctx);
-		prnt_idfs(ctx, argi->augmented_given, argi->top_arg);
+		prnt_idfs(ctx, augp, topN, revp);
 		postpare(ctx);
 	}
 	/* might have to print off the top N now */
-	if (argi->top_given) {
+	if (topN) {
 		for (int i = argi->top_arg - 1; i >= 0; i--) {
-			prnt_idf(ctx->idfs[i].tid, ctx->idfs[i].v);
+			gl_crpid_t tid = ctx->idfs[i].tid;
+			float v = ctx->idfs[i].v;
+
+			if (revp) {
+				prnt_ridf(ctx, tid, v);
+			} else {
+				prnt_idf(tid, v);
+			}
 		}
 		free(ctx->idfs);
 		ctx->idfs = NULL;

@@ -35,8 +35,7 @@ Note: this operation is NOT idempotent."
 ## cant double list --idf
 text "
 Options affecting the list command:
-      --idf          Also output the idf statistics.
-"
+      --idf          Also output the idf statistics."
 
 option "reverse" r
 	"Go from term id to term string."
@@ -52,6 +51,10 @@ option "augmented" -
 option "top" -
 	"Display the top N idf scores."
 	int typestr="N" optional
+
+text "\
+  -r, --reverse      Also print the term string.
+"
 
 text "
 Options affecting the fsck command:"
