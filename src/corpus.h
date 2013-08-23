@@ -43,7 +43,7 @@
 
 #define GLOD_DFLT_CORPUS	"corpus.tcb"
 
-typedef struct gl_corpus_s *restrict gl_corpus_t;
+typedef void *gl_corpus_t;
 typedef unsigned int gl_crpid_t;
 typedef unsigned int gl_freq_t;
 
