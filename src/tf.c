@@ -298,7 +298,7 @@ get_maxtf(ctx_t ctx)
 }
 
 static void
-prnt_idf(gl_crpid_t tid, float tfidf)
+prnt_idf(ctx_t UNUSED(ctx), gl_crpid_t tid, float tfidf)
 {
 /* the actual printing routine */
 	printf("%u\t%g\n", tid, tfidf);
@@ -342,6 +342,7 @@ prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 	double max;
 	size_t npr = 0U;
 	size_t nd;
+	void(*prnt)(ctx_t, gl_crpid_t, float) = prnt_idf;
 
 	if (UNLIKELY(ctx->d == NULL)) {
 		/* nothing recorded, may happen in reverse mode */
@@ -349,6 +350,16 @@ prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 	} else if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
 		/* no document count, no need to do idf analysis then */
 		return;
+	}
+
+	/* rinse the top buckets */
+	if (top) {
+		memset(ctx->idfs, 0, top * sizeof(*ctx->idfs));
+	}
+
+	/* pick a printer */
+	if (revp) {
+		prnt = prnt_ridf;
 	}
 
 	/* pre-compute max tf here */
@@ -377,16 +388,17 @@ prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 
 		if (top) {
 			rec_idf(ctx, dtf.tid, ti, top);
-		} else if (revp) {
-			prnt_ridf(ctx, dtf.tid, ti);
 		} else {
-			prnt_idf(dtf.tid, ti);
+			prnt(ctx, dtf.tid, ti);
 		}
 		npr++;
 	}
 	doc_fini_iter(ctx->d, di);
 
-	if (LIKELY(npr > 0U) && !top) {
+	if (LIKELY(npr > 0U)) {
+		for (int i = top - 1; i >= 0; i--) {
+			prnt(ctx, ctx->idfs[i].tid, ctx->idfs[i].v);
+		}
 		puts("\f");
 	}
 	return;
@@ -555,16 +567,6 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 	/* might have to print off the top N now */
 	if (topN) {
-		for (int i = argi->top_arg - 1; i >= 0; i--) {
-			gl_crpid_t tid = ctx->idfs[i].tid;
-			float v = ctx->idfs[i].v;
-
-			if (revp) {
-				prnt_ridf(ctx, tid, v);
-			} else {
-				prnt_idf(tid, v);
-			}
-		}
 		free(ctx->idfs);
 		ctx->idfs = NULL;
 	}
