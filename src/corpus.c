@@ -265,17 +265,6 @@ add_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 	return (gl_freq_t)tmp;
 }
 
-static int
-set_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df, gl_freq_t cf)
-{
-/* for internal use, directly assign corpus frequency CF to tid+df */
-
-	/* use FRQ_SPACE */
-	ktf.tid = tid;
-	ktf.df = df;
-	return tcbdbput(g, &ktf, sizeof(ktf), &cf, sizeof(cf)) - 1;
-}
-
 gl_freq_t
 corpus_get_freq(gl_corpus_t g, gl_crpid_t tid, gl_freq_t df)
 {
@@ -505,7 +494,6 @@ corpus_fsck(gl_corpus_t g)
 {
 	union gl_crpprobl_u res = {0};
 	size_t ntrm;
-	size_t nfreq_old;
 	size_t nrev;
 	const size_t nterm_by_id = corpus_get_nterm(g);
 
@@ -538,36 +526,6 @@ corpus_fsck(gl_corpus_t g)
 		tcbdbcurdel(c);
 	}
 
-	/* check the old term freq space */
-	{
-		BDBCUR *c = tcbdbcurnew(g);
-		gl_crpid_t id = 0U;
-
-		/* jump to old term space */
-		tcbdbcurjump(c, &id, sizeof(id));
-
-		nfreq_old = 0U;
-		do {
-			const char *kp;
-			int kz[1];
-
-			if ((kp = tcbdbcurkey3(c, kz)) == NULL) {
-				break;
-			} else if (*kz != sizeof(gl_crpid_t)) {
-				continue;
-			} else if (be32toh(*(const gl_crpid_t*)kp) >> 8U >
-				   nterm_by_id) {
-				break;
-			} else if (*kp >= *DID_SPACE &&
-				   !old_freq_p(kp, *kz, nterm_by_id)) {
-				continue;
-			}
-			nfreq_old++;
-		} while (tcbdbcurnext(c));
-
-		tcbdbcurdel(c);
-	}
-
 	/* check reverse lookups (tid->term aliases) */
 	{
 		BDBCUR *c = tcbdbcurnew(g);
@@ -593,9 +551,6 @@ corpus_fsck(gl_corpus_t g)
 
 	if (ntrm > nterm_by_id) {
 		res.nterm_mismatch = 1U;
-	}
-	if (nfreq_old > 0U) {
-		res.old_cfreq = 1U;
 	}
 	if (nrev == 0U) {
 		res.no_rev = 1U;
@@ -639,53 +594,6 @@ corpus_fix(gl_corpus_t g, int problems)
 		p.no_rev = 0U;
 	}
 
-	if (p.old_cfreq) {
-		/* get the old cfreqs and put them in new cfreq space */
-		/* establish reverse lookups */
-		BDBCUR *c = tcbdbcurnew(g);
-		const size_t nterm_by_id = corpus_get_nterm(g);
-		bool outp;
-
-		/* jump to the very beginning of time */
-		tcbdbcurfirst(c);
-
-		do {
-			const char *kp;
-			const gl_freq_t *vp;
-			gl_crpid_t tff;
-			int kz[1];
-
-			/* indicates whether out was successful */
-			outp = false;
-
-			if ((kp = tcbdbcurkey3(c, kz)) == NULL) {
-				break;
-			} else if (*kz != sizeof(gl_crpid_t)) {
-				continue;
-			}
-			/* snarf id+freq and dissect */
-			tff = be32toh(*(const gl_crpid_t*)kp);
-			if (tff >> 8U > nterm_by_id) {
-				break;
-			} else if (*kp >= *DID_SPACE &&
-				   !old_freq_p(kp, *kz, nterm_by_id)) {
-				continue;
-			} else if ((vp = tcbdbcurval3(c, kz)) == NULL) {
-				break;
-			} else if (*kz != sizeof(gl_crpid_t)) {
-				continue;
-			}
-
-			/* snarf the ids and freqs */
-			with (gl_freq_t cf = *vp) {
-				set_freq(g, tff >> 8U, tff & 0xffU, cf);
-			}
-			outp = tcbdbcurout(c);
-		} while (outp || tcbdbcurnext(c));
-
-		tcbdbcurdel(c);
-		p.old_cfreq = 0U;
-	}
 	return p.i;
 }
 
