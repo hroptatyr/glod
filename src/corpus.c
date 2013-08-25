@@ -215,60 +215,6 @@ corpus_add_alias(gl_corpus_t g, gl_crpid_t tid, const char *t)
 	return r;
 }
 
-
-static void
-fill_rev(const char **terms, size_t termz, gl_corpus_t g, size_t nterms)
-{
-/* read terms between NTERMS and TERMZ and append them to array */
-	BDBCUR *c = tcbdbcurnew(g);
-
-#define B	(const_buf_t)
-	tcbdbcurjump(c, NULL, 0);
-	do {
-		int z[2];
-		unsigned int vi;
-		const char *kp;
-		const unsigned int *vp;
-
-		if (UNLIKELY((kp = tcbdbcurkey3(c, z + 0)) == NULL) ||
-		    UNLIKELY((vp = tcbdbcurval3(c, z + 1)) == NULL)) {
-			break;
-		} else if ((vi = *vp) > termz) {
-			continue;
-		} else if (vi < nterms) {
-			/* already in the terms table */
-			continue;
-		}
-		/* just strdup should be ok for now */
-		terms[vi] = strndup(kp, z[0]);
-	} while (tcbdbcurnext(c));
-#undef B
-
-	tcbdbcurdel(c);
-	return;
-}
-
-const char*
-corpus_term(gl_corpus_t g, gl_crpid_t tid)
-{
-	/* partially reversed corpus */
-	static const char **grev;
-	static size_t nrev;
-
-	if (tid < nrev) {
-		/* straight to big bang */
-		goto out;
-	}
-	/* otherwise read some more */
-	with (size_t nu = ((tid / 256U) + 1U) * 256U) {
-		grev = realloc(grev, nu * sizeof(*grev));
-		fill_rev(grev, nu, g, nrev);
-		nrev = nu;
-	}
-out:
-	return grev[tid];
-}
-
 
 /* freq counting */
 #define MAX_TID		((gl_crpid_t)16777215U)
