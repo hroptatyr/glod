@@ -631,9 +631,6 @@ cmd_fsck(struct glod_args_info argi[static 1U])
 			if (p.nterm_mismatch) {
 				puts("term count and nterm mismatch");
 			}
-			if (p.old_cfreq) {
-				puts("old corpus-wide frequencies");
-			}
 			if (p.no_rev) {
 				puts("no reverse lookups");
 			}

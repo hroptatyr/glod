@@ -78,7 +78,7 @@ union gl_crpprobl_u {
 	int i;
 	struct {
 		unsigned int nterm_mismatch:1;
-		unsigned int old_cfreq:1;
+		unsigned int:1;
 		unsigned int no_rev:1;
 	};
 };
