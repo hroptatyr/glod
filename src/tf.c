@@ -56,7 +56,6 @@ typedef struct ctx_s ctx_t[1];
 
 struct ctx_s {
 	gl_corpus_t c;
-	gl_doc_t d;
 	/* snarf routine to use */
 	gl_crpid_t(*snarf)();
 
@@ -65,6 +64,12 @@ struct ctx_s {
 		float v;
 	} *idfs;
 };
+
+#define PREP()		struct cocore *this = initialise_cocore_thread()
+#define START(x, ctx)							\
+	create_cocore(this, (x), (ctx), sizeof(*(ctx)), this, 0U, false, 0)
+#define NEXT(x)		(check_cocore(x) ? switch_cocore((x), this) : NULL)
+#define YIELD(x)	switch_cocore((arg), (void*)(intptr_t)(x))
 
 
 static void
@@ -175,52 +180,11 @@ __corpus_lidf_r(gl_corpus_t c, const char *ln)
 }
 
 
-/* the trilogy of co-routines, prep work, then snarfing, then printing */
-static void
-prepare(ctx_t ctx)
-{
-	ctx->d = make_doc();
-	return;
-}
-
-static void
-postpare(ctx_t ctx)
-{
-	free_doc(ctx->d);
-	return;
-}
-
-static int
-snarf(ctx_t ctx)
-{
-	static char *line = NULL;
-	static size_t llen = 0U;
-	ssize_t nrd;
-
-	while ((nrd = getline(&line, &llen, stdin)) > 0) {
-		gl_crpid_t id;
-
-		/* check for form feeds, and maybe yield */
-		if (*line == '\f') {
-			goto out;
-		}
-		line[nrd - 1] = '\0';
-		if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
-			doc_add_term(ctx->d, id);
-		}
-	}
-	free(line);
-	line = NULL;
-	llen = 0U;
-out:
-	return (int)nrd;
-}
-
+/* a hierarchy of co-routines */
 static void*
 co_snarf(void *coctx, void *arg)
 {
 /* coroutine version of SNARF() */
-#define YIELD(x)	switch_cocore((arg), (void*)(intptr_t)(x))
 	struct ctx_s *ctx = coctx;
 	static char *line = NULL;
 	static size_t llen = 0U;
@@ -251,28 +215,22 @@ co_snarf(void *coctx, void *arg)
 	/* final yield */
 	YIELD(d);
 	free_doc(d);
-#undef YIELD
 	return 0;
 }
 
 static void
-print(ctx_t ctx)
+print(gl_doc_t d)
 {
 /* output plain old sparse tuples innit */
 	size_t npr = 0U;
 	gl_dociter_t di;
 
-	if (UNLIKELY(ctx->d == NULL)) {
-		/* nothing recorded, may happen in reverse mode */
-		return;
-	}
-
-	di = doc_init_iter(ctx->d);
-	for (gl_doctf_t tf; (tf = doc_iter_next(ctx->d, di)).tid;) {
+	di = doc_init_iter(d);
+	for (gl_doctf_t tf; (tf = doc_iter_next(d, di)).tid;) {
 		printf("%u\t%u\n", tf.tid, tf.f);
 		npr++;
 	}
-	doc_fini_iter(ctx->d, di);
+	doc_fini_iter(d, di);
 
 	if (LIKELY(npr > 0U)) {
 		puts("\f");
@@ -281,24 +239,19 @@ print(ctx_t ctx)
 }
 
 static void
-upd_idf(ctx_t ctx)
+upd_idf(gl_corpus_t c, gl_doc_t d)
 {
 /* take information from the tf vector and update the doc freqs */
 	gl_dociter_t di;
 
-	if (UNLIKELY(ctx->d == NULL)) {
-		/* nothing recorded, just bugger off */
-		return;
+	di = doc_init_iter(d);
+	for (gl_doctf_t tf; (tf = doc_iter_next(d, di)).tid;) {
+		corpus_add_freq(c, tf.tid, tf.f);
 	}
-
-	di = doc_init_iter(ctx->d);
-	for (gl_doctf_t tf; (tf = doc_iter_next(ctx->d, di)).tid;) {
-		corpus_add_freq(ctx->c, tf.tid, tf.f);
-	}
-	doc_fini_iter(ctx->d, di);
+	doc_fini_iter(d, di);
 
 	/* also up the doc counter */
-	corpus_add_ndoc(ctx->c);
+	corpus_add_ndoc(c);
 	return;
 }
 
@@ -471,13 +424,13 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 	const char *db = GLOD_DFLT_CORPUS;
 	static struct ctx_s ctx[1];
 	int oflags;
+	struct cocore *snarf;
 
 	if (argi->corpus_given) {
 		db = argi->corpus_arg;
 	}
 
 	/* initialise the freq vector */
-	ctx->d = NULL;
 	if (addp) {
 		ctx->snarf = corpus_add_term;
 	} else {
@@ -496,19 +449,19 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 		return 1;
 	}
 
+	PREP();
+	snarf = START(co_snarf, ctx);
+
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
-	for (int r = 1; r > 0;) {
-		prepare(ctx);
-		r = snarf(ctx);
+	for (gl_doc_t d; (d = NEXT(snarf)) != NULL;) {
 		if (argi->idf_given) {
-			upd_idf(ctx);
+			upd_idf(ctx->c, d);
 		}
 		if (argi->verbose_given) {
-			print(ctx);
+			print(d);
 		}
-		postpare(ctx);
 	}
 
 	free_corpus(ctx->c);
@@ -521,6 +474,7 @@ cmd_list(struct glod_args_info argi[static 1U])
 	const char *db = GLOD_DFLT_CORPUS;
 	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
+	struct cocore *snarf;
 
 	if (argi->corpus_given) {
 		db = argi->corpus_arg;
@@ -543,6 +497,9 @@ cmd_list(struct glod_args_info argi[static 1U])
 		ctx->snarf = __corpus_lidf_r;
 	}
 
+	PREP();
+	snarf = START(co_snarf, ctx);
+
 	if (argi->inputs_num > 1U) {
 		/* list the ones on the command line */
 		for (unsigned i = 1U; i < argi->inputs_num; i++) {
@@ -550,7 +507,7 @@ cmd_list(struct glod_args_info argi[static 1U])
 		}
 	} else if (!isatty(STDIN_FILENO)) {
 		/* list terms from stdin */
-		while (snarf(ctx) > 0);
+		while (NEXT(snarf) != NULL);
 	} else {
 		/* list everything, only without --idf */
 		gl_crpiter_t i = corpus_init_iter(ctx->c);
@@ -572,8 +529,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	const char *db = GLOD_DFLT_CORPUS;
 	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
-	static struct cocore *par;
-	struct cocore *coru;
+	struct cocore *snarf;
 
 	if (argi->corpus_given) {
 		db = argi->corpus_arg;
@@ -593,10 +549,8 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 
 	/* coroutine allocation */
-	initialise_cocore();
-	par = initialise_cocore_thread();
-	coru = create_cocore(par, co_snarf, ctx, sizeof(*ctx), par, 0U, false, 0);
-#define START(x)	switch_cocore((x), par)
+	PREP();
+	snarf = START(co_snarf, ctx);
 
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
@@ -604,9 +558,10 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	const int augp = argi->augmented_given;
 	const int revp = argi->reverse_given;
 	const int topN = argi->top_given ? argi->top_arg : 0;
-	for (gl_doc_t d; check_cocore(coru) && (d = START(coru));) {
+	for (gl_doc_t d; (d = NEXT(snarf));) {
 		prnt_idfs(ctx, d, augp, topN, revp);
 	}
+
 	/* might have to print off the top N now */
 	if (topN) {
 		free(ctx->idfs);
@@ -614,7 +569,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 
 	terminate_cocore_thread();
-#undef START
+#undef NEXT
 
 	free_corpus(ctx->c);
 	return 0;
@@ -707,6 +662,8 @@ main(int argc, char *argv[])
 		res = 1;
 		goto out;
 	}
+
+	initialise_cocore();
 
 	/* check the commands */
 	with (const char *cmd = argi->inputs[0U]) {
