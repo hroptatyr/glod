@@ -42,7 +42,7 @@
 #include <stdarg.h>
 #include "corpus.h"
 
-typedef void *gl_doc_t;
+typedef struct gl_doc_s *gl_doc_t;
 typedef struct gl_doctf_s gl_doctf_t;
 
 typedef void *gl_dociter_t;
@@ -59,6 +59,9 @@ struct gl_doctf_s {
 extern gl_doc_t make_doc(void);
 /** document dtor */
 extern void free_doc(gl_doc_t);
+
+/** document reset */
+extern void rset_doc(gl_doc_t);
 
 /**
  * Get a term's frequency from internal document D. */

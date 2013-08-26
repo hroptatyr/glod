@@ -55,7 +55,7 @@ static const gl_doctf_t null_term;
 gl_doc_t
 make_doc(void)
 {
-	gl_doc_t res;
+	void *res;
 
 	if (UNLIKELY((res = tcmapnew()) == NULL)) {
 		return NULL;
@@ -67,7 +67,14 @@ make_doc(void)
 void
 free_doc(gl_doc_t d)
 {
-	tcmapdel(d);
+	tcmapdel((void*)d);
+	return;
+}
+
+void
+rset_doc(gl_doc_t d)
+{
+	tcmapclear((void*)d);
 	return;
 }
 
@@ -75,10 +82,11 @@ free_doc(gl_doc_t d)
 static gl_freq_t
 get_tid(gl_doc_t d, gl_crpid_t tid)
 {
+	const void *pd = d;
 	const int *rp;
 	int rz[1];
 
-	if (UNLIKELY((rp = tcmapget(d, &tid, sizeof(tid), rz)) == NULL)) {
+	if (UNLIKELY((rp = tcmapget(pd, &tid, sizeof(tid), rz)) == NULL)) {
 		return 0U;
 	} else if (UNLIKELY(*rz != sizeof(*rp))) {
 		return 0U;
@@ -89,7 +97,7 @@ get_tid(gl_doc_t d, gl_crpid_t tid)
 static gl_freq_t
 inc_tid(gl_doc_t d, gl_crpid_t tid)
 {
-	int sum = tcmapaddint(d, &tid, sizeof(tid), 1);
+	int sum = tcmapaddint((void*)d, &tid, sizeof(tid), 1);
 	return sum;
 }
 
@@ -97,7 +105,7 @@ static __attribute__((unused)) gl_crpid_t
 put_alias(gl_doc_t d, gl_crpid_t tid, const char *t, size_t z)
 {
 /* make T,Z an alias for TID. */
-	tcmapput(d, t, z, &tid, sizeof(tid));
+	tcmapput((void*)d, t, z, &tid, sizeof(tid));
 	return tid;
 }
 
@@ -118,7 +126,7 @@ doc_add_term(gl_doc_t d, gl_crpid_t tid)
 gl_dociter_t
 doc_init_iter(gl_doc_t d)
 {
-	tcmapiterinit(d);
+	tcmapiterinit((void*)d);
 	return d;
 }
 
