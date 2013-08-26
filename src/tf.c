@@ -50,6 +50,8 @@
 #include "doc.h"
 #include "nifty.h"
 
+#include "cothread/cocore.h"
+
 typedef struct ctx_s ctx_t[1];
 
 struct ctx_s {
@@ -212,6 +214,40 @@ snarf(ctx_t ctx)
 	llen = 0U;
 out:
 	return (int)nrd;
+}
+
+static struct cocore *par;
+
+static void*
+co_snarf(void *UNUSED(coctx), void *arg)
+{
+/* coroutine version of SNARF() */
+	struct ctx_s *ctx = arg;
+	static char *line = NULL;
+	static size_t llen = 0U;
+	ssize_t nrd;
+
+	while ((nrd = getline(&line, &llen, stdin)) > 0) {
+		gl_crpid_t id;
+
+		/* check for form feeds, and maybe yield */
+		if (*line == '\f') {
+			if (!check_cocore(par)) {
+				/* cluster fuck */
+				fputs("cannot yield\n", stderr);
+				break;
+			}
+			switch_cocore(par, (void*)(intptr_t)nrd);
+		}
+		line[nrd - 1] = '\0';
+		if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
+			doc_add_term(ctx->d, id);
+		}
+	}
+	free(line);
+	line = NULL;
+	llen = 0U;
+	return 0;
 }
 
 static void
@@ -534,6 +570,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	const char *db = GLOD_DFLT_CORPUS;
 	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
+	struct cocore *coru;
 
 	if (argi->corpus_given) {
 		db = argi->corpus_arg;
@@ -553,15 +590,20 @@ cmd_idf(struct glod_args_info argi[static 1U])
 		ctx->idfs = calloc(argi->top_arg, sizeof(*ctx->idfs));
 	}
 
+	/* coroutine allocation */
+	initialise_cocore();
+	par = initialise_cocore_thread();
+	coru = create_cocore(par, co_snarf, NULL, 0U, par, 0U, false, 0);
+
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
 	const int augp = argi->augmented_given;
 	const int revp = argi->reverse_given;
 	const int topN = argi->top_given ? argi->top_arg : 0;
-	for (int r = 1; r > 0;) {
+	for (void *r = (void*)0x1; r != NULL && check_cocore(coru);) {
 		prepare(ctx);
-		r = snarf(ctx);
+		r = switch_cocore(coru, ctx);
 		prnt_idfs(ctx, augp, topN, revp);
 		postpare(ctx);
 	}
@@ -570,6 +612,8 @@ cmd_idf(struct glod_args_info argi[static 1U])
 		free(ctx->idfs);
 		ctx->idfs = NULL;
 	}
+
+	terminate_cocore_thread();
 
 	free_corpus(ctx->c);
 	return 0;

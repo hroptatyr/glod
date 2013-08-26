@@ -115,6 +115,7 @@ tf_CPPFLAGS += -D_GNU_SOURCE
 tf_LDFLAGS = $(AM_LDFLAGS)
 tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
+tf_LDADD += libcothr.a
 BUILT_SOURCES += tf.x tf.xh
 
 noinst_PROGRAMS += porter-stemmer
