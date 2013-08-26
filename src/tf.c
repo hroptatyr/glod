@@ -216,37 +216,42 @@ out:
 	return (int)nrd;
 }
 
-static struct cocore *par;
-
 static void*
-co_snarf(void *UNUSED(coctx), void *arg)
+co_snarf(void *coctx, void *arg)
 {
 /* coroutine version of SNARF() */
-	struct ctx_s *ctx = arg;
+#define YIELD(x)	switch_cocore((arg), (void*)(intptr_t)(x))
+	struct ctx_s *ctx = coctx;
 	static char *line = NULL;
 	static size_t llen = 0U;
 	ssize_t nrd;
+	gl_doc_t d;
+
+	d = make_doc();
 
 	while ((nrd = getline(&line, &llen, stdin)) > 0) {
 		gl_crpid_t id;
 
 		/* check for form feeds, and maybe yield */
-		if (*line == '\f') {
-			if (!check_cocore(par)) {
-				/* cluster fuck */
-				fputs("cannot yield\n", stderr);
-				break;
+		if (LIKELY(*line != '\f')) {
+			line[nrd - 1] = '\0';
+			if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
+				doc_add_term(d, id);
 			}
-			switch_cocore(par, (void*)(intptr_t)nrd);
-		}
-		line[nrd - 1] = '\0';
-		if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
-			doc_add_term(ctx->d, id);
+		} else {
+			/* yield and reset the doc map */
+			YIELD(d);
+			rset_doc(d);
 		}
 	}
 	free(line);
 	line = NULL;
 	llen = 0U;
+
+	/* final yield */
+	YIELD(d);
+	free_doc(d);
+#undef YIELD
 	return 0;
 }
 
@@ -298,43 +303,43 @@ upd_idf(ctx_t ctx)
 }
 
 static gl_freq_t
-get_tf(ctx_t ctx, gl_crpid_t tid)
+get_tf(gl_doc_t d, gl_crpid_t tid)
 {
-	return doc_get_term(ctx->d, tid);
+	return doc_get_term(d, tid);
 }
 
 static gl_freq_t
-get_cf(ctx_t ctx, gl_crpid_t tid)
+get_cf(gl_corpus_t c, gl_crpid_t tid)
 {
 	gl_fiter_t it;
 	gl_freq_t cf = 0U;
 
-	it = corpus_init_fiter(ctx->c, tid);
-	for (gl_fitit_t f; (f = corpus_fiter_next(ctx->c, it)).df;) {
+	it = corpus_init_fiter(c, tid);
+	for (gl_fitit_t f; (f = corpus_fiter_next(c, it)).df;) {
 		cf += f.cf;
 	}
-	corpus_fini_fiter(ctx->c, it);
+	corpus_fini_fiter(c, it);
 	return cf;
 }
 
 static gl_freq_t
-get_maxtf(ctx_t ctx)
+get_maxtf(gl_doc_t d)
 {
 	gl_dociter_t di;
 	gl_freq_t max = 0U;
 
-	di = doc_init_iter(ctx->d);
-	for (gl_doctf_t tf; (tf = doc_iter_next(ctx->d, di)).tid;) {
+	di = doc_init_iter(d);
+	for (gl_doctf_t tf; (tf = doc_iter_next(d, di)).tid;) {
 		if (tf.f > max) {
 			max = tf.f;
 		}
 	}
-	doc_fini_iter(ctx->d, di);
+	doc_fini_iter(d, di);
 	return max;
 }
 
 static void
-prnt_idf(ctx_t UNUSED(ctx), gl_crpid_t tid, float tfidf)
+prnt_idf(gl_corpus_t UNUSED(c), gl_crpid_t tid, float tfidf)
 {
 /* the actual printing routine */
 	printf("%u\t%g\n", tid, tfidf);
@@ -342,10 +347,10 @@ prnt_idf(ctx_t UNUSED(ctx), gl_crpid_t tid, float tfidf)
 }
 
 static void
-prnt_ridf(ctx_t ctx, gl_crpid_t tid, float tfidf)
+prnt_ridf(gl_corpus_t c, gl_crpid_t tid, float tfidf)
 {
 /* the actual printing routine, with the reverse lookup for TID */
-	gl_alias_t a = corpus_get_alias(ctx->c, tid);
+	gl_alias_t a = corpus_get_alias(c, tid);
 	printf("%s\t%g\n", a.s, tfidf);
 	return;
 }
@@ -371,19 +376,16 @@ rec_idf(ctx_t ctx, gl_crpid_t tid, float tfidf, int top)
 }
 
 static void
-prnt_idfs(ctx_t ctx, int augp, int top, int revp)
+prnt_idfs(ctx_t ctx, gl_doc_t d, int augp, int top, int revp)
 {
 /* output plain old sparse tuples innit */
 	gl_dociter_t di;
 	double max;
 	size_t npr = 0U;
 	size_t nd;
-	void(*prnt)(ctx_t, gl_crpid_t, float) = prnt_idf;
+	void(*prnt)(gl_corpus_t, gl_crpid_t, float) = prnt_idf;
 
-	if (UNLIKELY(ctx->d == NULL)) {
-		/* nothing recorded, may happen in reverse mode */
-		return;
-	} else if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
+	if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
 		/* no document count, no need to do idf analysis then */
 		return;
 	}
@@ -400,10 +402,10 @@ prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 
 	/* pre-compute max tf here */
 	if (augp) {
-		max = get_maxtf(ctx);
+		max = get_maxtf(d);
 	}
-	di = doc_init_iter(ctx->d);
-	for (gl_doctf_t dtf; (dtf = doc_iter_next(ctx->d, di)).tid;) {
+	di = doc_init_iter(d);
+	for (gl_doctf_t dtf; (dtf = doc_iter_next(d, di)).tid;) {
 		double cf;
 		double tf;
 		double idf;
@@ -411,12 +413,12 @@ prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 
 		/* this term's document frequency */
 		if (!augp) {
-			tf = get_tf(ctx, dtf.tid);
+			tf = get_tf(d, dtf.tid);
 		} else {
-			tf = 0.5 + 0.5 * get_tf(ctx, dtf.tid) / max;
+			tf = 0.5 + 0.5 * get_tf(d, dtf.tid) / max;
 		}
 		/* get this terms corpus frequency */
-		cf = get_cf(ctx, dtf.tid);
+		cf = get_cf(ctx->c, dtf.tid);
 		/* and compute the idf now */
 		idf = log((double)nd / cf);
 		/* and the final result */
@@ -425,15 +427,15 @@ prnt_idfs(ctx_t ctx, int augp, int top, int revp)
 		if (top) {
 			rec_idf(ctx, dtf.tid, ti, top);
 		} else {
-			prnt(ctx, dtf.tid, ti);
+			prnt(ctx->c, dtf.tid, ti);
 		}
 		npr++;
 	}
-	doc_fini_iter(ctx->d, di);
+	doc_fini_iter(d, di);
 
 	if (LIKELY(npr > 0U)) {
 		for (int i = top - 1; i >= 0; i--) {
-			prnt(ctx, ctx->idfs[i].tid, ctx->idfs[i].v);
+			prnt(ctx->c, ctx->idfs[i].tid, ctx->idfs[i].v);
 		}
 		puts("\f");
 	}
@@ -570,6 +572,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	const char *db = GLOD_DFLT_CORPUS;
 	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
+	static struct cocore *par;
 	struct cocore *coru;
 
 	if (argi->corpus_given) {
@@ -583,7 +586,6 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 
 	/* initialise the freq vector */
-	ctx->d = NULL;
 	ctx->snarf = corpus_get_term;
 
 	if (argi->top_given) {
@@ -593,7 +595,8 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	/* coroutine allocation */
 	initialise_cocore();
 	par = initialise_cocore_thread();
-	coru = create_cocore(par, co_snarf, NULL, 0U, par, 0U, false, 0);
+	coru = create_cocore(par, co_snarf, ctx, sizeof(*ctx), par, 0U, false, 0);
+#define START(x)	switch_cocore((x), par)
 
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
@@ -601,11 +604,8 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	const int augp = argi->augmented_given;
 	const int revp = argi->reverse_given;
 	const int topN = argi->top_given ? argi->top_arg : 0;
-	for (void *r = (void*)0x1; r != NULL && check_cocore(coru);) {
-		prepare(ctx);
-		r = switch_cocore(coru, ctx);
-		prnt_idfs(ctx, augp, topN, revp);
-		postpare(ctx);
+	for (gl_doc_t d; check_cocore(coru) && (d = START(coru));) {
+		prnt_idfs(ctx, d, augp, topN, revp);
 	}
 	/* might have to print off the top N now */
 	if (topN) {
@@ -614,6 +614,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 
 	terminate_cocore_thread();
+#undef START
 
 	free_corpus(ctx->c);
 	return 0;
