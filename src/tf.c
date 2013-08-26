@@ -188,6 +188,8 @@ co_snarf(void *coctx, void *arg)
 	struct ctx_s *ctx = coctx;
 	static char *line = NULL;
 	static size_t llen = 0U;
+	gl_corpus_t c = ctx->c;
+	gl_crpid_t(*reslv)(gl_corpus_t, const char*) = ctx->snarf;
 	ssize_t nrd;
 	gl_doc_t d;
 
@@ -199,7 +201,7 @@ co_snarf(void *coctx, void *arg)
 		/* check for form feeds, and maybe yield */
 		if (LIKELY(*line != '\f')) {
 			line[nrd - 1] = '\0';
-			if ((id = ctx->snarf(ctx->c, line)) < (gl_crpid_t)-1) {
+			if ((id = reslv(c, line)) < (gl_crpid_t)-1) {
 				doc_add_term(d, id);
 			}
 		} else {
