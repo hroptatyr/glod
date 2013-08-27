@@ -52,24 +52,29 @@
 
 #include "cothread/cocore.h"
 
-typedef struct ctx_s ctx_t[1];
-
-struct ctx_s {
-	gl_corpus_t c;
-	/* snarf routine to use */
-	gl_crpid_t(*snarf)();
-
-	struct {
-		gl_crpid_t tid;
-		float v;
-	} *idfs;
-};
-
-#define PREP()		struct cocore *this = initialise_cocore_thread()
+#define PREP()		initialise_cocore_thread()
 #define START(x, ctx)							\
-	create_cocore(this, (x), (ctx), sizeof(*(ctx)), this, 0U, false, 0)
-#define NEXT(x)		(check_cocore(x) ? switch_cocore((x), this) : NULL)
-#define YIELD(x)	switch_cocore((arg), (void*)(intptr_t)(x))
+	({								\
+		struct cocore *next = (ctx)->next;			\
+		create_cocore(						\
+			next, (cocore_action_t)(x),			\
+			(ctx), sizeof(*(ctx)),				\
+			next, 0U, false, 0);				\
+	})
+#define NEXT1(x, o)	(check_cocore(x) ? switch_cocore((x), (o)) : NULL)
+#define NEXT(x)		NEXT1(x, NULL)
+#define YIELD(x)	switch_cocore(CORU_CLOSUR(next), (void*)(intptr_t)(x))
+
+#define DEFCORU(name, closure, arg)			\
+	struct name##_s {				\
+		struct cocore *next;			\
+		struct closure;				\
+	};						\
+	static void *name(struct name##_s *ctx, arg)
+#define CORU_CLOSUR(x)	(ctx->x)
+#define CORU_STRUCT(x)	struct x##_s
+#define PACK(x, args...)	&((CORU_STRUCT(x)){args})
+#define START_PACK(x, args...)	START(x, PACK(x, args))
 
 
 static void
@@ -181,17 +186,17 @@ __corpus_lidf_r(gl_corpus_t c, const char *ln)
 
 
 /* a hierarchy of co-routines */
-static void*
-co_snarf(void *coctx, void *arg)
+DEFCORU(co_snarf, {
+		gl_corpus_t c;
+		gl_crpid_t(*reslv)(gl_corpus_t, const char*);
+	}, void *UNUSED(arg))
 {
 /* coroutine version of SNARF() */
-	struct ctx_s *ctx = coctx;
 	static char *line = NULL;
 	static size_t llen = 0U;
-	gl_corpus_t c = ctx->c;
-	gl_crpid_t(*reslv)(gl_corpus_t, const char*) = ctx->snarf;
 	ssize_t nrd;
 	gl_doc_t d;
+	const gl_corpus_t c = CORU_CLOSUR(c);
 
 	d = make_doc();
 
@@ -200,8 +205,10 @@ co_snarf(void *coctx, void *arg)
 
 		/* check for form feeds, and maybe yield */
 		if (LIKELY(*line != '\f')) {
+			const gl_crpid_t cutoff = -1;
+
 			line[nrd - 1] = '\0';
-			if ((id = reslv(c, line)) < (gl_crpid_t)-1) {
+			if ((id = CORU_CLOSUR(reslv)(c, line)) < cutoff) {
 				doc_add_term(d, id);
 			}
 		} else {
@@ -257,6 +264,8 @@ upd_idf(gl_corpus_t c, gl_doc_t d)
 	return;
 }
 
+
+/* actual idf calculation */
 static gl_freq_t
 get_tf(gl_doc_t d, gl_crpid_t tid)
 {
@@ -310,91 +319,124 @@ prnt_ridf(gl_corpus_t c, gl_crpid_t tid, float tfidf)
 	return;
 }
 
+
+struct idf_s {
+	gl_crpid_t tid;
+	float v;
+};
+
 static void
-rec_idf(ctx_t ctx, gl_crpid_t tid, float tfidf, int top)
+rec_idf(struct idf_s *restrict idfs, gl_crpid_t tid, float tfidf, size_t top)
 {
 	size_t pos;
 
-	if (LIKELY(ctx->idfs[0].v >= tfidf)) {
+	if (LIKELY(idfs[0].v >= tfidf)) {
 		/* definitely no place in the topN */
 		return;
 	}
-	for (pos = 1U; pos < (size_t)top && ctx->idfs[pos].v < tfidf; pos++) {
+	for (pos = 1U; pos < (size_t)top && idfs[pos].v < tfidf; pos++) {
 		/* bubble down */
-		ctx->idfs[pos - 1U] = ctx->idfs[pos];
+		idfs[pos - 1U] = idfs[pos];
 	}
 	/* we found our place */
 	pos--;
-	ctx->idfs[pos].tid = tid;
-	ctx->idfs[pos].v = tfidf;
+	idfs[pos].tid = tid;
+	idfs[pos].v = tfidf;
 	return;
 }
 
-static void
-prnt_idfs(ctx_t ctx, gl_doc_t d, int augp, int top, int revp)
+DEFCORU(co_prnt_idfs, {
+		const gl_corpus_t c;
+		const int augp;
+		const int topN;
+		const int revp;
+	}, gl_doc_t d)
 {
 /* output plain old sparse tuples innit */
-	gl_dociter_t di;
-	double max;
-	size_t npr = 0U;
+	size_t top = (size_t)(CORU_CLOSUR(topN) > 0 ? CORU_CLOSUR(topN) : 0U);
+	const bool augp = !!CORU_CLOSUR(augp);
+	const gl_corpus_t c = CORU_CLOSUR(c);
+	void(*prnt)(gl_corpus_t, gl_crpid_t, float);
+	struct idf_s *idfs;
 	size_t nd;
-	void(*prnt)(gl_corpus_t, gl_crpid_t, float) = prnt_idf;
 
-	if (UNLIKELY((nd = corpus_get_ndoc(ctx->c)) == 0U)) {
-		/* no document count, no need to do idf analysis then */
-		return;
-	}
-
-	/* rinse the top buckets */
+	/* get the topN array ready */
 	if (top) {
-		memset(ctx->idfs, 0, top * sizeof(*ctx->idfs));
+		idfs = malloc(top * sizeof(*idfs));
 	}
-
 	/* pick a printer */
-	if (revp) {
+	if (CORU_CLOSUR(revp)) {
 		prnt = prnt_ridf;
+	} else {
+		prnt = prnt_idf;
 	}
+	/* precompute the number of documents */
+	nd = corpus_get_ndoc(c);
 
-	/* pre-compute max tf here */
-	if (augp) {
-		max = get_maxtf(d);
-	}
-	di = doc_init_iter(d);
-	for (gl_doctf_t dtf; (dtf = doc_iter_next(d, di)).tid;) {
-		double cf;
-		double tf;
-		double idf;
-		float ti;
+	while (LIKELY(d != NULL)) {
+		size_t npr = 0U;
+		double max;
+		gl_dociter_t di;
 
-		/* this term's document frequency */
-		if (!augp) {
-			tf = get_tf(d, dtf.tid);
-		} else {
-			tf = 0.5 + 0.5 * get_tf(d, dtf.tid) / max;
+		if (UNLIKELY(nd == 0U)) {
+			/* no document count, no need to do idf analysis then */
+			YIELD(npr);
 		}
-		/* get this terms corpus frequency */
-		cf = get_cf(ctx->c, dtf.tid);
-		/* and compute the idf now */
-		idf = log((double)nd / cf);
-		/* and the final result */
-		ti = (float)(tf * idf);
 
+		/* rinse the top buckets */
 		if (top) {
-			rec_idf(ctx, dtf.tid, ti, top);
-		} else {
-			prnt(ctx->c, dtf.tid, ti);
+			memset(idfs, 0, top * sizeof(*idfs));
 		}
-		npr++;
-	}
-	doc_fini_iter(d, di);
 
-	if (LIKELY(npr > 0U)) {
-		for (int i = top - 1; i >= 0; i--) {
-			prnt(ctx->c, ctx->idfs[i].tid, ctx->idfs[i].v);
+		/* pre-compute max tf here */
+		if (augp) {
+			max = get_maxtf(d);
 		}
-		puts("\f");
+
+		di = doc_init_iter(d);
+		for (gl_doctf_t dtf; (dtf = doc_iter_next(d, di)).tid;) {
+			double cf;
+			double tf;
+			double idf;
+			float ti;
+
+			/* this term's document frequency */
+			if (!augp) {
+				tf = get_tf(d, dtf.tid);
+			} else {
+				tf = 0.5 + 0.5 * get_tf(d, dtf.tid) / max;
+			}
+			/* get this terms corpus frequency */
+			cf = get_cf(c, dtf.tid);
+			/* and compute the idf now */
+			idf = log((double)nd / cf);
+			/* and the final result */
+			ti = (float)(tf * idf);
+
+			if (top) {
+				rec_idf(idfs, dtf.tid, ti, top);
+			} else {
+				prnt(c, dtf.tid, ti);
+			}
+			npr++;
+		}
+		doc_fini_iter(d, di);
+
+		if (LIKELY(npr > 0U)) {
+			for (int i = top - 1; i >= 0; i--) {
+				prnt(c, idfs[i].tid, idfs[i].v);
+			}
+			puts("\f");
+		}
+		/* go back to whoever called us */
+		YIELD(npr);
 	}
-	return;
+
+	/* set our resource prey free again */
+	if (top) {
+		free(idfs);
+	}
+	return NULL;
 }
 
 static void
@@ -423,8 +465,8 @@ prnt_stat(gl_corpus_t c, const char *name)
 static int
 cmd_addget(struct glod_args_info argi[static 1U], int addp)
 {
+	static CORU_STRUCT(co_snarf) ctx[1];
 	const char *db = GLOD_DFLT_CORPUS;
-	static struct ctx_s ctx[1];
 	int oflags;
 	struct cocore *snarf;
 
@@ -434,9 +476,9 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 
 	/* initialise the freq vector */
 	if (addp) {
-		ctx->snarf = corpus_add_term;
+		ctx->reslv = corpus_add_term;
 	} else {
-		ctx->snarf = corpus_get_term;
+		ctx->reslv = corpus_get_term;
 	}
 
 	if (addp || argi->idf_given) {
@@ -451,7 +493,7 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 		return 1;
 	}
 
-	PREP();
+	ctx->next = PREP();
 	snarf = START(co_snarf, ctx);
 
 	/* this is the main loop, for one document the loop is traversed
@@ -473,8 +515,8 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 static int
 cmd_list(struct glod_args_info argi[static 1U])
 {
+	static CORU_STRUCT(co_snarf) ctx[1];
 	const char *db = GLOD_DFLT_CORPUS;
-	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
 	struct cocore *snarf;
 
@@ -490,22 +532,22 @@ cmd_list(struct glod_args_info argi[static 1U])
 
 	/* get the correct listing fun */
 	if (!argi->idf_given && !argi->reverse_given) {
-		ctx->snarf = __corpus_list;
+		ctx->reslv = __corpus_list;
 	} else if (!argi->idf_given) {
-		ctx->snarf = __corpus_list_r;
+		ctx->reslv = __corpus_list_r;
 	} else if (!argi->reverse_given) {
-		ctx->snarf = __corpus_lidf;
+		ctx->reslv = __corpus_lidf;
 	} else {
-		ctx->snarf = __corpus_lidf_r;
+		ctx->reslv = __corpus_lidf_r;
 	}
 
-	PREP();
+	ctx->next = PREP();
 	snarf = START(co_snarf, ctx);
 
 	if (argi->inputs_num > 1U) {
 		/* list the ones on the command line */
 		for (unsigned i = 1U; i < argi->inputs_num; i++) {
-			ctx->snarf(ctx->c, argi->inputs[i]);
+			ctx->reslv(ctx->c, argi->inputs[i]);
 		}
 	} else if (!isatty(STDIN_FILENO)) {
 		/* list terms from stdin */
@@ -528,10 +570,11 @@ cmd_list(struct glod_args_info argi[static 1U])
 static int
 cmd_idf(struct glod_args_info argi[static 1U])
 {
+	static CORU_STRUCT(co_snarf) ctx[1];
 	const char *db = GLOD_DFLT_CORPUS;
-	static struct ctx_s ctx[1];
 	int oflags = O_RDONLY;
 	struct cocore *snarf;
+	struct cocore *pridf;
 
 	if (argi->corpus_given) {
 		db = argi->corpus_arg;
@@ -544,34 +587,32 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	}
 
 	/* initialise the freq vector */
-	ctx->snarf = corpus_get_term;
-
-	if (argi->top_given) {
-		ctx->idfs = calloc(argi->top_arg, sizeof(*ctx->idfs));
-	}
+	ctx->reslv = corpus_get_term;
 
 	/* coroutine allocation */
-	PREP();
+	ctx->next = PREP();
 	snarf = START(co_snarf, ctx);
+
+	/* set up the printing co-routine */
+	pridf = START_PACK(
+		co_prnt_idfs,
+		.next = ctx->next,
+		.c = ctx->c,
+		.augp = argi->augmented_given,
+		.revp = argi->reverse_given,
+		.topN = argi->top_given ? argi->top_arg : 0,
+		);
 
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
-	const int augp = argi->augmented_given;
-	const int revp = argi->reverse_given;
-	const int topN = argi->top_given ? argi->top_arg : 0;
 	for (gl_doc_t d; (d = NEXT(snarf));) {
-		prnt_idfs(ctx, d, augp, topN, revp);
+		NEXT1(pridf, d);
 	}
-
-	/* might have to print off the top N now */
-	if (topN) {
-		free(ctx->idfs);
-		ctx->idfs = NULL;
-	}
+	/* finalise printer resources */
+	NEXT(pridf);
 
 	terminate_cocore_thread();
-#undef NEXT
 
 	free_corpus(ctx->c);
 	return 0;
@@ -665,6 +706,7 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
+	/* get the coroutines going */
 	initialise_cocore();
 
 	/* check the commands */
