@@ -319,32 +319,6 @@ prnt_ridf(gl_corpus_t c, gl_crpid_t tid, float tfidf)
 	return;
 }
 
-
-struct idf_s {
-	gl_crpid_t tid;
-	float v;
-};
-
-static void
-rec_idf(struct idf_s *restrict idfs, gl_crpid_t tid, float tfidf, size_t top)
-{
-	size_t pos;
-
-	if (LIKELY(idfs[0].v >= tfidf)) {
-		/* definitely no place in the topN */
-		return;
-	}
-	for (pos = 1U; pos < (size_t)top && idfs[pos].v < tfidf; pos++) {
-		/* bubble down */
-		idfs[pos - 1U] = idfs[pos];
-	}
-	/* we found our place */
-	pos--;
-	idfs[pos].tid = tid;
-	idfs[pos].v = tfidf;
-	return;
-}
-
 DEFCORU(co_prnt_idfs, {
 		const gl_corpus_t c;
 		const int augp;
@@ -357,8 +331,30 @@ DEFCORU(co_prnt_idfs, {
 	const bool augp = !!CORU_CLOSUR(augp);
 	const gl_corpus_t c = CORU_CLOSUR(c);
 	void(*prnt)(gl_corpus_t, gl_crpid_t, float);
-	struct idf_s *idfs;
 	size_t nd;
+	struct idf_s {
+		gl_crpid_t tid;
+		float v;
+	} *idfs;
+
+	static void rec_idf(gl_corpus_t UNUSED(c), gl_crpid_t tid, float tfidf)
+	{
+		size_t pos;
+
+		if (LIKELY(idfs[0].v >= tfidf)) {
+			/* definitely no place in the topN */
+			return;
+		}
+		for (pos = 1U; pos < top && idfs[pos].v < tfidf; pos++) {
+			/* bubble down */
+			idfs[pos - 1U] = idfs[pos];
+		}
+		/* we found our place */
+		pos--;
+		idfs[pos].tid = tid;
+		idfs[pos].v = tfidf;
+		return;
+	}
 
 	/* get the topN array ready */
 	if (top) {
@@ -414,7 +410,7 @@ DEFCORU(co_prnt_idfs, {
 			ti = (float)(tf * idf);
 
 			if (top) {
-				rec_idf(idfs, dtf.tid, ti, top);
+				rec_idf(c, dtf.tid, ti);
 			} else {
 				prnt(c, dtf.tid, ti);
 			}
