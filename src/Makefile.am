@@ -69,6 +69,11 @@ libglod_a_SOURCES += version.c version.h
 libglod_a_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
 
+noinst_LIBRARIES += libcothr.a
+libcothr_a_SOURCES =
+libcothr_a_SOURCES += cothread/cocore.c cothread/cocore.h
+libcothr_a_SOURCES += cothread/switch.c cothread/switch.h
+
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
@@ -110,6 +115,7 @@ tf_CPPFLAGS += -D_GNU_SOURCE
 tf_LDFLAGS = $(AM_LDFLAGS)
 tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
+tf_LDADD += libcothr.a
 BUILT_SOURCES += tf.x tf.xh
 
 noinst_PROGRAMS += porter-stemmer
