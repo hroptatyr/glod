@@ -36,6 +36,35 @@ terms_TESTS += terms.04.tst
 EXTRA_DIST += 1206796.txt
 EXTRA_DIST += 12abrdg.txt
 
+tf_TESTS =
+TESTS += $(tf_TESTS)
+tf_TESTS += tf.01.tst
+tf_TESTS += tf.02.tst
+tf_TESTS += tf.03.tst
+tf_TESTS += tf.04.tst
+tf_TESTS += tf.05.tst
+tf_TESTS += tf.06.tst
+tf_TESTS += tf.07.tst
+tf_TESTS += tf.08.tst
+tf_TESTS += tf.09.tst
+tf_TESTS += tf.10.tst
+tf_TESTS += tf.11.tst
+tf_TESTS += tf.12.tst
+tf_TESTS += tf.13.tst
+tf_TESTS += tf.14.tst
+tf_TESTS += tf.15.tst
+tf_TESTS += tf.16.tst
+tf_TESTS += tf.17.tst
+tf_TESTS += tf.18.tst
+tf_TESTS += tf.19.tst
+tf_TESTS += tf.20.tst
+tf_TESTS += tf.21.tst
+tf_TESTS += tf.22.tst
+tf_TESTS += tf.23.tst
+tf_TESTS += tf.24.tst
+tf_TESTS += tf.25.tst
+tf_TESTS += tf.xx.tst
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
