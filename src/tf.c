@@ -53,6 +53,7 @@
 #include "cothread/cocore.h"
 
 #define PREP()		initialise_cocore_thread()
+#define UNPREP()	terminate_cocore_thread()
 #define START(x, ctx)							\
 	({								\
 		struct cocore *next = (ctx)->next;			\
@@ -504,6 +505,7 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 		}
 	}
 
+	UNPREP();
 	free_corpus(ctx->c);
 	return 0;
 }
@@ -559,6 +561,7 @@ cmd_list(struct glod_args_info argi[static 1U])
 		corpus_fini_iter(ctx->c, i);
 	}
 
+	UNPREP();
 	free_corpus(ctx->c);
 	return 0;
 }
@@ -608,8 +611,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	/* finalise printer resources */
 	NEXT(pridf);
 
-	terminate_cocore_thread();
-
+	UNPREP();
 	free_corpus(ctx->c);
 	return 0;
 }
