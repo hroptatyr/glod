@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -71,6 +72,42 @@ error(const char *fmt, ...)
 }
 
 
+/* utf8 live decoding and classifying */
+typedef struct cls_s cls_t;
+
+struct cls_s {
+	/** width of the character in bytes, or 0 upon failure */
+	unsigned int wid;
+	/** class of the character in question */
+	enum {
+		CLS_UNK,
+		CLS_ALNUM,
+		CLS_PUNCT,
+	} cls;
+};
+
+static cls_t
+classify_mb(const char *p, const char *const ep)
+{
+/* we're not interested in the character, only its class */
+	static cls_t null_cls;
+	wchar_t c[1];
+	int n;
+
+	if ((n = mbtowc(c, p, ep - p)) > 0) {
+		cls_t res = {.wid = n, .cls = CLS_UNK};
+
+		if (iswalnum(*c)) {
+			res.cls = CLS_ALNUM;
+		} else if (iswpunct(*c)) {
+			res.cls = CLS_PUNCT;
+		}
+		return res;
+	}
+	return null_cls;
+}
+
+
 static void
 pr_strk(const char *s, size_t z)
 {
@@ -93,44 +130,49 @@ classify_buf(const char *buf, size_t z)
 		ST_SEEN_ALNUM,
 		ST_SEEN_PUNCT,
 	} st;
-	wchar_t c[1];
-	int n;
+	cls_t cl;
+	int res = -1;
 
 #define YIELD	pr_strk
 	/* initialise state */
 	st = ST_NONE;
 	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
-	     (n = mbtowc(c, pp, ep - pp)) > 0; pp += n) {
-		int alnump = iswalnum(*c);
-		int punctp = alnump ? 0 : iswpunct(*c);
-
+	     (cl = classify_mb(pp, ep)).wid > 0; pp += cl.wid) {
 		switch (st) {
 		case ST_NONE:
-			if (alnump) {
+			switch (cl.cls) {
+			case CLS_ALNUM:
 				/* start the machine */
 				st = ST_SEEN_ALNUM;
-				ap = (bp = pp) + n;
+				ap = (bp = pp) + cl.wid;
+			default:
+				break;
 			}
 			break;
 		case ST_SEEN_ALNUM:
-			if (punctp) {
+			switch (cl.cls) {
+			case CLS_PUNCT:
 				/* don't touch sp for now */
 				st = ST_SEEN_PUNCT;
-			} else if (alnump) {
-				ap += n;
-			} else {
+				break;
+			case CLS_ALNUM:
+				ap += cl.wid;
+				break;
+			default:
 				goto yield;
 			}
 			break;
 		case ST_SEEN_PUNCT:
-			if (punctp) {
+			switch (cl.cls) {
+			case CLS_PUNCT:
 				/* nope */
-				;
-			} else if (alnump) {
+				break;
+			case CLS_ALNUM:
 				/* aah, good one */
 				st = ST_SEEN_ALNUM;
-				ap = pp + n;
-			} else {
+				ap = pp + cl.wid;
+				break;
+			default:
 				/* yield! */
 				goto yield;
 			}
@@ -138,6 +180,7 @@ classify_buf(const char *buf, size_t z)
 		yield:
 			/* yield case */
 			YIELD(bp, ap - bp);
+			res = 0;
 		default:
 			st = ST_NONE;
 			bp = NULL;
@@ -148,7 +191,7 @@ classify_buf(const char *buf, size_t z)
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data */
 #undef YIELD
-	return 0;
+	return res;
 }
 
 static int
