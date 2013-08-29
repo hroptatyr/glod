@@ -72,10 +72,9 @@ error(const char *fmt, ...)
 
 
 static void
-pr_strk(const char *tp, size_t strkz)
+pr_strk(const char *s, size_t z)
 {
-/* print the streak of size STRKZ that ends on tail-pointer TP. */
-	fwrite(tp - strkz, sizeof(*tp), strkz, stdout);
+	fwrite(s, sizeof(*s), z, stdout);
 	fputc('\n', stdout);
 	return;
 }
@@ -83,19 +82,72 @@ pr_strk(const char *tp, size_t strkz)
 static int
 classify_buf(const char *buf, size_t z)
 {
-	clsf_streak_t strk = 0U;
+/* this is a simple state machine,
+ * we start at NONE and wait for an ALNUM,
+ * in state ALNUM we can either go back to NONE (and yield) if neither
+ * a punct nor an alnum is read, or we go forward to PUNCT
+ * in state PUNCT we can either go back to NONE (and yield) if neither
+ * a punct nor an alnum is read, or we go back to ALNUM */
+	enum state_e {
+		ST_NONE,
+		ST_SEEN_ALNUM,
+		ST_SEEN_PUNCT,
+	} st;
 	wchar_t c[1];
 	int n;
 
-	for (const char *bp = buf, *const ep = bp + z;
-	     bp < ep && (n = mbtowc(c, bp, ep - bp)) > 0; bp += n) {
-		if (LIKELY(iswalnum(*c))) {
-			strk += (uint8_t)n;
-		} else if (LIKELY(strk)) {
-			pr_strk(bp, strk);
-			strk = 0U;
+#define YIELD	pr_strk
+	/* initialise state */
+	st = ST_NONE;
+	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
+	     (n = mbtowc(c, pp, ep - pp)) > 0; pp += n) {
+		int alnump = iswalnum(*c);
+		int punctp = alnump ? 0 : iswpunct(*c);
+
+		switch (st) {
+		case ST_NONE:
+			if (alnump) {
+				/* start the machine */
+				st = ST_SEEN_ALNUM;
+				ap = (bp = pp) + n;
+			}
+			break;
+		case ST_SEEN_ALNUM:
+			if (punctp) {
+				/* don't touch sp for now */
+				st = ST_SEEN_PUNCT;
+			} else if (alnump) {
+				ap += n;
+			} else {
+				goto yield;
+			}
+			break;
+		case ST_SEEN_PUNCT:
+			if (punctp) {
+				/* nope */
+				;
+			} else if (alnump) {
+				/* aah, good one */
+				st = ST_SEEN_ALNUM;
+				ap = pp + n;
+			} else {
+				/* yield! */
+				goto yield;
+			}
+			break;
+		yield:
+			/* yield case */
+			YIELD(bp, ap - bp);
+		default:
+			st = ST_NONE;
+			bp = NULL;
+			ap = NULL;
+			break;
 		}
 	}
+	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
+	 * we actually need to request more data */
+#undef YIELD
 	return 0;
 }
 
