@@ -44,14 +44,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <utf8/stdlib.h>
-#include <utf8/wchar.h>
-#include <utf8/wctype.h>
-#include <utf8/locale.h>
 #include "nifty.h"
 #include "fops.h"
-
-typedef uint_fast8_t clsf_streak_t;
 
 
 static void
@@ -73,38 +67,170 @@ error(const char *fmt, ...)
 
 
 /* utf8 live decoding and classifying */
-typedef struct cls_s cls_t;
+typedef struct clw_s clw_t;
+typedef enum {
+	CLS_UNK,
+	CLS_ALNUM,
+	CLS_PUNCT,
+} cls_t;
 
-struct cls_s {
+struct clw_s {
 	/** width of the character in bytes, or 0 upon failure */
 	unsigned int wid;
 	/** class of the character in question */
-	enum {
-		CLS_UNK,
-		CLS_ALNUM,
-		CLS_PUNCT,
-	} cls;
+	cls_t cls;
 };
 
-static cls_t
+static __attribute__((pure, const)) size_t
+mb_width(const char *p, const char *const ep)
+{
+	static uint8_t w1msk = 0xc0U;
+	static uint8_t w2msk = 0xe0U;
+	static uint8_t w3msk = 0xf0U;
+	static uint8_t w4msk = 0xf8U;
+	/* continuation? */
+	static uint8_t c0msk = 0x80U;
+	const uint8_t pc = (uint8_t)*p;
+
+	if (LIKELY(pc < c0msk)) {
+		return 1U;
+	} else if (UNLIKELY(pc < w1msk)) {
+		/* invalid input, 0b10xxxxx */
+		;
+	} else if (pc < w2msk &&
+		   ep - p > 1U &&
+		   ((uint8_t)p[1U] & w1msk) == c0msk) {
+		if (LIKELY(pc >= 0xc2U)) {
+			return 2U;
+		}
+		/* otherwise invalid */
+		;
+	} else if (pc < w3msk &&
+		   ep - p > 2U &&
+		   ((uint8_t)p[1U] & w1msk) == c0msk &&
+		   ((uint8_t)p[2U] & w1msk) == c0msk) {
+		return 3U;
+	} else if (pc < w4msk &&
+		   ep - p > 3U &&
+		   ((uint8_t)p[1U] & w1msk) == c0msk &&
+		   ((uint8_t)p[2U] & w1msk) == c0msk &&
+		   ((uint8_t)p[3U] & w1msk) == c0msk) {
+		if (LIKELY(pc < 0xf5U)) {
+			return 4U;
+		}
+		/* otherwise invalid */
+		;
+	}
+	return 0U;
+}
+
+static __attribute__((pure, const)) cls_t
+mb_class(const char *p, size_t z)
+{
+#define U2(x)	(long unsigned int)((x[0U] << 8U) + (x[1U] << 0U))
+#define U3(x)	(long unsigned int)					\
+		((x[0U] << 16U) + (x[1U] << 8U) + (x[2U] << 0U))
+#define U4(x)	(long unsigned int)					\
+		((x[0U] << 24U) + (x[1U] << 16U) + (x[2U] << 8U) + (x[3U] + 0U))
+	uint8_t pc = (uint8_t)(unsigned char)*p;
+
+	switch (z) {
+	case 1U:
+		if (pc >= 'A' && pc <= 'Z' ||
+		    pc >= 'a' && pc <= 'z' ||
+		    pc >= '0' && pc <= '9') {
+			return CLS_ALNUM;
+		}
+		switch (pc) {
+		case '!':
+		case '#':
+		case '$':
+		case '%':
+		case '&':
+		case '\'':
+		case '*':
+		case '+':
+		case ',':
+		case '.':
+		case '/':
+		case ':':
+		case '=':
+		case '?':
+		case '@':
+		case '\\':
+		case '^':
+		case '_':
+		case '`':
+		case '|':
+			return CLS_PUNCT;
+		default:
+			break;
+		}
+
+	case 2U:
+		switch (U2(p)) {
+#		include "alpha.2.cases"
+#		include "numer.2.cases"
+			return CLS_ALNUM;
+
+#		include "punct.2.cases"
+			return CLS_PUNCT;
+
+		default:
+			break;
+		}
+		break;
+
+	case 3U:
+		switch (U3(p)) {
+#		include "alpha.3.cases"
+#		include "numer.3.cases"
+			return CLS_ALNUM;
+
+#		include "punct.3.cases"
+			return CLS_PUNCT;
+
+		default:
+			break;
+		}
+		break;
+
+#if 0
+/* really? */
+	case 4U:
+		switch (U4(p)) {
+#		include "alpha.4.cases"
+#		include "numer.4.cases"
+			return CLS_ALNUM;
+
+#		include "punct.4.cases"
+			return CLS_PUNCT;
+
+		default:
+			break;
+		}
+		break;
+#endif	/* 0 */
+	default:
+		break;
+	}
+	return CLS_UNK;
+}
+
+static clw_t
 classify_mb(const char *p, const char *const ep)
 {
 /* we're not interested in the character, only its class */
-	static cls_t null_cls;
-	wchar_t c[1];
-	int n;
+	static clw_t null_clw;
+	size_t w;
 
-	if ((n = mbtowc(c, p, ep - p)) > 0) {
-		cls_t res = {.wid = n, .cls = CLS_UNK};
-
-		if (iswalnum(*c)) {
-			res.cls = CLS_ALNUM;
-		} else if (iswpunct(*c)) {
-			res.cls = CLS_PUNCT;
-		}
-		return res;
-	}
-	return null_cls;
+	if (UNLIKELY(p >= ep)) {
+		;
+	} else if (LIKELY((w = mb_width(p, ep)) > 0)) {
+		cls_t cls = mb_class(p, w);
+		return (clw_t){.wid = w, .cls = cls};
+	};
+	return null_clw;
 }
 
 
@@ -130,7 +256,7 @@ classify_buf(const char *buf, size_t z)
 		ST_SEEN_ALNUM,
 		ST_SEEN_PUNCT,
 	} st;
-	cls_t cl;
+	clw_t cl;
 	int res = -1;
 
 #define YIELD	pr_strk
@@ -250,8 +376,6 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	/* pretend! */
-	locale_is_utf8 = 1;
 	/* run stats on that one file */
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
 		const char *file = argi->inputs[i];
