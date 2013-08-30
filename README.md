@@ -30,17 +30,38 @@ terms
 Output terms occurring in the specified files, one term per line, and
 different files separated by a form feed.
 
-By default a term is made up of consecutive alphanumerical characters
-but the precise alphabet can be specified:
+A term (by our definition) is a sequence of alphanumerical characters
+that can be interluded (but not prefixed or suffixed) by punctuation
+characters.
 
     $ terms testfile1
     New
     virus
     found
-    $ terms -c 'a-z.' testfile1
-    ew
-    virus
-    found.
+
+Output of the `terms` utility can be fed into other tools that follow
+the bag-of-words approach.  For instance to get a frequency vector in no
+time:
+
+    $ cat testfile1 | terms | sort | uniq -c
+          1 New
+          1 found
+          1 virus
+
+Or to assign a numeric mapping:
+
+    $ cat testfile1 | terms | sort -u | nl
+         1  New
+         2  found
+         3  virus
+
+The `terms` utility is meant for bulk operations on corpora of utf8
+encoded text files without language labels or other forms of
+preclustering.
+
+System-wide or local i18n settings are explicitly ignored!  This might
+lead to complications when mixing glod tools with other preprocessing
+tools.
 
 tf
 --
