@@ -52,6 +52,10 @@ struct word_s {
 	glep_pat_t p;
 };
 
+#if defined __INTEL_COMPILER
+# define auto	static
+#endif	/* __INTEL_COMPILER */
+
 
 #if !defined STANDALONE
 /* word level */
@@ -134,7 +138,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 		char *s;
 	} cch = {0U};
 
-	static inline glep_pat_t clone_pat(word_t w)
+	auto inline glep_pat_t clone_pat(word_t w)
 	{
 		glep_pat_t res;
 
@@ -150,7 +154,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 		return res;
 	}
 
-	static struct gleps_s *append_pat(struct gleps_s *c, word_t w)
+	auto struct gleps_s *append_pat(struct gleps_s *c, word_t w)
 	{
 		if (UNLIKELY(c == NULL)) {
 			size_t iniz = 64U * sizeof(*c->pats);

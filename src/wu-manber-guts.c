@@ -62,6 +62,10 @@ struct glepcc_s {
 	hx_t PATPTR[TBLZ];
 };
 
+#if defined __INTEL_COMPILER
+# define auto	static
+#endif	/* __INTEL_COMPILER */
+
 
 /* aux */
 static uint_fast8_t xlcase[] = {
@@ -266,7 +270,7 @@ glep_cc(gleps_t g)
 	}
 
 	/* suffix handling helpers */
-	static void add_pat(glep_pat_t pat)
+	auto void add_pat(glep_pat_t pat)
 	{
 		const unsigned char *p = (const unsigned char*)pat.s;
 		hx_t h;
@@ -285,7 +289,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	static void add_smallpat(glep_pat_t pat, size_t pz)
+	auto void add_smallpat(glep_pat_t pat, size_t pz)
 	{
 		/* like add_pat() but account for the fact
 		 * that pat.s is shorter than the minimum pattern length */
@@ -431,7 +435,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	static void add_prf(glep_pat_t pat, size_t patidx)
+	auto void add_prf(glep_pat_t pat, size_t patidx)
 	{
 		const unsigned char *p = (const unsigned char*)pat.s;
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
@@ -444,7 +448,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	static void add_smallprf(glep_pat_t pat, size_t pz, size_t patidx)
+	auto void add_smallprf(glep_pat_t pat, size_t pz, size_t patidx)
 	{
 		/* like add_prf() but for particularly small patterns */
 		const unsigned char *const p = (const unsigned char*)pat.s;
@@ -462,7 +466,7 @@ glep_cc(gleps_t g)
 			c2 = xlcase[c2];
 		}
 
-		static void bang_var(hx_t h)
+		auto void bang_var(hx_t h)
 		{
 			for (const unsigned char *c = pat.fl.left
 				     ? cs_wc : cs_ww,
@@ -563,13 +567,13 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
 	const unsigned char *const ep = bp + bsz;
 
-	static inline const unsigned char *prfs(const unsigned char *bp)
+	auto inline const unsigned char *prfs(const unsigned char *bp)
 	{
 		/* return a pointer to the prefix of BP */
 		return bp - c->m + 1;
 	}
 
-	static bool
+	auto bool
 	ww_match_p(glep_pat_t pat, const unsigned char *const sp, size_t z)
 	{
 		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
@@ -596,7 +600,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		return false;
 	}
 
-	static ix_t
+	auto ix_t
 	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, hx_t p)
 	{
 		/* loop through all patterns that hash to H */

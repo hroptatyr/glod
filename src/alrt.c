@@ -52,6 +52,10 @@ struct word_s {
 	const char *s;
 };
 
+#if defined __INTEL_COMPILER
+# define auto	static
+#endif	/* __INTEL_COMPILER */
+
 
 /* word level */
 static word_t
@@ -130,13 +134,13 @@ glod_rd_alrts(const char *buf, size_t bsz)
 		const char **lbls;
 	} cch = {0U};
 
-	static struct alrts_s *append_pat(struct alrts_s *c, word_t UNUSED(w))
+	auto struct alrts_s *append_pat(struct alrts_s *c, word_t UNUSED(w))
 	{
 		this_pat++;
 		return c;
 	}
 
-	static struct alrts_s *append_lbl(struct alrts_s *c, word_t w)
+	auto struct alrts_s *append_lbl(struct alrts_s *c, word_t w)
 	{
 		/* assign W to pats [LAST_PAT, THIS_PAT] */
 		uint_fast32_t li;
