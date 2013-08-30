@@ -105,6 +105,7 @@ bin_PROGRAMS += terms
 terms_SOURCES = terms.c
 terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
+terms_LDADD += libcothr.a
 BUILT_SOURCES += terms.x terms.xh
 EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += alpha.2.cases
