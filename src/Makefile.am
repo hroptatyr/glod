@@ -106,6 +106,16 @@ terms_SOURCES = terms.c
 terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
+EXTRA_terms_SOURCES =
+EXTRA_terms_SOURCES += alpha.2.cases
+EXTRA_terms_SOURCES += alpha.3.cases
+EXTRA_terms_SOURCES += alpha.4.cases
+EXTRA_terms_SOURCES += numer.2.cases
+EXTRA_terms_SOURCES += numer.3.cases
+EXTRA_terms_SOURCES += numer.4.cases
+EXTRA_terms_SOURCES += punct.2.cases
+EXTRA_terms_SOURCES += punct.3.cases
+EXTRA_terms_SOURCES += punct.4.cases
 
 bin_PROGRAMS += tf
 tf_SOURCES = tf.c
@@ -121,6 +131,10 @@ BUILT_SOURCES += tf.x tf.xh
 noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
 porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
+
+noinst_PROGRAMS += gencls
+gencls_CPPFLAGS = $(AM_CPPFLAGS)
+gencls_CPPFLAGS += -D_GNU_SOURCE
 
 
 version.c: version.c.in $(top_builddir)/version.mk
@@ -139,6 +153,61 @@ dist-hook: $(bin_PROGRAMS)
 	  -e 's,\(.*\)_PARSER_VERSION VERSION,\1_PARSER_VERSION $(PACKAGE)_version_string,g' \
 	  $*.xh >$*.xh-t \
 	&& mv $*.xh-t $*.xh
+
+## generate classifier from UnicodeData.txt
+BUILT_SOURCES += UnicodeData.txt
+BUILT_SOURCES += alpha.codes
+BUILT_SOURCES += numer.codes
+BUILT_SOURCES += punct.codes
+
+BUILT_SOURCES += alpha.2.cases
+BUILT_SOURCES += alpha.3.cases
+BUILT_SOURCES += alpha.4.cases
+BUILT_SOURCES += numer.2.cases
+BUILT_SOURCES += numer.3.cases
+BUILT_SOURCES += numer.4.cases
+BUILT_SOURCES += punct.2.cases
+BUILT_SOURCES += punct.3.cases
+BUILT_SOURCES += punct.4.cases
+
+UnicodeData.txt:
+	curl -qgsfL -o $@ "http://www.unicode.org/Public/UNIDATA/$@"
+
+alpha.codes: UnicodeData.txt
+	cut -d';' -f1,3 $< | grep ';L[ultmo]' | cut -d';' -f1 > $@
+
+numer.codes: UnicodeData.txt
+	cut -d';' -f1,3 $< | grep ';N[dlo]' | cut -d';' -f1  > $@
+
+punct.codes: UnicodeData.txt
+	cut -d';' -f1,3 $< | grep ';P[cdo]' | cut -d';' -f1  > $@
+
+alpha.2.cases: alpha.codes $(builddir)/gencls
+	$(builddir)/gencls 2 < $< > $@
+
+alpha.3.cases: alpha.codes $(builddir)/gencls
+	$(builddir)/gencls 3 < $< > $@
+
+alpha.4.cases: alpha.codes $(builddir)/gencls
+	$(builddir)/gencls 4 < $< > $@
+
+numer.2.cases: numer.codes $(builddir)/gencls
+	$(builddir)/gencls 2 < $< > $@
+
+numer.3.cases: numer.codes $(builddir)/gencls
+	$(builddir)/gencls 3 < $< > $@
+
+numer.4.cases: numer.codes $(builddir)/gencls
+	$(builddir)/gencls 4 < $< > $@
+
+punct.2.cases: punct.codes $(builddir)/gencls
+	$(builddir)/gencls 2 < $< > $@
+
+punct.3.cases: punct.codes $(builddir)/gencls
+	$(builddir)/gencls 3 < $< > $@
+
+punct.4.cases: punct.codes $(builddir)/gencls
+	$(builddir)/gencls 4 < $< > $@
 
 ## Help the developers get nice post-processed source files
 

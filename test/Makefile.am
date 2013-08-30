@@ -23,16 +23,14 @@ CLEANFILES = $(check_PROGRAMS)
 TEST_EXTENSIONS += .tst
 TESTS_ENVIRONMENT = root=$(top_srcdir)
 TST_LOG_COMPILER = $(builddir)/clitoris
-AM_TST_LOG_FLAGS = --builddir $(top_builddir)/src
+AM_TST_LOG_FLAGS = -v --builddir $(top_builddir)/src
 AM_LOG_COMPILER = false
 
 ## the actual tests here
 terms_TESTS =
 TESTS += $(terms_TESTS)
 terms_TESTS += terms.01.tst
-terms_TESTS += terms.02.tst
 terms_TESTS += terms.03.tst
-terms_TESTS += terms.04.tst
 EXTRA_DIST += 1206796.txt
 EXTRA_DIST += 12abrdg.txt
 

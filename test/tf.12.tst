@@ -1,11 +1,11 @@
 #!/usr/bin/clitoris ## -*- shell-script -*-
 
 $ tf list -f foo.tcb -r <<EOF
-58
-16
-58
+56
+14
+56
 EOF
-58	nicht
-16	Analysten
-58	nicht
+56	nicht
+14	Analysten
+56	nicht
 $

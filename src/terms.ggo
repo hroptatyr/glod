@@ -1,8 +1,12 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
 package "terms"
 usage "terms [OPTIONS...] [FILE]..."
-description "Output terms of FILEs."
+description "Output terms of FILEs.
 
-option "class" c
-	"Report terms of character class NAME which consists solely of CHARS."
-	string typestr="[NAME:]CHARS" multiple optional
+A term (by our definition) is a sequence of alphanumerical characters \
+that can be interluded (but not prefixed or suffixed) by punctuation \
+characters.
+
+In this sense company names like AT&T or email addresses a@b.com will \
+count as one term."
+

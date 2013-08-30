@@ -1,4 +1,4 @@
-/*** terms.c -- tag terms according to classifiers
+/*** terms8.c -- extract terms from utf8 sources
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -38,92 +38,286 @@
 # include "config.h"
 #endif	/* HAVE_CONFIG_H */
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
 #include <stdarg.h>
-#include <unistd.h>
-#include <stdio.h>
 #include <stdbool.h>
-#include <fcntl.h>
+#include <string.h>
+#include <stdio.h>
 #include <errno.h>
-#include <limits.h>
-#include <wchar.h>
-#include <assert.h>
 #include "nifty.h"
 #include "fops.h"
 
-#define MAX_CLASSIFIERS	(64U)
-
-typedef uint_fast8_t clsf_streak_t;
-typedef uint_fast64_t clsf_match_t;
-
-/* we support up to 64 classifiers, and keep track of their streaks */
-static clsf_streak_t strk[MAX_CLASSIFIERS];
-static const char *names[MAX_CLASSIFIERS];
-static size_t nclsf;
-
-static clsf_match_t mtch[128U];
-
 
 static void
-__attribute__((format(printf, 2, 3)))
-error(int eno, const char *fmt, ...)
+__attribute__((format(printf, 1, 2)))
+error(const char *fmt, ...)
 {
 	va_list vap;
 	va_start(vap, fmt);
 	vfprintf(stderr, fmt, vap);
 	va_end(vap);
-	if (eno || errno) {
+	if (errno) {
 		fputc(':', stderr);
 		fputc(' ', stderr);
-		fputs(strerror(eno ?: errno), stderr);
+		fputs(strerror(errno), stderr);
 	}
 	fputc('\n', stderr);
 	return;
 }
 
 
-static clsf_match_t
-classify_char(const char c)
-{
-	int ci = c;
+/* utf8 live decoding and classifying */
+typedef struct clw_s clw_t;
+typedef enum {
+	CLS_UNK,
+	CLS_ALNUM,
+	CLS_PUNCT,
+} cls_t;
 
-	if (UNLIKELY(ci < 0)) {
-		ci = CHAR_MAX;
+struct clw_s {
+	/** width of the character in bytes, or 0 upon failure */
+	unsigned int wid;
+	/** class of the character in question */
+	cls_t cls;
+};
+
+static __attribute__((pure, const)) size_t
+mb_width(const char *p, const char *const ep)
+{
+	static uint8_t w1msk = 0xc0U;
+	static uint8_t w2msk = 0xe0U;
+	static uint8_t w3msk = 0xf0U;
+	static uint8_t w4msk = 0xf8U;
+	/* continuation? */
+	static uint8_t c0msk = 0x80U;
+	const uint8_t pc = (uint8_t)*p;
+
+	if (LIKELY(pc < c0msk)) {
+		return 1U;
+	} else if (UNLIKELY(pc < w1msk)) {
+		/* invalid input, 0b10xxxxx */
+		;
+	} else if (pc < w2msk &&
+		   ep - p > 1U &&
+		   ((uint8_t)p[1U] & w1msk) == c0msk) {
+		if (LIKELY(pc >= 0xc2U)) {
+			return 2U;
+		}
+		/* otherwise invalid */
+		;
+	} else if (pc < w3msk &&
+		   ep - p > 2U &&
+		   ((uint8_t)p[1U] & w1msk) == c0msk &&
+		   ((uint8_t)p[2U] & w1msk) == c0msk) {
+		return 3U;
+	} else if (pc < w4msk &&
+		   ep - p > 3U &&
+		   ((uint8_t)p[1U] & w1msk) == c0msk &&
+		   ((uint8_t)p[2U] & w1msk) == c0msk &&
+		   ((uint8_t)p[3U] & w1msk) == c0msk) {
+		if (LIKELY(pc < 0xf5U)) {
+			return 4U;
+		}
+		/* otherwise invalid */
+		;
 	}
-	return mtch[ci];
+	return 0U;
 }
 
-static void
-pr_strk(size_t clsfi, const char *tp, size_t strkz)
+static __attribute__((pure, const)) cls_t
+mb_class(const char *p, size_t z)
 {
-/* print the streak of size STRKZ that ends on tail-pointer TP. */
-	fwrite(tp - strkz, sizeof(*tp), strkz, stdout);
-	if (LIKELY(names[clsfi] != NULL && *names[clsfi] != '\0')) {
-		putchar('\t');
-		puts(names[clsfi]);
-	} else {
-		putchar('\n');
+#define U2(x)	(long unsigned int)((x[0U] << 8U) + (x[1U] << 0U))
+#define U3(x)	(long unsigned int)					\
+		((x[0U] << 16U) + (x[1U] << 8U) + (x[2U] << 0U))
+#define U4(x)	(long unsigned int)					\
+		((x[0U] << 24U) + (x[1U] << 16U) + (x[2U] << 8U) + (x[3U] + 0U))
+	uint8_t pc = (uint8_t)(unsigned char)*p;
+
+	switch (z) {
+	case 1U:
+		if (pc >= 'A' && pc <= 'Z' ||
+		    pc >= 'a' && pc <= 'z' ||
+		    pc >= '0' && pc <= '9') {
+			return CLS_ALNUM;
+		}
+		switch (pc) {
+		case '!':
+		case '#':
+		case '$':
+		case '%':
+		case '&':
+		case '\'':
+		case '*':
+		case '+':
+		case ',':
+		case '.':
+		case '/':
+		case ':':
+		case '=':
+		case '?':
+		case '@':
+		case '\\':
+		case '^':
+		case '_':
+		case '`':
+		case '|':
+			return CLS_PUNCT;
+		default:
+			break;
+		}
+
+	case 2U:
+		switch (U2(p)) {
+#		include "alpha.2.cases"
+#		include "numer.2.cases"
+			return CLS_ALNUM;
+
+#		include "punct.2.cases"
+			return CLS_PUNCT;
+
+		default:
+			break;
+		}
+		break;
+
+	case 3U:
+		switch (U3(p)) {
+#		include "alpha.3.cases"
+#		include "numer.3.cases"
+			return CLS_ALNUM;
+
+#		include "punct.3.cases"
+			return CLS_PUNCT;
+
+		default:
+			break;
+		}
+		break;
+
+#if 0
+/* really? */
+	case 4U:
+		switch (U4(p)) {
+#		include "alpha.4.cases"
+#		include "numer.4.cases"
+			return CLS_ALNUM;
+
+#		include "punct.4.cases"
+			return CLS_PUNCT;
+
+		default:
+			break;
+		}
+		break;
+#endif	/* 0 */
+	default:
+		break;
 	}
+	return CLS_UNK;
+}
+
+static clw_t
+classify_mb(const char *p, const char *const ep)
+{
+/* we're not interested in the character, only its class */
+	static clw_t null_clw;
+	size_t w;
+
+	if (UNLIKELY(p >= ep)) {
+		;
+	} else if (LIKELY((w = mb_width(p, ep)) > 0)) {
+		cls_t cls = mb_class(p, w);
+		return (clw_t){.wid = w, .cls = cls};
+	};
+	return null_clw;
+}
+
+
+static void
+pr_strk(const char *s, size_t z)
+{
+	fwrite(s, sizeof(*s), z, stdout);
+	fputc('\n', stdout);
 	return;
 }
 
 static int
 classify_buf(const char *buf, size_t z)
 {
-	for (const char *bp = buf, *const ep = bp + z; bp < ep; bp++) {
-		clsf_match_t m = classify_char(*bp);
+/* this is a simple state machine,
+ * we start at NONE and wait for an ALNUM,
+ * in state ALNUM we can either go back to NONE (and yield) if neither
+ * a punct nor an alnum is read, or we go forward to PUNCT
+ * in state PUNCT we can either go back to NONE (and yield) if neither
+ * a punct nor an alnum is read, or we go back to ALNUM */
+	enum state_e {
+		ST_NONE,
+		ST_SEEN_ALNUM,
+		ST_SEEN_PUNCT,
+	} st;
+	clw_t cl;
+	int res = -1;
 
-		for (size_t i = 0; i < nclsf; i++, m >>= 1U) {
-			if (m & 1U) {
-				strk[i]++;
-			} else if (strk[i]) {
-				pr_strk(i, bp, strk[i]);
-				strk[i] = 0U;
+#define YIELD	pr_strk
+	/* initialise state */
+	st = ST_NONE;
+	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
+	     (cl = classify_mb(pp, ep)).wid > 0; pp += cl.wid) {
+		switch (st) {
+		case ST_NONE:
+			switch (cl.cls) {
+			case CLS_ALNUM:
+				/* start the machine */
+				st = ST_SEEN_ALNUM;
+				ap = (bp = pp) + cl.wid;
+			default:
+				break;
 			}
+			break;
+		case ST_SEEN_ALNUM:
+			switch (cl.cls) {
+			case CLS_PUNCT:
+				/* don't touch sp for now */
+				st = ST_SEEN_PUNCT;
+				break;
+			case CLS_ALNUM:
+				ap += cl.wid;
+				break;
+			default:
+				goto yield;
+			}
+			break;
+		case ST_SEEN_PUNCT:
+			switch (cl.cls) {
+			case CLS_PUNCT:
+				/* nope */
+				break;
+			case CLS_ALNUM:
+				/* aah, good one */
+				st = ST_SEEN_ALNUM;
+				ap = pp + cl.wid;
+				break;
+			default:
+				/* yield! */
+				goto yield;
+			}
+			break;
+		yield:
+			/* yield case */
+			YIELD(bp, ap - bp);
+			res = 0;
+		default:
+			st = ST_NONE;
+			bp = NULL;
+			ap = NULL;
+			break;
 		}
 	}
-	return 0;
+	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
+	 * we actually need to request more data */
+#undef YIELD
+	return res;
 }
 
 static int
@@ -155,174 +349,6 @@ out:
 }
 
 
-/* classifier handling */
-static int
-reg_srange(const size_t clsf_idx, const char *const rng)
-{
-	const clsf_match_t cb = 1U << clsf_idx;
-
-	for (const char *cp = rng; *cp; cp++) {
-		int i = *cp;
-
-		if (UNLIKELY(i < 0)) {
-			/* use CHAR_MAX to encode specials */
-			i = CHAR_MAX;
-		}
-		mtch[i] |= cb;
-	}
-	return 0;
-}
-
-static int
-reg_nrange(const size_t clsf_idx, const char from, const char to)
-{
-	const clsf_match_t cb = 1U << clsf_idx;
-	char cp;
-
-	if (UNLIKELY((cp = from) < 0)) {
-		mtch[CHAR_MAX] |= cb;
-		cp = '\001';
-	}
-	for (; cp <= to; cp++) {
-		mtch[cp] |= cb;
-	}
-	return 0;
-}
-
-static int
-reg_class(const size_t clsf_idx, const char *const clsf_name)
-{
-#define DIGIT	"012345679"
-#define LOWER	"abcdefghijklmnopqrstuvwxyz"
-#define UPPER	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-#define ALPHA	UPPER LOWER
-#define ALNUM	DIGIT ALPHA
-#define PUNCT	"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
-#define HSPACE	" \t"
-#define VSPACE	"\n\v\f\r"
-#define SPACE	HSPACE VSPACE
-#define GRAPH	PUNCT ALNUM
-	static const struct {
-		const char *name;
-		const char *r;
-	} clsss[] = {
-		{":alnum:", ALNUM},
-		{":alpha:", ALPHA},
-		{":blank:", HSPACE},
-		{":digit:", DIGIT},
-		{":graph:", GRAPH},
-		{":lower:", LOWER},
-		{":print:", " " GRAPH},
-		{":punct:", PUNCT},
-		{":space:", SPACE},
-		{":upper:", UPPER},
-		{":xdigit:", DIGIT "abcdefABCDEF"},
-	};
-
-	for (size_t i = 0; i < countof(clsss); i++) {
-		int c = strcmp(clsf_name, clsss[i].name);
-
-		if (c == 0) {
-			/* exact match */
-			reg_srange(clsf_idx, clsss[i].r);
-			return 0;
-		} else if (c < 0) {
-			/* wont match as clsss is in ascending order */
-			return -1;
-		}
-	}
-	return -1;
-}
-
-static int
-reg_classifier(const char *name, char *const rng)
-{
-	const size_t ci = nclsf++;
-	char *tp;
-
-	/* massage escapes */
-	for (const char *rp = tp = rng; *rp; rp++, tp++) {
-		static const char esc[] = "\a\bcde\fghijklm\nopq\rs\tu\v";
-
-		if ((*tp = *rp) != '\\') {
-			continue;
-		}
-
-		/* otherwise use the esc map */
-		switch (*++rp) {
-		case 'a' ... 'v':
-			*tp = esc[*rp - 'a'];
-			break;
-		case '\\':
-			*tp = '\\';
-			break;
-		case '0' ... '7':;
-			/* octal number */
-			int oct;
-
-			/* just go through whatever comes */
-			for (oct = *rp++ - '0';
-			     *rp >= '0' && *rp <= '7';
-			     oct *= 8U, oct += *rp++ - '0');
-			/* rewind rp again */
-			rp--;
-
-			*tp = (char)oct;
-			break;
-		case '\0':
-			/* unescaped \ at eos */
-			*tp = '\0';
-			break;
-		default:
-			*tp = *rp;
-			break;
-		}
-	}
-	/* finalise target */
-	*tp = '\0';
-
-	for (char *sp = tp = rng, *rp; (rp = strpbrk(tp, "[-")) != NULL;) {
-		char *erp;
-
-		/* check if it's really the magic set specifier */
-		if (rp[0] == '-') {
-			if (rp > rng && rp[1] != '\0' && rp[-1] < rp[1]) {
-				reg_nrange(ci, rp[-1], rp[1]);
-				rp++;
-			}
-			tp = rp + 1;
-			continue;
-		} else if (rp[1] != ':' ||
-		    (erp = strchr(rp + 2, ']')) == NULL ||
-		    erp[-1] != ':') {
-			/* nope, retry */
-			tp = rp + 1;
-			continue;
-		}
-		/* otherwise we have a [: digraph, finalise temporarily */
-		*rp = '\0';
-		*erp = '\0';
-		if (rp > sp) {
-			/* register stuff at the front */
-			reg_srange(ci, sp);
-		}
-		/* register class */
-		reg_class(ci, rp + 1);
-
-		/* set loop vars for next run */
-		sp = tp = erp + 1;
-	}
-	if (*tp) {
-		/* register stuff beyond the last set specifier */
-		reg_srange(ci, tp);
-	}
-
-	/* keep the name at least */
-	names[ci] = name;
-	return 0;
-}
-
-
 #if defined __INTEL_COMPILER
 # pragma warning (disable:593)
 # pragma warning (disable:181)
@@ -350,35 +376,12 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	/* add classifiers */
-	for (size_t i = 0; i < argi->class_given; i++) {
-		char *cl_arg = argi->class_arg[i];
-		const char *name;
-		char *beef;
-
-		if ((beef = strchr(cl_arg, ':')) != NULL &&
-		    (beef == cl_arg || beef[-1] != '[')) {
-			*beef++ = '\0';
-			name = cl_arg;
-		} else {
-			beef = cl_arg;
-			name = NULL;
-		}
-		reg_classifier(name, beef);
-	}
-	if (!argi->class_given) {
-		/* default classifier are word constituents */
-		const size_t ci = nclsf++;
-
-		reg_srange(ci, ALNUM "!@%^\377");
-	}
-
 	/* run stats on that one file */
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
 		const char *file = argi->inputs[i];
 
 		if ((res = classify1(file)) < 0) {
-			error(errno, "Error: processing `%s' failed", file);
+			error("Error: processing `%s' failed", file);
 		}
 	}
 
@@ -387,4 +390,4 @@ out:
 	return res;
 }
 
-/* terms.c ends here */
+/* terms8.c ends here */
