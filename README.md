@@ -87,3 +87,10 @@ small to justify a full-fledged repository.
 This is the primary reason for the seemingly odd coverage of problems,
 and might be the reason for tools to appear and disappear willy-nilly.
 
+All tools deliberately ignore system-wide or user-specific localisation
+settings (locales)!  This (and of course speed) sets glod apart from
+tools like [PRETO][1], [JPreText][3] or [OpenRefine][2].
+
+  [1]: http://code.google.com/p/preto/
+  [2]: http://openrefine.org/
+  [3]: http://sites.labic.icmc.usp.br/torch/msd2011/jpretext/
