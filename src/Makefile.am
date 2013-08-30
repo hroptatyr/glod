@@ -106,6 +106,16 @@ terms_SOURCES = terms.c
 terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
 BUILT_SOURCES += terms.x terms.xh
+EXTRA_terms_SOURCES =
+EXTRA_terms_SOURCES += alpha.2.cases
+EXTRA_terms_SOURCES += alpha.3.cases
+EXTRA_terms_SOURCES += alpha.4.cases
+EXTRA_terms_SOURCES += numer.2.cases
+EXTRA_terms_SOURCES += numer.3.cases
+EXTRA_terms_SOURCES += numer.4.cases
+EXTRA_terms_SOURCES += punct.2.cases
+EXTRA_terms_SOURCES += punct.3.cases
+EXTRA_terms_SOURCES += punct.4.cases
 
 bin_PROGRAMS += tf
 tf_SOURCES = tf.c
