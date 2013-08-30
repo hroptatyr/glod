@@ -5,7 +5,7 @@ nicht
 Analysten
 nicht
 EOF
-58	nicht
-16	Analysten
-58	nicht
+56	nicht
+14	Analysten
+56	nicht
 $

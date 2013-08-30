@@ -1,23 +1,23 @@
 #!/usr/bin/clitoris ## -*- shell-script -*-
 
 $ terms "${root}/test/12abrdg.txt" | tf list -f foo.tcb
-5	Vectron
-6	Aktien
-7	verkaufen
-8	Für
-9	die
-6	Aktien
-10	der
-5	Vectron
-11	AG
-12	gibt
-13	es
-14	von
-15	den
-16	Analysten
-10	der
-17	Bankgesellschaft
-18	Berlin
-19	eine
-20	Verkaufsempfehlung
+3	Vectron
+4	Aktien
+5	verkaufen
+6	Für
+7	die
+4	Aktien
+8	der
+3	Vectron
+9	AG
+10	gibt
+11	es
+12	von
+13	den
+14	Analysten
+8	der
+15	Bankgesellschaft
+16	Berlin
+17	eine
+18	Verkaufsempfehlung
 $

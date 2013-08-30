@@ -1,11 +1,8 @@
 #!/usr/bin/clitoris ## -*- shell-script -*-
 
 $ terms "${root}/test/1206796.txt"
-21
-12
-2000
-15
-21
+21.12.2000
+15:21
 Vectron
 Aktien
 verkaufen
