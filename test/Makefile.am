@@ -23,7 +23,7 @@ CLEANFILES = $(check_PROGRAMS)
 TEST_EXTENSIONS += .tst
 TESTS_ENVIRONMENT = root=$(top_srcdir)
 TST_LOG_COMPILER = $(builddir)/clitoris
-AM_TST_LOG_FLAGS = --builddir $(top_builddir)/src
+AM_TST_LOG_FLAGS = -v --builddir $(top_builddir)/src
 AM_LOG_COMPILER = false
 
 ## the actual tests here
