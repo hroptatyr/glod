@@ -127,7 +127,7 @@ static void
 up_chars(const char *line, size_t llen)
 {
 	for (const char *lp = line, *const ep = line + llen; lp < ep; lp++) {
-		if (LIKELY(*lp >= 0 && *lp < 128)) {
+		if (LIKELY(*lp >= 0)) {
 			if (LIKELY(chars[*lp] < CHARS_CAPACITY)) {
 				chars[*lp]++;
 			}
