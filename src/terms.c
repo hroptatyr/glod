@@ -397,7 +397,8 @@ DEFCORU(co_snarf, {
 	do {
 		/* first, move the remaining bytes afront */
 		if (LIKELY(0U < npr && npr < bsz)) {
-			memmove(buf, buf + npr, nun = bsz - npr);
+			nun += nrd - npr;
+			memmove(buf, buf + npr, nun);
 		} else {
 			nun = 0U;
 		}
