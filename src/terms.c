@@ -286,7 +286,7 @@ classify_buf(const char *const buf, size_t z)
 		ST_SEEN_PUNCT,
 	} st;
 	clw_t cl;
-	ssize_t res = z;
+	ssize_t res = 0;
 
 	/* initialise state */
 	st = ST_NONE;
@@ -334,7 +334,7 @@ classify_buf(const char *const buf, size_t z)
 		yield:
 			/* yield case */
 			pr_strk(bp, ap - bp);
-			res = bp - buf;
+			res = pp - buf;
 		default:
 			st = ST_NONE;
 			bp = NULL;
@@ -345,10 +345,7 @@ classify_buf(const char *const buf, size_t z)
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data,
 	 * we will return the number of PROCESSED bytes */
-	if (st == ST_SEEN_ALNUM) {
-		return res;
-	}
-	return 0;
+	return res;
 }
 
 static int
