@@ -122,16 +122,6 @@ noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
 porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
 
-noinst_PROGRAMS += terms8
-terms8_SOURCES = terms8.c
-terms8_SOURCES += terms.ggo
-terms8_CPPFLAGS = $(AM_CPPFLAGS)
-terms8_CPPFLAGS += -I/home/freundt/usr/include
-terms8_LDFLAGS = $(AM_LDFLAGS)
-terms8_LDFLAGS += -static
-terms8_LDADD = libglod.a
-BUILT_SOURCES += terms.x terms.xh
-
 noinst_PROGRAMS += gencls
 gencls_CPPFLAGS = $(AM_CPPFLAGS)
 gencls_CPPFLAGS += -D_GNU_SOURCE
