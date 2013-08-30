@@ -345,42 +345,14 @@ classify_buf(const char *const buf, size_t z)
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data,
 	 * we will return the number of PROCESSED bytes */
+	if (LIKELY(res > 0 && st != ST_SEEN_ALNUM)) {
+		/* pretend we proc'd it all */
+		return z;
+	}
 	return res;
 }
 
-static int
-classify1(const char *fn)
-{
-	glodfn_t f;
-	int res = -1;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		goto out;
-	}
-
-	/* peruse */
-	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
-		if (UNLIKELY(npr == 0)) {
-			goto yield;
-		} else if (UNLIKELY(npr < 0)) {
-			goto out;
-		}
-	}
-
-	/* we printed our findings by side-effect already,
-	 * finalise the output here */
-	puts("\f");
-
-yield:
-	/* total success innit? */
-	res = 0;
-
-out:
-	(void)munmap_fn(f);
-	return res;
-}
-
+
 DEFCORU(co_snarf, {
 		char *buf;
 	}, void *arg)
@@ -426,6 +398,40 @@ DEFCORU(co_class, {
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
+}
+
+
+static int
+classify1(const char *fn)
+{
+	glodfn_t f;
+	int res = -1;
+
+	/* map the file FN and snarf the alerts */
+	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
+		goto out;
+	}
+
+	/* peruse */
+	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
+		if (UNLIKELY(npr == 0)) {
+			goto yield;
+		} else if (UNLIKELY(npr < 0)) {
+			goto out;
+		}
+	}
+
+	/* we printed our findings by side-effect already,
+	 * finalise the output here */
+	puts("\f");
+
+yield:
+	/* total success innit? */
+	res = 0;
+
+out:
+	(void)munmap_fn(f);
+	return res;
 }
 
 static int
