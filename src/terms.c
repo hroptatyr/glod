@@ -47,6 +47,35 @@
 #include "nifty.h"
 #include "fops.h"
 
+#include "cothread/cocore.h"
+
+#define PREP()		initialise_cocore_thread()
+#define UNPREP()	terminate_cocore_thread()
+#define START(x, ctx)							\
+	({								\
+		struct cocore *next = (ctx)->next;			\
+		create_cocore(						\
+			next, (cocore_action_t)(x),			\
+			(ctx), sizeof(*(ctx)),				\
+			next, 0U, false, 0);				\
+	})
+#define SWITCH(x, o)	switch_cocore((x), (void*)(intptr_t)(o))
+#define NEXT1(x, o)	((intptr_t)(check_cocore(x) ? SWITCH(x, o) : NULL))
+#define NEXT(x)		NEXT1(x, NULL)
+#define YIELD(o)	((intptr_t)SWITCH(CORU_CLOSUR(next), (o)))
+#define RETURN(o)	return (void*)(intptr_t)(o)
+
+#define DEFCORU(name, closure, arg)			\
+	struct name##_s {				\
+		struct cocore *next;			\
+		struct closure;				\
+	};						\
+	static void *name(struct name##_s *ctx, arg)
+#define CORU_CLOSUR(x)	(ctx->x)
+#define CORU_STRUCT(x)	struct x##_s
+#define PACK(x, args...)	&((CORU_STRUCT(x)){args})
+#define START_PACK(x, args...)	START(x, PACK(x, args))
+
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -242,8 +271,8 @@ pr_strk(const char *s, size_t z)
 	return;
 }
 
-static int
-classify_buf(const char *buf, size_t z)
+static ssize_t
+classify_buf(const char *const buf, size_t z)
 {
 /* this is a simple state machine,
  * we start at NONE and wait for an ALNUM,
@@ -257,9 +286,8 @@ classify_buf(const char *buf, size_t z)
 		ST_SEEN_PUNCT,
 	} st;
 	clw_t cl;
-	int res = -1;
+	ssize_t res = z;
 
-#define YIELD	pr_strk
 	/* initialise state */
 	st = ST_NONE;
 	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
@@ -305,8 +333,8 @@ classify_buf(const char *buf, size_t z)
 			break;
 		yield:
 			/* yield case */
-			YIELD(bp, ap - bp);
-			res = 0;
+			pr_strk(bp, ap - bp);
+			res = bp - buf;
 		default:
 			st = ST_NONE;
 			bp = NULL;
@@ -315,9 +343,12 @@ classify_buf(const char *buf, size_t z)
 		}
 	}
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
-	 * we actually need to request more data */
-#undef YIELD
-	return res;
+	 * we actually need to request more data,
+	 * we will return the number of PROCESSED bytes */
+	if (st == ST_SEEN_ALNUM) {
+		return res;
+	}
+	return 0;
 }
 
 static int
@@ -332,19 +363,108 @@ classify1(const char *fn)
 	}
 
 	/* peruse */
-	if (classify_buf(f.fb.d, f.fb.z) < 0) {
-		goto out;
+	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
+		if (UNLIKELY(npr == 0)) {
+			goto yield;
+		} else if (UNLIKELY(npr < 0)) {
+			goto out;
+		}
 	}
 
 	/* we printed our findings by side-effect already,
 	 * finalise the output here */
 	puts("\f");
 
+yield:
 	/* total success innit? */
 	res = 0;
 
 out:
 	(void)munmap_fn(f);
+	return res;
+}
+
+DEFCORU(co_snarf, {
+		char *buf;
+	}, void *arg)
+{
+	/* upon the first call we expect a completely processed buffer
+	 * just to determine the buffer's size */
+	char *const buf = CORU_CLOSUR(buf);
+	const size_t bsz = (intptr_t)arg;
+	size_t npr = bsz;
+	size_t nrd;
+	size_t nun;
+
+	/* enter the main snarf loop */
+	do {
+		/* first, move the remaining bytes afront */
+		if (LIKELY(0U < npr && npr < bsz)) {
+			memmove(buf, buf + npr, nun = bsz - npr);
+		} else {
+			nun = 0U;
+		}
+
+		nrd = fread(buf + nun, sizeof(*buf), bsz - nun, stdin);
+	} while ((nrd + nun) && (npr = YIELD(nrd + nun)));
+	return 0;
+}
+
+DEFCORU(co_class, {
+		char *buf;
+	}, void *UNUSED(arg))
+{
+	/* upon the first call we expect a completely filled buffer
+	 * just to determine the buffer's size */
+	char *const buf = CORU_CLOSUR(buf);
+	const size_t bsz = (intptr_t)arg;
+	size_t nrd = bsz;
+	ssize_t npr;
+
+	/* enter the main snarf loop */
+	do {
+		if ((npr = classify_buf(buf, nrd)) < 0) {
+			RETURN(-1);
+		}
+	} while ((nrd = YIELD(npr)) > 0U);
+	return 0;
+}
+
+static int
+classify0(void)
+{
+	static char buf[4096U];
+	struct cocore *snarf;
+	struct cocore *class;
+	struct cocore *self;
+	int res = 0;
+	ssize_t nrd;
+	ssize_t npr;
+
+	self = PREP();
+	snarf = START_PACK(co_snarf, .next = self, .buf = buf);
+	class = START_PACK(co_class, .next = self, .buf = buf);
+
+	/* assume a nicely processed buffer to indicate its size to
+	 * the reader coroutine */
+	npr = sizeof(buf);
+	do {
+		/* technically we could let the corus flip-flop call each other
+		 * but we'd like to filter bad input right away */
+		if (UNLIKELY((nrd = NEXT1(snarf, npr)) < 0)) {
+			error("Error: reading from stdin failed");
+			res = -1;
+			break;
+		}
+
+		if (UNLIKELY((npr = NEXT1(class, nrd)) < 0)) {
+			error("Error: processing stdin failed");
+			res = -1;
+			break;
+		}
+	} while (nrd > 0);
+
+	UNPREP();
 	return res;
 }
 
@@ -364,24 +484,32 @@ int
 main(int argc, char *argv[])
 {
 	struct glod_args_info argi[1];
-	int res;
+	int res = 0;
 
 	if (glod_parser(argc, argv, argi)) {
 		res = 1;
 		goto out;
-	} else if (argi->inputs_num < 1) {
-		fputs("Error: no FILE given\n\n", stderr);
-		glod_parser_print_help();
-		res = 1;
+	}
+
+	/* get the coroutines going */
+	initialise_cocore();
+
+	/* process stdin? */
+	if (!argi->inputs_num) {
+		if (classify0() < 0) {
+			error("Error: processing stdin failed");
+			res = 1;
+		}
 		goto out;
 	}
 
-	/* run stats on that one file */
+	/* process files given on the command line */
 	for (unsigned int i = 0; i < argi->inputs_num; i++) {
 		const char *file = argi->inputs[i];
 
-		if ((res = classify1(file)) < 0) {
+		if (classify1(file) < 0) {
 			error("Error: processing `%s' failed", file);
+			res = 1;
 		}
 	}
 
