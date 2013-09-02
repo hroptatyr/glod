@@ -1,8 +1,7 @@
 language: c
 
-## currently, gcc cannot build glod because of issues with const initialisers
 compiler:
-  - icc
+  - gcc
 
 before_install:
   - sudo apt-get -qq update
