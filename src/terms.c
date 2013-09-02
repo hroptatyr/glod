@@ -47,7 +47,7 @@
 #include "nifty.h"
 #include "fops.h"
 
-#include "cothread/cocore.h"
+#include "coru/cocore.h"
 
 #define PREP()		initialise_cocore_thread()
 #define UNPREP()	terminate_cocore_thread()
