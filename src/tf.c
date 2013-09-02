@@ -50,7 +50,7 @@
 #include "doc.h"
 #include "nifty.h"
 
-#include "cothread/cocore.h"
+#include "coru/cocore.h"
 
 #if defined __INTEL_COMPILER
 # define auto	static
