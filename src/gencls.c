@@ -22,7 +22,7 @@ init_lohi(void)
 static struct mb_s
 xwctomb(long unsigned int wc)
 {
-	static const struct mb_s null_mb;
+	static const struct mb_s null_mb = {};
 	long unsigned int x;
 	size_t w;
 
