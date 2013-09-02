@@ -68,7 +68,7 @@ struct classifier_s {
 static unsigned int				\
 cls_##name(const char *buf, size_t len)
 
-#define REFCLASSIFIER(name)	(struct classifier_s){#name, cls_##name}
+#define REFCLASSIFIER(name)	{#name, cls_##name, 0}
 
 #define CLASSIFIER(name, b, z)	cls_##name(b, z)
 
@@ -127,7 +127,7 @@ static void
 up_chars(const char *line, size_t llen)
 {
 	for (const char *lp = line, *const ep = line + llen; lp < ep; lp++) {
-		if (LIKELY(*lp >= 0 && *lp < 128)) {
+		if (LIKELY(*lp >= 0)) {
 			if (LIKELY(chars[*lp] < CHARS_CAPACITY)) {
 				chars[*lp]++;
 			}

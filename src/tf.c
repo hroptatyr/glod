@@ -52,6 +52,10 @@
 
 #include "cothread/cocore.h"
 
+#if defined __INTEL_COMPILER
+# define auto	static
+#endif	/* __INTEL_COMPILER */
+
 #define PREP()		initialise_cocore_thread()
 #define UNPREP()	terminate_cocore_thread()
 #define START(x, ctx)							\
@@ -328,7 +332,7 @@ DEFCORU(co_prnt_idfs, {
 	}, gl_doc_t d)
 {
 /* output plain old sparse tuples innit */
-	size_t top = (size_t)(CORU_CLOSUR(topN) > 0 ? CORU_CLOSUR(topN) : 0U);
+	size_t top = (size_t)(CORU_CLOSUR(topN) > 0 ? CORU_CLOSUR(topN) : 0);
 	const bool augp = !!CORU_CLOSUR(augp);
 	const gl_corpus_t c = CORU_CLOSUR(c);
 	void(*prnt)(gl_corpus_t, gl_crpid_t, float);
@@ -338,7 +342,7 @@ DEFCORU(co_prnt_idfs, {
 		float v;
 	} *idfs;
 
-	static void rec_idf(gl_corpus_t UNUSED(c), gl_crpid_t tid, float tfidf)
+	auto void rec_idf(gl_corpus_t UNUSED(c), gl_crpid_t tid, float tfidf)
 	{
 		size_t pos;
 
