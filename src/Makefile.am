@@ -71,8 +71,16 @@ libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
 
 noinst_LIBRARIES += libcothr.a
 libcothr_a_SOURCES =
+EXTRA_libcothr_a_SOURCES =
 libcothr_a_SOURCES += cothread/cocore.c cothread/cocore.h
 libcothr_a_SOURCES += cothread/switch.c cothread/switch.h
+libcothr_a_SOURCES += cothread/platform.h
+libcothr_a_SOURCES += cothread/valgrind.h
+libcothr_a_SOURCES += cothread/memcheck.h
+EXTRA_libcothr_a_SOURCES += cothread/switch-arm.c
+EXTRA_libcothr_a_SOURCES += cothread/switch-ppc_osx.c
+EXTRA_libcothr_a_SOURCES += cothread/switch-x86.c
+EXTRA_libcothr_a_SOURCES += cothread/switch-x86_64.c
 
 
 bin_PROGRAMS += glod-charstat
