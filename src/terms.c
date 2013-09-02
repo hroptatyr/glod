@@ -156,11 +156,15 @@ mb_width(const char *p, const char *const ep)
 static __attribute__((pure, const)) cls_t
 mb_class(const char *p, size_t z)
 {
-#define U2(x)	(long unsigned int)((x[0U] << 8U) + (x[1U] << 0U))
-#define U3(x)	(long unsigned int)					\
-		((x[0U] << 16U) + (x[1U] << 8U) + (x[2U] << 0U))
-#define U4(x)	(long unsigned int)					\
-		((x[0U] << 24U) + (x[1U] << 16U) + (x[2U] << 8U) + (x[3U] + 0U))
+#define C(x, i)	((const uint8_t*)x)[i]
+#define C0(x)	C(x, 0U)
+#define C1(x)	C(x, 1U)
+#define C2(x)	C(x, 2U)
+#define C3(x)	C(x, 3U)
+#define U1(x)	(long unsigned int)(C0(x))
+#define U2(x)	(long unsigned int)((U1(x) << 8U) + C1(x))
+#define U3(x)	(long unsigned int)((U2(x) << 8U) + C2(x))
+#define U4(x)	(long unsigned int)((U3(x) << 8U) + C3(x))
 	uint8_t pc = (uint8_t)(unsigned char)*p;
 
 	switch (z) {
