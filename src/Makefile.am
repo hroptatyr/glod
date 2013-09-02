@@ -69,10 +69,18 @@ libglod_a_SOURCES += version.c version.h
 libglod_a_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_a_CPPFLAGS += $(tokyocabinet_CFLAGS)
 
-noinst_LIBRARIES += libcothr.a
-libcothr_a_SOURCES =
-libcothr_a_SOURCES += cothread/cocore.c cothread/cocore.h
-libcothr_a_SOURCES += cothread/switch.c cothread/switch.h
+noinst_LIBRARIES += libcoru.a
+libcoru_a_SOURCES =
+EXTRA_libcoru_a_SOURCES =
+libcoru_a_SOURCES += coru/cocore.c coru/cocore.h
+libcoru_a_SOURCES += coru/switch.c coru/switch.h
+libcoru_a_SOURCES += coru/platform.h
+libcoru_a_SOURCES += coru/valgrind.h
+libcoru_a_SOURCES += coru/memcheck.h
+EXTRA_libcoru_a_SOURCES += coru/switch-arm.c
+EXTRA_libcoru_a_SOURCES += coru/switch-ppc_osx.c
+EXTRA_libcoru_a_SOURCES += coru/switch-x86.c
+EXTRA_libcoru_a_SOURCES += coru/switch-x86_64.c
 
 
 bin_PROGRAMS += glod-charstat
@@ -105,7 +113,7 @@ bin_PROGRAMS += terms
 terms_SOURCES = terms.c
 terms_SOURCES += terms.ggo
 terms_LDADD = libglod.a
-terms_LDADD += libcothr.a
+terms_LDADD += libcoru.a
 BUILT_SOURCES += terms.x terms.xh
 EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += alpha.2.cases
@@ -126,7 +134,7 @@ tf_CPPFLAGS += -D_GNU_SOURCE
 tf_LDFLAGS = $(AM_LDFLAGS)
 tf_LDFLAGS += $(tokyocabinet_LIBS)
 tf_LDADD = libglod.a
-tf_LDADD += libcothr.a
+tf_LDADD += libcoru.a
 BUILT_SOURCES += tf.x tf.xh
 
 noinst_PROGRAMS += porter-stemmer
