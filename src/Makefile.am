@@ -173,15 +173,19 @@ BUILT_SOURCES += alpha.codes
 BUILT_SOURCES += numer.codes
 BUILT_SOURCES += punct.codes
 
-BUILT_SOURCES += alpha.2.cases
-BUILT_SOURCES += alpha.3.cases
-BUILT_SOURCES += alpha.4.cases
-BUILT_SOURCES += numer.2.cases
-BUILT_SOURCES += numer.3.cases
-BUILT_SOURCES += numer.4.cases
-BUILT_SOURCES += punct.2.cases
-BUILT_SOURCES += punct.3.cases
-BUILT_SOURCES += punct.4.cases
+CASES =
+CASES += alpha.2.cases
+CASES += alpha.3.cases
+CASES += alpha.4.cases
+CASES += numer.2.cases
+CASES += numer.3.cases
+CASES += numer.4.cases
+CASES += punct.2.cases
+CASES += punct.3.cases
+CASES += punct.4.cases
+
+BUILT_SOURCES += $(CASES)
+CLEANFILES += $(CASES)
 
 UnicodeData.txt:
 	curl -qgsfL -o $@ "http://www.unicode.org/Public/UNIDATA/$@"
