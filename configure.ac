@@ -36,13 +36,17 @@ SXE_CHECK_CC([c11 c1x c99 gnu99])
 SXE_CHECK_CFLAGS
 AC_CHECK_TOOLS([AR], [xiar ar], [false])
 AC_C_BIGENDIAN
-AC_PROG_RANLIB
 
 AM_MISSING_PROG([HELP2MAN], [help2man], ["${missing_dir}"])
 
 PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet])
 AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
 with_database="tcbdb"
+
+## libtool goddess^Wgoodness
+## has to be down here as we're turning -Werror'ing off
+LT_INIT
+SXE_CHECK_LIBTOOL
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([src/Makefile])
