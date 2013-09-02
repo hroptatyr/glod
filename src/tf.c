@@ -328,7 +328,7 @@ DEFCORU(co_prnt_idfs, {
 	}, gl_doc_t d)
 {
 /* output plain old sparse tuples innit */
-	size_t top = (size_t)(CORU_CLOSUR(topN) > 0 ? CORU_CLOSUR(topN) : 0U);
+	size_t top = (size_t)(CORU_CLOSUR(topN) > 0 ? CORU_CLOSUR(topN) : 0);
 	const bool augp = !!CORU_CLOSUR(augp);
 	const gl_corpus_t c = CORU_CLOSUR(c);
 	void(*prnt)(gl_corpus_t, gl_crpid_t, float);
