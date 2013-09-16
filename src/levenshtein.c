@@ -1,5 +1,42 @@
+/*** levenshtein.c -- damerau-levenshtein distance matrix
+ *
+ * Copyright (C) 2013 Sebastian Freundt
+ *
+ * Author:  Sebastian Freundt <freundt@ga-group.nl>
+ *
+ * This file is part of glod.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the author nor the names of any contributors
+ *    may be used to endorse or promote products derived from this
+ *    software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ ***/
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "levenshtein.h"
 #include "nifty.h"
 
@@ -31,30 +68,19 @@
  * i (in string1) and j (in string2), respectively, given that the last
  * operation is a substition, a swap, a deletion, or an insertion.
  *
- * This implementation allows the costs to be weighted:
- *
- * - w (as in "sWap")
- * - s (as in "Substitution")
- * - a (for insertion, AKA "Add")
- * - d (as in "Deletion")
- *
- * Note that this algorithm calculates a distance _iff_ d == a.
  */
 int
-levenshtein(
-	const char *string1, const char *string2,
-	int w, int s, int a, int d)
+ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o)
 {
-	static int *row0;
-	static int *row1;
-	static int *row2;
+#define PNLTY(x)	(o.x)
+	static unsigned int *row0;
+	static unsigned int *row1;
+	static unsigned int *row2;
 	static size_t z;
-	size_t len1;
-	size_t len2;
 	int res = -1;
 
-	if (UNLIKELY(string1 == NULL || string2 == NULL)) {
-		if (string1 == NULL && string2 == NULL) {
+	if (UNLIKELY(s1 == NULL || s2 == NULL)) {
+		if (s1 == NULL && s2 == NULL) {
 			/* that's the secret free()ing */
 			if (row0 != NULL) {
 				free(row0);
@@ -74,37 +100,38 @@ levenshtein(
 		return -1;
 	}
 
-	len1 = strlen(string1);
-	len2 = strlen(string2);
-
 	/* resize? */
-	if (len2 + 1 > z) {
-		row0 = realloc(row0, sizeof(*row0) * (len2 + 1));
-		row1 = realloc(row1, sizeof(*row1) * (len2 + 1));
-		row2 = realloc(row2, sizeof(*row2) * (len2 + 1));
+	if (z2 + 1U > z) {
+		row0 = realloc(row0, sizeof(*row0) * (z2 + 1U));
+		row1 = realloc(row1, sizeof(*row1) * (z2 + 1U));
+		row2 = realloc(row2, sizeof(*row2) * (z2 + 1U));
 	}
 
-	for (size_t j = 0; j <= len2; j++) {
-		row1[j] = j * a;
+	for (size_t j = 0; j <= z2; j++) {
+		row1[j] = j * PNLTY(insdel);
 	}
-	for (size_t i = 0; i < len1; i++) {
-		int *dummy;
+	for (size_t i = 0; i < z1; i++) {
+		unsigned int *dummy;
 
-		row2[0] = (i + 1) * d;
-		for (size_t j = 0; j < len2; j++) {
+		row2[0] = (i + 1U) * PNLTY(insdel);
+		for (size_t j = 0; j < z2; j++) {
 			/* substitution */
-			row2[j + 1] = row1[j] + s * (string1[i] != string2[j]);
+			row2[j + 1U] = row1[j] + PNLTY(subst) * (s1[i] != s2[j]);
 			/* swap */
-			if (i > 0 && j > 0 && string1[i - 1] == string2[j] &&
-					string1[i] == string2[j - 1] &&
-					row2[j + 1] > row0[j - 1] + w)
-				row2[j + 1] = row0[j - 1] + w;
+			if (i > 0 && j > 0 &&
+			    s1[i - 1U] == s2[j - 0U] &&
+			    s1[i - 0U] == s2[j - 1U] &&
+			    row2[j + 1U] > row0[j - 1U] + PNLTY(trnsp)) {
+				row2[j + 1U] = row0[j - 1U] + PNLTY(trnsp);
+			}
 			/* deletion */
-			if (row2[j + 1] > row1[j + 1] + d)
-				row2[j + 1] = row1[j + 1] + d;
+			if (row2[j + 1U] > row1[j + 1U] + PNLTY(insdel)) {
+				row2[j + 1U] = row1[j + 1U] + PNLTY(insdel);
+			}
 			/* insertion */
-			if (row2[j + 1] > row2[j] + a)
-				row2[j + 1] = row2[j] + a;
+			if (row2[j + 1U] > row2[j + 0U] + PNLTY(insdel)) {
+				row2[j + 1U] = row2[j + 0U] + PNLTY(insdel);
+			}
 		}
 
 		dummy = row0;
@@ -113,6 +140,8 @@ levenshtein(
 		row2 = dummy;
 	}
 
-	res = row1[len2];
+	res = row1[z2];
 	return res;
 }
+
+/* levenshtein.c ends here */

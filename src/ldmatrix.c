@@ -108,24 +108,25 @@ ldmatrix_prep(char *files[], size_t nfiles)
 }
 
 static int
-ldmatrix_calc(char *termv[], size_t termz)
+ldmatrix_calc(const char *t0, const char *t1)
 {
-	/* just go through and through */
-	if (UNLIKELY(termz < 1U || termv[0] == NULL)) {
-		/* yea, good try */
-		return -1;
-	} else if (UNLIKELY(termz < 2U || termv[1] == NULL)) {
-		/* oookay */
-		return -1;
-	}
+	ld_opt_t opt = {
+		.trnsp = 1U,
+		.subst = 1U,
+		.insdel = 1U,
+	};
+	size_t z0;
+	size_t z1;
 
-	for (const char *p0 = termv[0]; *p0; p0 += strlen(p0) + 1U/*\nul*/) {
-		for (const char *p1 = termv[1]; *p1; p1 += strlen(p1) + 1U) {
+	for (const char *p0 = t0; *p0; p0 += z0 + 1U/*\nul*/) {
+		z0 = strlen(p0);
+		for (const char *p1 = t1; *p1; p1 += z1 + 1U) {
+			z1 = strlen(p1);
 			fputs(p0, stdout);
 			fputc('\t', stdout);
 			fputs(p1, stdout);
 			fputc('\t', stdout);
-			printf("%d", levenshtein(p0, p1, 1, 1, 1, 1));
+			printf("%d", ldcalc(p0, z0, p1, z1, opt));
 			fputc('\n', stdout);
 		}
 	}
@@ -151,16 +152,30 @@ ldmatrix(struct glod_args_info argi[static 1])
 	size_t nfiles = argi->inputs_num;
 	char **terms;
 
-	init_levenshtein();
+	/* just go through and through */
+	if (UNLIKELY(nfiles < 1U)) {
+		/* yea, good try */
+		return 1;
+	} else if (UNLIKELY(nfiles < 2U)) {
+		/* oookay */
+		return -1;
+	}
 
-	if ((terms = ldmatrix_prep(files, nfiles)) == NULL) {
+	/* prepare */
+	if (UNLIKELY((terms = ldmatrix_prep(files, nfiles)) == NULL)) {
 		/* huh? */
+		return 1;
+	} else if (UNLIKELY(terms[0U] == NULL)) {
+		return 1;
+	} else if (UNLIKELY(terms[1U] == NULL)) {
 		return 1;
 	}
 
-	ldmatrix_calc(terms, nfiles);
-
-	fini_levenshtein();
+	/* the actual beef */
+	init_ldcalc();
+	ldmatrix_calc(terms[0U], terms[1U]);
+	fini_ldcalc();
+	free(terms);
 	return 0;
 }
 
