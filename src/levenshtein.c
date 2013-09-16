@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "levenshtein.h"
+#include "nifty.h"
 
 /*
  * This function implements the Damerau-Levenshtein algorithm to
@@ -39,22 +40,58 @@
  *
  * Note that this algorithm calculates a distance _iff_ d == a.
  */
-int levenshtein(const char *string1, const char *string2,
-		int w, int s, int a, int d)
+int
+levenshtein(
+	const char *string1, const char *string2,
+	int w, int s, int a, int d)
 {
-	int len1 = strlen(string1), len2 = strlen(string2);
-	int *row0 = malloc(sizeof(int) * (len2 + 1));
-	int *row1 = malloc(sizeof(int) * (len2 + 1));
-	int *row2 = malloc(sizeof(int) * (len2 + 1));
-	int i, j;
+	static int *row0;
+	static int *row1;
+	static int *row2;
+	static size_t z;
+	size_t len1;
+	size_t len2;
+	int res = -1;
 
-	for (j = 0; j <= len2; j++)
+	if (UNLIKELY(string1 == NULL || string2 == NULL)) {
+		if (string1 == NULL && string2 == NULL) {
+			/* that's the secret free()ing */
+			if (row0 != NULL) {
+				free(row0);
+			}
+			if (row1 != NULL) {
+				free(row1);
+			}
+			if (row2 != NULL) {
+				free(row2);
+			}
+			row0 = NULL;
+			row1 = NULL;
+			row2 = NULL;
+			z = 0UL;
+		}
+		/* um */
+		return -1;
+	}
+
+	len1 = strlen(string1);
+	len2 = strlen(string2);
+
+	/* resize? */
+	if (len2 + 1 > z) {
+		row0 = realloc(row0, sizeof(*row0) * (len2 + 1));
+		row1 = realloc(row1, sizeof(*row1) * (len2 + 1));
+		row2 = realloc(row2, sizeof(*row2) * (len2 + 1));
+	}
+
+	for (size_t j = 0; j <= len2; j++) {
 		row1[j] = j * a;
-	for (i = 0; i < len1; i++) {
+	}
+	for (size_t i = 0; i < len1; i++) {
 		int *dummy;
 
 		row2[0] = (i + 1) * d;
-		for (j = 0; j < len2; j++) {
+		for (size_t j = 0; j < len2; j++) {
 			/* substitution */
 			row2[j + 1] = row1[j] + s * (string1[i] != string2[j]);
 			/* swap */
@@ -76,10 +113,6 @@ int levenshtein(const char *string1, const char *string2,
 		row2 = dummy;
 	}
 
-	i = row1[len2];
-	free(row0);
-	free(row1);
-	free(row2);
-
-	return i;
+	res = row1[len2];
+	return res;
 }
