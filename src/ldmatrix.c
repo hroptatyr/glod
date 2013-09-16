@@ -119,25 +119,16 @@ ldmatrix_calc(char *termv[], size_t termz)
 		return -1;
 	}
 
-	static void pr(const char p0[static 1], const char p1[static 1])
-	{
-		for (; *p0; p0 += strlen(p0) + 1U/*\nul*/) {
-			for (; *p1; p1 += strlen(p1) + 1U/*\nul*/) {
-				fputs(p0, stdout);
-				fputc('\t', stdout);
-				fputs(p1, stdout);
-				fputc('\t', stdout);
-				printf("%d", levenshtein(p0, p1, 1, 1, 1, 1));
-				fputc('\n', stdout);
-			}
+	for (const char *p0 = termv[0]; *p0; p0 += strlen(p0) + 1U/*\nul*/) {
+		for (const char *p1 = termv[1]; *p1; p1 += strlen(p1) + 1U) {
+			fputs(p0, stdout);
+			fputc('\t', stdout);
+			fputs(p1, stdout);
+			fputc('\t', stdout);
+			printf("%d", levenshtein(p0, p1, 1, 1, 1, 1));
+			fputc('\n', stdout);
 		}
 	}
-
-	if (UNLIKELY(termz > 2U && termv[2] != NULL)) {
-		pr(termv[0], termv[2]);
-		pr(termv[1], termv[2]);
-	}
-	pr(termv[0], termv[1]);
 	return 0;
 }
 
