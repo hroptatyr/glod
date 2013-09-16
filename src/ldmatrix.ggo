@@ -1,0 +1,5 @@
+args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
+package "ldmatrix"
+usage "ldmatrix [OPTIONS...] [TERMFILE...]"
+description "Compute damerau-levenshtein distances."
+
