@@ -160,12 +160,16 @@ ldmatrix(struct glod_args_info argi[static 1])
 	size_t nfiles = argi->inputs_num;
 	char **terms;
 
+	init_levenshtein();
+
 	if ((terms = ldmatrix_prep(files, nfiles)) == NULL) {
 		/* huh? */
 		return 1;
 	}
 
 	ldmatrix_calc(terms, nfiles);
+
+	fini_levenshtein();
 	return 0;
 }
 
