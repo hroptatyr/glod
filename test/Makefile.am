@@ -65,6 +65,11 @@ tf_TESTS += tf.24.tst
 tf_TESTS += tf.25.tst
 tf_TESTS += tf.xx.tst
 
+ldmatrix_TESTS =
+TESTS += $(ldmatrix_TESTS)
+ldmatrix_TESTS += ldmatrix.01.tst
+
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
