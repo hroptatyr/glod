@@ -43,6 +43,7 @@
 #include <string.h>
 #include <errno.h>
 #include "levenshtein.h"
+#include "fops.h"
 #include "nifty.h"
 
 
@@ -64,73 +65,58 @@ error(const char *fmt, ...)
 }
 
 
-static char**
-ldmatrix_prep(char *files[], size_t nfiles)
-{
-	char **terms = calloc(nfiles, sizeof(*terms));
-	char *line = NULL;
-	size_t llen = 0UL;
-
-	for (size_t i = 0U; i < nfiles; i++) {
-		const char *fn = files[i];
-		ssize_t nrd;
-		char *termp;
-		size_t zterms;
-		size_t nterms = 0UL;
-		FILE *f;
-
-		if ((f = fopen(fn, "r")) == NULL) {
-			error("cannot open file `%s'", fn);
-			continue;
-		}
-		/* start out small */
-		termp = malloc(zterms = 256UL);
-		while ((nrd = getline(&line, &llen, f)) > 0) {
-			if (UNLIKELY(nterms + nrd >= zterms)) {
-				zterms *= 2U;
-				termp = realloc(termp, zterms);
-			}
-			memcpy(termp + nterms, line, nrd - 1U);
-			termp[(nterms += nrd) - 1U] = '\0';
-		}
-		if (UNLIKELY(nterms + 1U >= zterms)) {
-			zterms += 64U;
-			termp = realloc(termp, zterms);
-		}
-		/* finish on a double \nul */
-		termp[nterms] = '\0';
-
-		terms[i] = termp;
-		/* prepare for the next round */
-		fclose(f);
-	}
-	return terms;
-}
-
 static int
-ldmatrix_calc(const char *t0, const char *t1)
+ldmatrix_calc(glodfn_t f1, glodfn_t f2)
 {
 	ld_opt_t opt = {
 		.trnsp = 1U,
 		.subst = 1U,
 		.insdel = 1U,
 	};
-	size_t z0;
-	size_t z1;
 
-	for (const char *p0 = t0; *p0; p0 += z0 + 1U/*\nul*/) {
-		z0 = strlen(p0);
-		for (const char *p1 = t1; *p1; p1 += z1 + 1U) {
-			z1 = strlen(p1);
-			fputs(p0, stdout);
+	for (const char *p0 = f1.fb.d, *w0;
+	     (w0 = strchr(p0, '\n')); p0 = w0 + 1U/*\nul*/) {
+		size_t z0 = w0 - p0;
+
+		for (const char *p1 = f2.fb.d, *w1;
+		     (w1 = strchr(p1, '\n')); p1 = w1 + 1U/*\nul*/) {
+			size_t z1 = w1 - p1;
+
+			fwrite(p0, sizeof(*p0), z0, stdout);
 			fputc('\t', stdout);
-			fputs(p1, stdout);
+			fwrite(p1, sizeof(*p1), z1, stdout);
 			fputc('\t', stdout);
 			printf("%d", ldcalc(p0, z0, p1, z1, opt));
 			fputc('\n', stdout);
 		}
 	}
 	return 0;
+}
+
+static int
+ldmatrix(const char *fn1, const char *fn2)
+{
+	glodfn_t f1;
+	glodfn_t f2;
+	int res = -1;
+
+	if (UNLIKELY((f1 = mmap_fn(fn1, O_RDONLY)).fd < 0)) {
+		error("cannot read file `%s'", fn1);
+		goto out;
+	} else if (UNLIKELY((f2 = mmap_fn(fn2, O_RDONLY)).fd < 0)) {
+		error("cannot read file `%s'", fn2);
+		goto ou1;
+	}
+
+	/* the actual beef */
+	res = ldmatrix_calc(f1, f2);
+
+	/* free resources */
+	(void)munmap_fn(f2);
+ou1:
+	(void)munmap_fn(f1);
+out:
+	return res;
 }
 
 
@@ -145,38 +131,6 @@ ldmatrix_calc(const char *t0, const char *t1)
 # pragma warning (default:181)
 #endif	/* __INTEL_COMPILER */
 
-static int
-ldmatrix(struct glod_args_info argi[static 1])
-{
-	char **files = argi->inputs;
-	size_t nfiles = argi->inputs_num;
-	char **terms;
-
-	/* just go through and through */
-	if (UNLIKELY(nfiles < 1U)) {
-		/* yea, good try */
-		return 1;
-	} else if (UNLIKELY(nfiles < 2U)) {
-		/* oookay */
-		return -1;
-	}
-
-	/* prepare */
-	if (UNLIKELY((terms = ldmatrix_prep(files, nfiles)) == NULL)) {
-		/* huh? */
-		return 1;
-	} else if (UNLIKELY(terms[0U] == NULL)) {
-		return 1;
-	} else if (UNLIKELY(terms[1U] == NULL)) {
-		return 1;
-	}
-
-	/* the actual beef */
-	ldmatrix_calc(terms[0U], terms[1U]);
-	free(terms);
-	return 0;
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -186,14 +140,18 @@ main(int argc, char *argv[])
 	if (glod_parser(argc, argv, argi)) {
 		res = 1;
 		goto out;
-	} else if (argi->inputs_num < 1) {
+	} else if (argi->inputs_num < 2U) {
 		glod_parser_print_help();
 		res = 1;
 		goto out;
 	}
 
-	/* prep, calc, prnt */
-	res = ldmatrix(argi);
+	with (const char *f1 = argi->inputs[0U], *f2 = argi->inputs[1U]) {
+		/* prep, calc, prnt */
+		if (UNLIKELY((res = ldmatrix(f1, f2)) < 0)) {
+			res = 1;
+		}
+	}
 
 out:
 	glod_parser_free(argi);
