@@ -63,6 +63,7 @@ libglod_la_SOURCES += boobs.h
 libglod_la_SOURCES += alrt.c alrt.h
 libglod_la_SOURCES += glep.c glep.h
 libglod_la_SOURCES += wu-manber-guts.c
+libglod_la_SOURCES += levenshtein.c levenshtein.h
 libglod_la_SOURCES += version.c version.h
 
 noinst_LTLIBRARIES += libcorpus.la
@@ -148,6 +149,14 @@ porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
 noinst_PROGRAMS += gencls
 gencls_CPPFLAGS = $(AM_CPPFLAGS)
 gencls_CPPFLAGS += -D_GNU_SOURCE
+
+noinst_PROGRAMS += ldmatrix
+ldmatrix_SOURCES = ldmatrix.c
+ldmatrix_SOURCES += ldmatrix.ggo
+ldmatrix_CPPFLAGS = $(AM_CPPFLAGS)
+ldmatrix_CPPFLAGS += -D_GNU_SOURCE
+ldmatrix_LDADD = libglod.la
+BUILT_SOURCES += ldmatrix.x ldmatrix.xh
 
 
 version.c: version.c.in $(top_builddir)/version.mk
