@@ -68,7 +68,8 @@ tf_TESTS += tf.xx.tst
 ldmatrix_TESTS =
 TESTS += $(ldmatrix_TESTS)
 ldmatrix_TESTS += ldmatrix.01.tst
-
+EXTRA_DIST += ldtest1.txt
+EXTRA_DIST += ldtest2.txt
 
 
 ## our friendly helpers
