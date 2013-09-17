@@ -1,5 +1,6 @@
 args "--unamed-opts --no-handle-error --long-help -a glod_args_info -f glod_parser"
 package "ldmatrix"
-usage "ldmatrix [OPTIONS...] [TERMFILE...]"
-description "Compute damerau-levenshtein distances."
+usage "ldmatrix [OPTIONS...] FILE1 FILE2"
+description "Compute Damerau-Levenshtein distances of terms in FILE1 paired with
+terms in FILE2."
 
