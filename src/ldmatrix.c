@@ -64,10 +64,35 @@ error(const char *fmt, ...)
 	return;
 }
 
+static size_t
+utoa(char *restrict buf, unsigned int i)
+{
+	char *restrict bp = buf;
+
+	if (UNLIKELY(i >= 1000U)) {
+		*buf = '+';
+		return 1U;
+	}
+
+	if (i >= 100U) {
+		*bp++ = (char)(i / 100U + '0');
+		i -= (i / 100U) * 100U;
+		goto nex;
+	} else if (i >= 10U) {
+	nex:
+		*bp++ = (char)(i / 10U + '0');
+		i -= (i / 10U) * 10U;
+	}
+	/* single digit case */
+	*bp++ = (char)(i + '0');
+	return bp - buf;
+}
+
 
 static int
 ldmatrix_calc(glodfn_t f1, glodfn_t f2)
 {
+	static char buf[4096U];
 	ld_opt_t opt = {
 		.trnsp = 1U,
 		.subst = 1U,
@@ -81,13 +106,20 @@ ldmatrix_calc(glodfn_t f1, glodfn_t f2)
 		for (const char *p1 = f2.fb.d, *w1;
 		     (w1 = strchr(p1, '\n')); p1 = w1 + 1U/*\nul*/) {
 			size_t z1 = w1 - p1;
+			char *bp = buf;
+			int d;
 
-			fwrite(p0, sizeof(*p0), z0, stdout);
-			fputc('\t', stdout);
-			fwrite(p1, sizeof(*p1), z1, stdout);
-			fputc('\t', stdout);
-			printf("%d", ldcalc(p0, z0, p1, z1, opt));
-			fputc('\n', stdout);
+			if (UNLIKELY((d = ldcalc(p0, z0, p1, z1, opt)) < 0)) {
+				continue;
+			}
+
+			memcpy(bp, p0, z0);
+			*(bp += z0) = '\t';
+			memcpy(++bp, p1, z1);
+			*(bp += z1) = '\t';
+			bp += utoa(++bp, d);
+			*bp = '\0';
+			puts(buf);
 		}
 	}
 	return 0;
