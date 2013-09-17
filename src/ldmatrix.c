@@ -172,9 +172,7 @@ ldmatrix(struct glod_args_info argi[static 1])
 	}
 
 	/* the actual beef */
-	init_ldcalc();
 	ldmatrix_calc(terms[0U], terms[1U]);
-	fini_ldcalc();
 	free(terms);
 	return 0;
 }

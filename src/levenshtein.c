@@ -73,50 +73,32 @@ int
 ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o)
 {
 #define PNLTY(x)	(o.x)
-	static unsigned int *row0;
-	static unsigned int *row1;
-	static unsigned int *row2;
-	static size_t z;
+#define MAX_STRLEN	(4096U / sizeof(dist_t))
+	typedef uint_fast16_t dist_t;
+	static dist_t _r0[MAX_STRLEN];
+	static dist_t _r1[MAX_STRLEN];
+	static dist_t _r2[MAX_STRLEN];
+	dist_t *row0 = _r0;
+	dist_t *row1 = _r1;
+	dist_t *row2 = _r2;
 	int res = -1;
 
-	if (UNLIKELY(s1 == NULL || s2 == NULL)) {
-		if (s1 == NULL && s2 == NULL) {
-			/* that's the secret free()ing */
-			if (row0 != NULL) {
-				free(row0);
-			}
-			if (row1 != NULL) {
-				free(row1);
-			}
-			if (row2 != NULL) {
-				free(row2);
-			}
-			row0 = NULL;
-			row1 = NULL;
-			row2 = NULL;
-			z = 0UL;
-		}
-		/* um */
+#if 1
+	/* check for buffer overruns? */
+	if (UNLIKELY(z2 + 1U > MAX_STRLEN)) {
 		return -1;
 	}
+#endif	/* 0 */
 
-	/* resize? */
-	if (z2 + 1U > z) {
-		row0 = realloc(row0, sizeof(*row0) * (z2 + 1U));
-		row1 = realloc(row1, sizeof(*row1) * (z2 + 1U));
-		row2 = realloc(row2, sizeof(*row2) * (z2 + 1U));
-	}
-
-	for (size_t j = 0; j <= z2; j++) {
+	for (size_t j = 0U; j <= z2; j++) {
 		row1[j] = j * PNLTY(insdel);
 	}
-	for (size_t i = 0; i < z1; i++) {
-		unsigned int *dummy;
-
+	for (size_t i = 0U; i < z1; i++) {
 		row2[0] = (i + 1U) * PNLTY(insdel);
-		for (size_t j = 0; j < z2; j++) {
+		for (size_t j = 0U; j < z2; j++) {
 			/* substitution */
 			row2[j + 1U] = row1[j] + PNLTY(subst) * (s1[i] != s2[j]);
+
 			/* swap */
 			if (i > 0 && j > 0 &&
 			    s1[i - 1U] == s2[j - 0U] &&
@@ -124,20 +106,23 @@ ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o)
 			    row2[j + 1U] > row0[j - 1U] + PNLTY(trnsp)) {
 				row2[j + 1U] = row0[j - 1U] + PNLTY(trnsp);
 			}
+
 			/* deletion */
 			if (row2[j + 1U] > row1[j + 1U] + PNLTY(insdel)) {
 				row2[j + 1U] = row1[j + 1U] + PNLTY(insdel);
 			}
+
 			/* insertion */
 			if (row2[j + 1U] > row2[j + 0U] + PNLTY(insdel)) {
 				row2[j + 1U] = row2[j + 0U] + PNLTY(insdel);
 			}
 		}
 
-		dummy = row0;
-		row0 = row1;
-		row1 = row2;
-		row2 = dummy;
+		with (dist_t *dummy = row0) {
+			row0 = row1;
+			row1 = row2;
+			row2 = dummy;
+		}
 	}
 
 	res = row1[z2];

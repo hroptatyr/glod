@@ -57,7 +57,4 @@ struct ld_opt_s {
 extern int
 ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o);
 
-#define init_ldcalc()
-#define fini_ldcalc()	(void)ldcalc(NULL, 0U, NULL, 0U, (ld_opt_t){})
-
 #endif /* INCLUDED_levenshtein_h_ */
