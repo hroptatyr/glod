@@ -96,26 +96,32 @@ ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o)
 	for (size_t i = 0U; i < z1; i++) {
 		row2[0] = (i + 1U) * PNLTY(insdel);
 		for (size_t j = 0U; j < z2; j++) {
+			register dist_t d;
+			dist_t x;
+
 			/* substitution */
-			row2[j + 1U] = row1[j] + PNLTY(subst) * (s1[i] != s2[j]);
+			d = row1[j] + PNLTY(subst) * (s1[i] != s2[j]);
 
 			/* swap */
 			if (i > 0 && j > 0 &&
 			    s1[i - 1U] == s2[j - 0U] &&
 			    s1[i - 0U] == s2[j - 1U] &&
-			    row2[j + 1U] > row0[j - 1U] + PNLTY(trnsp)) {
-				row2[j + 1U] = row0[j - 1U] + PNLTY(trnsp);
+			    d > (x = row0[j - 1U] + PNLTY(trnsp))) {
+				d = x;
 			}
 
 			/* deletion */
-			if (row2[j + 1U] > row1[j + 1U] + PNLTY(insdel)) {
-				row2[j + 1U] = row1[j + 1U] + PNLTY(insdel);
+			if (d > (x = row1[j + 1U] + PNLTY(insdel))) {
+				d = x;
 			}
 
 			/* insertion */
-			if (row2[j + 1U] > row2[j + 0U] + PNLTY(insdel)) {
-				row2[j + 1U] = row2[j + 0U] + PNLTY(insdel);
+			if (d > (x = row2[j + 0U] + PNLTY(insdel))) {
+				d = x;
 			}
+
+			/* assign then */
+			row2[j + 1U] = d;
 		}
 
 		with (dist_t *dummy = row0) {
