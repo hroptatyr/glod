@@ -72,7 +72,7 @@
 int
 ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o)
 {
-#define PNLTY(x)	(o.x)
+#define PNLTY(x)	(dist_t)(o.x)
 #define MAX_STRLEN	(4096U / sizeof(dist_t))
 	typedef uint_fast16_t dist_t;
 	static dist_t _r0[MAX_STRLEN];
