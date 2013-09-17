@@ -93,35 +93,57 @@ ldcalc(const char *s1, size_t z1, const char *s2, size_t z2, ld_opt_t o)
 	for (size_t j = 0U; j <= z2; j++) {
 		row1[j] = j * PNLTY(insdel);
 	}
-	for (size_t i = 0U; i < z1; i++) {
+	for (size_t i = 0U; i < z1;
+	     ({
+		     with (dist_t *dummy = row0) {
+			     row0 = row1;
+			     row1 = row2;
+			     row2 = dummy;
+		     };
+		     i++;})) {
+		/* insertion afront */
 		row2[0] = (i + 1U) * PNLTY(insdel);
-		for (size_t j = 0U; j < z2; j++) {
-			/* substitution */
-			row2[j + 1U] = row1[j] + PNLTY(subst) * (s1[i] != s2[j]);
 
-			/* swap */
-			if (i > 0 && j > 0 &&
-			    s1[i - 1U] == s2[j - 0U] &&
-			    s1[i - 0U] == s2[j - 1U] &&
-			    row2[j + 1U] > row0[j - 1U] + PNLTY(trnsp)) {
-				row2[j + 1U] = row0[j - 1U] + PNLTY(trnsp);
+		for (size_t j = 1U; j <= z2; j++) {
+			dist_t ds;
+			dist_t dt;
+			dist_t di;
+			dist_t dd;
+
+			/* substitution */
+			ds = row1[j - 1] + PNLTY(subst) * (s1[i] != s2[j - 1U]);
+
+			/* transpose, needs i > 0 */
+			if (UNLIKELY(i == 0U || j == 1U)) {
+				dt = ds;
+			} else if (s1[i - 1U] != s2[j - 1U] ||
+				   s1[i - 0U] != s2[j - 2U]) {
+				dt = ds;
+			} else {
+				dt = row0[j - 2U] + PNLTY(trnsp);
 			}
 
 			/* deletion */
-			if (row2[j + 1U] > row1[j + 1U] + PNLTY(insdel)) {
-				row2[j + 1U] = row1[j + 1U] + PNLTY(insdel);
-			}
+			dd = row1[j] + PNLTY(insdel);
 
-			/* insertion */
-			if (row2[j + 1U] > row2[j + 0U] + PNLTY(insdel)) {
-				row2[j + 1U] = row2[j + 0U] + PNLTY(insdel);
-			}
-		}
+			/* insertion, reuses row2 values */
+			di = row2[j - 1U] + PNLTY(insdel);
 
-		with (dist_t *dummy = row0) {
-			row0 = row1;
-			row1 = row2;
-			row2 = dummy;
+			/* get the minimum and ass, using a bose-nelson
+			 * sorting network here:
+			 * [[0,1],[2,3]]
+			 * [[0,2],[1,3]]
+			 * [[1,2]] */
+			if (dt < ds) {
+				ds = dt;
+			}
+			if (dd < di) {
+				di = dd;
+			}
+			if (di < ds) {
+				ds = di;
+			}
+			row2[j] = ds;
 		}
 	}
 
