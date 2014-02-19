@@ -153,11 +153,11 @@ gencls_CPPFLAGS += -D_GNU_SOURCE
 
 noinst_PROGRAMS += ldmatrix
 ldmatrix_SOURCES = ldmatrix.c
-ldmatrix_SOURCES += ldmatrix.ggo
+ldmatrix_SOURCES += ldmatrix.yuck
 ldmatrix_CPPFLAGS = $(AM_CPPFLAGS)
 ldmatrix_CPPFLAGS += -D_GNU_SOURCE
 ldmatrix_LDADD = libglod.la
-BUILT_SOURCES += ldmatrix.x ldmatrix.xh
+BUILT_SOURCES += ldmatrix.yucc
 
 
 version.c: version.c.in $(top_builddir)/version.mk
