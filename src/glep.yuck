@@ -1,0 +1,8 @@
+Usage: glep [OPTIONS...] -f PATTERN-FILE [FILE]...
+
+Report matching patterns in FILEs.
+
+  -h, --help               Print help and exit
+  -V, --version            Print version and exit
+  -f, --pattern-file=FILE  Read patterns from FILE.
+  -v, --invert-match       Report FILEs that don't match any patterns.

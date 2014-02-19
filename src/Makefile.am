@@ -110,11 +110,11 @@ BUILT_SOURCES += glod-alert.yucc
 
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c
-glep_SOURCES += glep.ggo
+glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.la
-BUILT_SOURCES += glep.x glep.xh
+BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
 terms_SOURCES = terms.c
