@@ -72,6 +72,13 @@ ldmatrix_TESTS += ldmatrix.01.tst
 EXTRA_DIST += ldtest1.txt
 EXTRA_DIST += ldtest2.txt
 
+unwrap_TESTS =
+TESTS += $(unwrap_TESTS)
+unwrap_TESTS += unwrap_test_01.tst
+unwrap_TESTS += unwrap_test_02.tst
+EXTRA_DIST += unwrap_test_01.txt
+EXTRA_DIST += unwrap_test_02.txt
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
