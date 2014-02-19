@@ -135,13 +135,13 @@ EXTRA_terms_SOURCES += punct.4.cases
 
 bin_PROGRAMS += tf
 tf_SOURCES = tf.c
-tf_SOURCES += tf.ggo
+tf_SOURCES += tf.yuck
 tf_CPPFLAGS = $(AM_CPPFLAGS)
 tf_CPPFLAGS += -D_GNU_SOURCE
 tf_LDADD = libglod.la
 tf_LDADD += libcorpus.la
 tf_LDADD += libcoru.la
-BUILT_SOURCES += tf.x tf.xh
+BUILT_SOURCES += tf.yucc
 
 noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
