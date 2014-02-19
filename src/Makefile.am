@@ -50,6 +50,7 @@ pkginclude_HEADERS =
 BUILT_SOURCES =
 EXTRA_DIST = $(BUILT_SOURCES)
 CLEANFILES = 
+SUFFIXES =
 
 CLEANFILES += version.c
 EXTRA_DIST += version.c.in
@@ -166,15 +167,13 @@ version.c: version.c.in $(top_builddir)/version.mk
 dist-hook: $(bin_PROGRAMS)
 
 
-## gengetopt rule with sed hack to avoid using VERSION and config.h
-## depend on Makefile.am to survive a git pull
-%.x %.xh: %.ggo Makefile.am
-	$(AM_V_GEN) gengetopt -l -c x -H xh -i $< -F $* \
-	&& sed \
-	  -e 's,config.h,version.h,g' \
-	  -e 's,\(.*\)_PARSER_VERSION VERSION,\1_PARSER_VERSION $(PACKAGE)_version_string,g' \
-	  $*.xh >$*.xh-t \
-	&& mv $*.xh-t $*.xh
+## yuck rule
+SUFFIXES += .yuck
+SUFFIXES += .yucc
+.yuck.yucc:
+	$(AM_V_GEN) PATH=$(top_builddir)/build-aux:"$${PATH}" \
+		yuck$(EXEEXT) gen -o $@ $<
+
 
 ## generate classifier from UnicodeData.txt
 BUILT_SOURCES += UnicodeData.txt
