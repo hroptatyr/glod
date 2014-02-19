@@ -104,9 +104,9 @@ BUILT_SOURCES += glod-classify.yucc
 
 bin_PROGRAMS += glod-alert
 glod_alert_SOURCES = glod-alert.c
-glod_alert_SOURCES += glod-alert.ggo
+glod_alert_SOURCES += glod-alert.yuck
 glod_alert_LDADD = libglod.la
-BUILT_SOURCES += glod-alert.x glod-alert.xh
+BUILT_SOURCES += glod-alert.yucc
 
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c

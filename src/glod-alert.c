@@ -123,31 +123,27 @@ gr1(alrts_t af, const char *fn, glep_mset_t ms)
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "glod-alert.xh"
-#include "glod-alert.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
+#include "glod-alert.yucc"
 
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
+	yuck_t argi[1U];
 	glep_mset_t ms;
 	alrts_t af;
 	int rc = 0;
 
-	if (glod_parser(argc, argv, argi)) {
+	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
+		goto out;
+	} else if (argi->alert_file_arg == NULL) {
+		error("Error: -f|--alert-file argument is mandatory");
 		rc = 1;
 		goto out;
 	} else if ((af = rd1(argi->alert_file_arg)) == NULL) {
 		error("Error: cannot read compiled alert file `%s'",
 		      argi->alert_file_arg);
+		rc = 1;
 		goto out;
 	}
 
@@ -158,8 +154,8 @@ main(int argc, char *argv[])
 
 	/* get the mset */
 	ms = glep_make_mset(af->nlbls);
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		gr1(af, argi->inputs[i], ms);
+	for (size_t i = 0U; i < argi->nargs; i++) {
+		gr1(af, argi->args[i], ms);
 	}
 
 	/* resource hand over */
@@ -167,7 +163,7 @@ main(int argc, char *argv[])
 fr_af:
 	glod_fr_alrts(af);
 out:
-	glod_parser_free(argi);
+	yuck_free(argi);
 	return rc;
 }
 
