@@ -46,6 +46,11 @@ with_database="tcbdb"
 ## check for yuck helper
 AX_CHECK_YUCK
 
+## check for pseudo-tty support
+AC_CHECK_HEADERS([pty.h])
+AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
+
+
 ## libtool goddess^Wgoodness
 ## has to be down here as we're turning -Werror'ing off
 LT_INIT

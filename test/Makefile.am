@@ -19,6 +19,7 @@ bin_tests =
 batch_tests =
 check_PROGRAMS =
 CLEANFILES = $(check_PROGRAMS)
+SUFFIXES =
 
 TEST_EXTENSIONS += .tst
 TESTS_ENVIRONMENT = root=$(top_srcdir)
@@ -78,15 +79,14 @@ clitoris_CPPFLAGS = $(AM_CPPFLAGS)
 clitoris_CPPFLAGS += -D_GNU_SOURCE
 clitoris_LDFLAGS = $(AM_LDFLAGS) -static
 clitoris_LDADD = -lutil
-BUILT_SOURCES += clitoris.x clitoris.h
+BUILT_SOURCES += clitoris.yucc
 
-
-## ggo rule
-%.x %.h: %.ggo
-	$(AM_V_GEN) gengetopt -F $* -c x -i $<
-	@sed -e 's,_PARSER_VERSION VERSION,_PARSER_VERSION "$(VERSION)",g' \
-	     $*.h > $*.h-t \
-	&& mv $*.h-t $*.h
+## yuck rule
+SUFFIXES += .yuck
+SUFFIXES += .yucc
+.yuck.yucc:
+	$(AM_V_GEN) PATH=$(top_builddir)/build-aux:"$${PATH}" \
+		yuck$(EXEEXT) gen -o $@ $<
 
 clean-local:
 	-rm -rf *.tmpd
