@@ -326,35 +326,31 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "glep.xh"
-#include "glep.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
+#include "glep.yucc"
 
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
+	yuck_t argi[1U];
 	glep_mset_t ms;
 	gleps_t pf;
 	int rc = 0;
 
-	if (glod_parser(argc, argv, argi)) {
+	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
+		goto out;
+	} else if (argi->pattern_file_arg == NULL) {
+		error("Error: -f|--pattern-file argument is mandatory");
 		rc = 1;
 		goto out;
 	} else if ((pf = rd1(argi->pattern_file_arg)) == NULL) {
 		error("Error: cannot read pattern file `%s'",
 		      argi->pattern_file_arg);
+		rc = 1;
 		goto out;
 	}
 
-	if (argi->invert_match_given) {
+	if (argi->invert_match_flag) {
 		invert_match_p = 1;
 	}
 
@@ -365,8 +361,8 @@ main(int argc, char *argv[])
 
 	/* get the mset */
 	ms = glep_make_mset(pf->npats);
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		gr1(pf, argi->inputs[i], ms);
+	for (size_t i = 0U; i < argi->nargs; i++) {
+		gr1(pf, argi->args[i], ms);
 	}
 
 	/* resource hand over */
@@ -375,7 +371,7 @@ main(int argc, char *argv[])
 fr_gl:
 	glod_fr_gleps(pf);
 out:
-	glod_parser_free(argi);
+	yuck_free(argi);
 	return rc;
 }
 #endif	/* STANDALONE */

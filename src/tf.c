@@ -1,6 +1,6 @@
 /*** tf.c -- return a term-count vector
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -452,26 +452,18 @@ prnt_stat(gl_corpus_t c, const char *name)
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "tf.xh"
-#include "tf.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
+#include "tf.yucc"
 
 static int
-cmd_addget(struct glod_args_info argi[static 1U], int addp)
+cmd_addget(const yuck_t argi[static 1U])
 {
 	static CORU_STRUCT(co_snarf) ctx[1];
 	const char *db = GLOD_DFLT_CORPUS;
+	bool addp = argi->cmd == TF_CMD_ADD;
 	int oflags;
 	struct cocore *snarf;
 
-	if (argi->corpus_given) {
+	if (argi->corpus_arg) {
 		db = argi->corpus_arg;
 	}
 
@@ -482,7 +474,7 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 		ctx->reslv = corpus_get_term;
 	}
 
-	if (addp || argi->idf_given) {
+	if (addp || argi->calc.idf_flag) {
 		oflags = O_RDWR | O_CREAT;
 	} else {
 		oflags = O_RDONLY;
@@ -501,10 +493,10 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
 	for (gl_doc_t d; (d = NEXT(snarf)) != NULL;) {
-		if (argi->idf_given) {
+		if (argi->calc.idf_flag) {
 			upd_idf(ctx->c, d);
 		}
-		if (argi->verbose_given) {
+		if (argi->verbose_flag) {
 			print(d);
 		}
 	}
@@ -515,14 +507,14 @@ cmd_addget(struct glod_args_info argi[static 1U], int addp)
 }
 
 static int
-cmd_list(struct glod_args_info argi[static 1U])
+cmd_list(const struct yuck_cmd_list_s argi[static 1U])
 {
 	static CORU_STRUCT(co_snarf) ctx[1];
 	const char *db = GLOD_DFLT_CORPUS;
 	int oflags = O_RDONLY;
 	struct cocore *snarf;
 
-	if (argi->corpus_given) {
+	if (argi->corpus_arg) {
 		db = argi->corpus_arg;
 	}
 
@@ -533,11 +525,11 @@ cmd_list(struct glod_args_info argi[static 1U])
 	}
 
 	/* get the correct listing fun */
-	if (!argi->idf_given && !argi->reverse_given) {
+	if (!argi->idf_flag && !argi->reverse_flag) {
 		ctx->reslv = __corpus_list;
-	} else if (!argi->idf_given) {
+	} else if (!argi->idf_flag) {
 		ctx->reslv = __corpus_list_r;
-	} else if (!argi->reverse_given) {
+	} else if (!argi->reverse_flag) {
 		ctx->reslv = __corpus_lidf;
 	} else {
 		ctx->reslv = __corpus_lidf_r;
@@ -546,10 +538,10 @@ cmd_list(struct glod_args_info argi[static 1U])
 	ctx->next = PREP();
 	snarf = START(co_snarf, ctx);
 
-	if (argi->inputs_num > 1U) {
+	if (argi->nargs) {
 		/* list the ones on the command line */
-		for (unsigned i = 1U; i < argi->inputs_num; i++) {
-			ctx->reslv(ctx->c, argi->inputs[i]);
+		for (size_t i = 0U; i < argi->nargs; i++) {
+			ctx->reslv(ctx->c, argi->args[i]);
 		}
 	} else if (!isatty(STDIN_FILENO)) {
 		/* list terms from stdin */
@@ -571,7 +563,7 @@ cmd_list(struct glod_args_info argi[static 1U])
 }
 
 static int
-cmd_idf(struct glod_args_info argi[static 1U])
+cmd_idf(const struct yuck_cmd_idf_s argi[static 1U])
 {
 	static CORU_STRUCT(co_snarf) ctx[1];
 	const char *db = GLOD_DFLT_CORPUS;
@@ -579,7 +571,7 @@ cmd_idf(struct glod_args_info argi[static 1U])
 	struct cocore *snarf;
 	struct cocore *pridf;
 
-	if (argi->corpus_given) {
+	if (argi->corpus_arg) {
 		db = argi->corpus_arg;
 	}
 
@@ -601,9 +593,9 @@ cmd_idf(struct glod_args_info argi[static 1U])
 		co_prnt_idfs,
 		.next = ctx->next,
 		.c = ctx->c,
-		.augp = argi->augmented_given,
-		.revp = argi->reverse_given,
-		.topN = argi->top_given ? argi->top_arg : 0,
+		.augp = argi->augmented_flag,
+		.revp = argi->reverse_flag,
+		.topN = argi->top_arg ? atoi(argi->top_arg) : 0,
 		);
 
 	/* this is the main loop, for one document the loop is traversed
@@ -621,13 +613,13 @@ cmd_idf(struct glod_args_info argi[static 1U])
 }
 
 static int
-cmd_info(struct glod_args_info argi[static 1U])
+cmd_info(const struct yuck_cmd_info_s argi[static 1U])
 {
 	const char *db = GLOD_DFLT_CORPUS;
 	gl_corpus_t c;
 	int oflags = O_RDONLY;
 
-	if (argi->corpus_given) {
+	if (argi->corpus_arg) {
 		db = argi->corpus_arg;
 	}
 
@@ -644,17 +636,17 @@ cmd_info(struct glod_args_info argi[static 1U])
 }
 
 static int
-cmd_fsck(struct glod_args_info argi[static 1U])
+cmd_fsck(const struct yuck_cmd_fsck_s argi[static 1U])
 {
 	const char *db = GLOD_DFLT_CORPUS;
 	gl_corpus_t c;
 	int oflags;
 	int res = 0;
 
-	if (argi->corpus_given) {
+	if (argi->corpus_arg) {
 		db = argi->corpus_arg;
 	}
-	if (argi->dry_run_given) {
+	if (argi->dry_run_flag) {
 		oflags = O_RDONLY;
 	} else {
 		oflags = O_RDWR;
@@ -669,7 +661,7 @@ cmd_fsck(struct glod_args_info argi[static 1U])
 	/* problems are bitwise or'd */
 	for (int problms; (problms = corpus_fsck(c)); corpus_fix(c, problms)) {
 		res = 1;
-		if (argi->verbose_given) {
+		if (argi->verbose_flag) {
 			/* grrr, gotta explain now */
 			union gl_crpprobl_u p = {problms};
 
@@ -680,7 +672,7 @@ cmd_fsck(struct glod_args_info argi[static 1U])
 				puts("no reverse lookups");
 			}
 		}
-		if (argi->dry_run_given) {
+		if (argi->dry_run_flag) {
 			/* make sure nothing gets fixed */
 			break;
 		}
@@ -693,15 +685,11 @@ cmd_fsck(struct glod_args_info argi[static 1U])
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
-	int res;
+	yuck_t argi[1U];
+	int rc;
 
-	if (glod_parser(argc, argv, argi)) {
-		res = 1;
-		goto out;
-	} else if (argi->inputs_num < 1) {
-		glod_parser_print_help();
-		res = 1;
+	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
 		goto out;
 	}
 
@@ -709,30 +697,33 @@ main(int argc, char *argv[])
 	initialise_cocore();
 
 	/* check the commands */
-	with (const char *cmd = argi->inputs[0U]) {
-		if (!strcmp(cmd, "calc")) {
-			res = cmd_addget(argi, 0);
-		} else if (!strcmp(cmd, "add")) {
-			res = cmd_addget(argi, 1);
-		} else if (!strcmp(cmd, "list")) {
-			res = cmd_list(argi);
-		} else if (!strcmp(cmd, "idf")) {
-			res = cmd_idf(argi);
-		} else if (!strcmp(cmd, "info")) {
-			res = cmd_info(argi);
-		} else if (!strcmp(cmd, "fsck")) {
-			res = cmd_fsck(argi);
-		} else {
-			/* print help */
-			fprintf(stderr, "Unknown command `%s'\n\n", cmd);
-			glod_parser_print_help();
-			res = 1;
-		}
+	switch (argi->cmd) {
+	case TF_CMD_CALC:
+	case TF_CMD_ADD:
+		rc = cmd_addget(argi);
+		break;
+	case TF_CMD_LIST:
+		rc = cmd_list((const void*)argi);
+		break;
+	case TF_CMD_IDF:
+		rc = cmd_idf((const void*)argi);
+		break;
+	case TF_CMD_INFO:
+		rc = cmd_info((const void*)argi);
+		break;
+	case TF_CMD_FSCK:
+		rc = cmd_fsck((const void*)argi);
+		break;
+	default:
+		/* print help */
+		fputs("Unknown command\n\n", stderr);
+		yuck_auto_help(argi);
+		rc = 1;
 	}
 
 out:
-	glod_parser_free(argi);
-	return res;
+	yuck_free(argi);
+	return rc;
 }
 
 /* tf.c ends here */

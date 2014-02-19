@@ -50,6 +50,7 @@ pkginclude_HEADERS =
 BUILT_SOURCES =
 EXTRA_DIST = $(BUILT_SOURCES)
 CLEANFILES = 
+SUFFIXES =
 
 CLEANFILES += version.c
 EXTRA_DIST += version.c.in
@@ -91,36 +92,36 @@ EXTRA_libcoru_la_SOURCES += coru/switch-x86_64.c
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
-glod_charstat_SOURCES += glod-charstat.ggo
+glod_charstat_SOURCES += glod-charstat.yuck
 glod_charstat_LDADD = libglod.la
-BUILT_SOURCES += glod-charstat.x glod-charstat.xh
+BUILT_SOURCES += glod-charstat.yucc
 
 bin_PROGRAMS += glod-classify
 glod_classify_SOURCES = glod-classify.c
-glod_classify_SOURCES += glod-classify.ggo
+glod_classify_SOURCES += glod-classify.yuck
 glod_classify_LDADD = libglod.la
-BUILT_SOURCES += glod-classify.x glod-classify.xh
+BUILT_SOURCES += glod-classify.yucc
 
 bin_PROGRAMS += glod-alert
 glod_alert_SOURCES = glod-alert.c
-glod_alert_SOURCES += glod-alert.ggo
+glod_alert_SOURCES += glod-alert.yuck
 glod_alert_LDADD = libglod.la
-BUILT_SOURCES += glod-alert.x glod-alert.xh
+BUILT_SOURCES += glod-alert.yucc
 
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c
-glep_SOURCES += glep.ggo
+glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.la
-BUILT_SOURCES += glep.x glep.xh
+BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
 terms_SOURCES = terms.c
-terms_SOURCES += terms.ggo
+terms_SOURCES += terms.yuck
 terms_LDADD = libglod.la
 terms_LDADD += libcoru.la
-BUILT_SOURCES += terms.x terms.xh
+BUILT_SOURCES += terms.yucc
 EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += alpha.2.cases
 EXTRA_terms_SOURCES += alpha.3.cases
@@ -134,13 +135,13 @@ EXTRA_terms_SOURCES += punct.4.cases
 
 bin_PROGRAMS += tf
 tf_SOURCES = tf.c
-tf_SOURCES += tf.ggo
+tf_SOURCES += tf.yuck
 tf_CPPFLAGS = $(AM_CPPFLAGS)
 tf_CPPFLAGS += -D_GNU_SOURCE
 tf_LDADD = libglod.la
 tf_LDADD += libcorpus.la
 tf_LDADD += libcoru.la
-BUILT_SOURCES += tf.x tf.xh
+BUILT_SOURCES += tf.yucc
 
 noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
@@ -152,11 +153,11 @@ gencls_CPPFLAGS += -D_GNU_SOURCE
 
 noinst_PROGRAMS += ldmatrix
 ldmatrix_SOURCES = ldmatrix.c
-ldmatrix_SOURCES += ldmatrix.ggo
+ldmatrix_SOURCES += ldmatrix.yuck
 ldmatrix_CPPFLAGS = $(AM_CPPFLAGS)
 ldmatrix_CPPFLAGS += -D_GNU_SOURCE
 ldmatrix_LDADD = libglod.la
-BUILT_SOURCES += ldmatrix.x ldmatrix.xh
+BUILT_SOURCES += ldmatrix.yucc
 
 
 version.c: version.c.in $(top_builddir)/version.mk
@@ -166,15 +167,13 @@ version.c: version.c.in $(top_builddir)/version.mk
 dist-hook: $(bin_PROGRAMS)
 
 
-## gengetopt rule with sed hack to avoid using VERSION and config.h
-## depend on Makefile.am to survive a git pull
-%.x %.xh: %.ggo Makefile.am
-	$(AM_V_GEN) gengetopt -l -c x -H xh -i $< -F $* \
-	&& sed \
-	  -e 's,config.h,version.h,g' \
-	  -e 's,\(.*\)_PARSER_VERSION VERSION,\1_PARSER_VERSION $(PACKAGE)_version_string,g' \
-	  $*.xh >$*.xh-t \
-	&& mv $*.xh-t $*.xh
+## yuck rule
+SUFFIXES += .yuck
+SUFFIXES += .yucc
+.yuck.yucc:
+	$(AM_V_GEN) PATH=$(top_builddir)/build-aux:"$${PATH}" \
+		yuck$(EXEEXT) gen -o $@ $<
+
 
 ## generate classifier from UnicodeData.txt
 BUILT_SOURCES += UnicodeData.txt

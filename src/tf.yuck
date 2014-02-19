@@ -1,0 +1,53 @@
+Usage: tf [OPTIONS...] COMMAND [TERM...]
+
+Control terms frequency corpora.
+
+  -v, --verbose      Be verbose.
+  -f, --corpus=FILE  Use specified corpus file instead of `corpus.tcb'.
+
+
+Usage: tf calc [TERM]...
+
+Obtain term frequencies from terms on stdin.
+
+      --idf          Also update the document frequency information.  Note:
+                       this operation is NOT idempotent.
+
+
+Usage: tf add [TERM]...
+
+Like `calc' but also add the terms to the corpus file.
+
+      --idf          Also update the document frequency information.  Note:
+                       this operation is NOT idempotent.
+
+
+Usage: tf list [TERM]...
+
+List all terms in the corpus file or the ones specified
+on the command line.
+
+      --idf          Also output the idf statistics.
+  -r, --reverse      Go from term id to term string.
+
+
+Usage: tf idf [TERM]...
+
+Perform a document/corpus frequency analysis.
+
+      --augmented    Use the augmented terms frequency instead of the raw
+                       frequency.
+      --top=N        Display the top N idf scores.
+  -r, --reverse      Also print the term string.
+
+
+Usage: tf info
+
+Obtain some information on a corpus file.
+
+
+Usage: tf fsck
+
+Check the integrity of a corpus file.
+
+  -n, --dry-run      Report problems (with -v) but don't change the file.

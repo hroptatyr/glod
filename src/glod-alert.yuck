@@ -1,0 +1,7 @@
+Usage: glod-alert [OPTIONS...] -f ALERT-FILE [FILE]...
+
+Mark up FILEs with alerts according to rules in ALERT-FILE.
+
+  -h, --help             Print help and exit
+  -V, --version          Print version and exit
+  -f, --alert-file=FILE  Use FILE for alert rules.

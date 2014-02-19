@@ -1,6 +1,6 @@
 /*** glod-charstat.c -- obtain some character stats
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -238,47 +238,40 @@ clos:
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-#endif	/* __INTEL_COMPILER */
-#include "glod-charstat.xh"
-#include "glod-charstat.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-#endif	/* __INTEL_COMPILER */
+#include "glod-charstat.yucc"
 
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
+	yuck_t argi[1U];
 	int res;
 
-	if (glod_parser(argc, argv, argi)) {
+	if (yuck_parse(argi, argc, argv)) {
 		res = 1;
 		goto out;
-	} else if (argi->inputs_num < 1) {
+	} else if (!argi->nargs) {
 		fputs("Error: no FILE given\n\n", stderr);
-		glod_parser_print_help();
+		yuck_auto_help(argi);
 		res = 1;
 		goto out;
 	}
 
-	if (argi->linewise_given) {
+	if (argi->linewise_flag) {
 		linewisep = 1;
 	}
-	if (argi->graph_given) {
+	if (argi->graph_flag) {
 		graphp = 1;
 	}
 
 	/* run stats on that one file */
-	with (const char *file = argi->inputs[0]) {
+	with (const char *file = argi->args[0U]) {
 		if ((res = charstat(file)) < 0) {
 			error(errno, "Error: processing `%s' failed", file);
 		}
 	}
 
 out:
-	glod_parser_free(argi);
+	yuck_free(argi);
 	return res;
 }
 

@@ -1,6 +1,6 @@
 /*** ldmatrix.c -- damerau-levenshtein distance matrix
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -152,42 +152,33 @@ out:
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "ldmatrix.xh"
-#include "ldmatrix.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
+#include "ldmatrix.yucc"
 
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
-	int res;
+	yuck_t argi[1U];
+	int rc = 0;
 
-	if (glod_parser(argc, argv, argi)) {
-		res = 1;
+	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
 		goto out;
-	} else if (argi->inputs_num < 2U) {
-		glod_parser_print_help();
-		res = 1;
+	} else if (argi->nargs < 2U) {
+		yuck_auto_help(argi);
+		rc = 1;
 		goto out;
 	}
 
-	with (const char *f1 = argi->inputs[0U], *f2 = argi->inputs[1U]) {
+	with (const char *f1 = argi->args[0U], *f2 = argi->args[1U]) {
 		/* prep, calc, prnt */
-		if (UNLIKELY((res = ldmatrix(f1, f2)) < 0)) {
-			res = 1;
+		if (UNLIKELY(ldmatrix(f1, f2) < 0)) {
+			rc = 1;
 		}
 	}
 
 out:
-	glod_parser_free(argi);
-	return res;
+	yuck_free(argi);
+	return rc;
 }
 
 /* ldmatrix.c ends here */

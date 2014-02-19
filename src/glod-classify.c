@@ -601,50 +601,43 @@ clos:
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-#endif	/* __INTEL_COMPILER */
-#include "glod-classify.xh"
-#include "glod-classify.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-#endif	/* __INTEL_COMPILER */
+#include "glod-classify.yucc"
 
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
+	yuck_t argi[1U];
 	int res;
 
-	if (glod_parser(argc, argv, argi)) {
+	if (yuck_parse(argi, argc, argv)) {
 		res = 1;
 		goto out;
-	} else if (argi->inputs_num < 1) {
+	} else if (!argi->nargs) {
 		fputs("Error: no FILE given\n\n", stderr);
-		glod_parser_print_help();
+		yuck_auto_help(argi);
 		res = 1;
 		goto out;
 	}
 
-	if (argi->linewise_given || argi->candle_given) {
+	if (argi->linewise_flag || argi->candle_flag) {
 		linewisep = 1;
-		if (argi->candle_given) {
+		if (argi->candle_flag) {
 			candlep = 1;
 		}
 	}
-	if (argi->graph_given) {
+	if (argi->graph_flag) {
 		graphp = 1;
 	}
 
 	/* run stats on that one file */
-	with (const char *file = argi->inputs[0]) {
+	with (const char *file = argi->args[0U]) {
 		if ((res = classify_file(file)) < 0) {
 			error(errno, "Error: processing `%s' failed", file);
 		}
 	}
 
 out:
-	glod_parser_free(argi);
+	yuck_free(argi);
 	return res;
 }
 

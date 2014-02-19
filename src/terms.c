@@ -1,6 +1,6 @@
-/*** terms8.c -- extract terms from utf8 sources
+/*** terms.c -- extract terms from utf8 sources
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -477,25 +477,16 @@ classify0(void)
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:593)
-# pragma warning (disable:181)
-#endif	/* __INTEL_COMPILER */
-#include "terms.xh"
-#include "terms.x"
-#if defined __INTEL_COMPILER
-# pragma warning (default:593)
-# pragma warning (default:181)
-#endif	/* __INTEL_COMPILER */
+#include "terms.yucc"
 
 int
 main(int argc, char *argv[])
 {
-	struct glod_args_info argi[1];
-	int res = 0;
+	yuck_t argi[1U];
+	int rc = 0;
 
-	if (glod_parser(argc, argv, argi)) {
-		res = 1;
+	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
 		goto out;
 	}
 
@@ -503,27 +494,27 @@ main(int argc, char *argv[])
 	initialise_cocore();
 
 	/* process stdin? */
-	if (!argi->inputs_num) {
+	if (!argi->nargs) {
 		if (classify0() < 0) {
 			error("Error: processing stdin failed");
-			res = 1;
+			rc = 1;
 		}
 		goto out;
 	}
 
 	/* process files given on the command line */
-	for (unsigned int i = 0; i < argi->inputs_num; i++) {
-		const char *file = argi->inputs[i];
+	for (size_t i = 0U; i < argi->nargs; i++) {
+		const char *file = argi->args[i];
 
 		if (classify1(file) < 0) {
 			error("Error: processing `%s' failed", file);
-			res = 1;
+			rc = 1;
 		}
 	}
 
 out:
-	glod_parser_free(argi);
-	return res;
+	yuck_free(argi);
+	return rc;
 }
 
-/* terms8.c ends here */
+/* terms.c ends here */

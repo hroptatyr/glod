@@ -1,0 +1,7 @@
+Usage: ldmatrix [OPTIONS...] FILE1 FILE2
+
+Compute Damerau-Levenshtein distances of terms in FILE1 paired with
+terms in FILE2.
+
+  -h, --help     Print help and exit
+  -V, --version  Print version and exit
