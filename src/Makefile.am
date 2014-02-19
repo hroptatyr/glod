@@ -159,6 +159,13 @@ ldmatrix_CPPFLAGS += -D_GNU_SOURCE
 ldmatrix_LDADD = libglod.la
 BUILT_SOURCES += ldmatrix.yucc
 
+bin_PROGRAMS += unwrap
+unwrap_SOURCES = unwrap.c
+unwrap_SOURCES += unwrap.yuck
+unwrap_CPPFLAGS = $(AM_CPPFLAGS)
+unwrap_CPPFLAGS += -D_GNU_SOURCE
+BUILT_SOURCES += unwrap.yucc
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
