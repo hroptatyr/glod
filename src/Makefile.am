@@ -118,10 +118,10 @@ BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
 terms_SOURCES = terms.c
-terms_SOURCES += terms.ggo
+terms_SOURCES += terms.yuck
 terms_LDADD = libglod.la
 terms_LDADD += libcoru.la
-BUILT_SOURCES += terms.x terms.xh
+BUILT_SOURCES += terms.yucc
 EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += alpha.2.cases
 EXTRA_terms_SOURCES += alpha.3.cases
