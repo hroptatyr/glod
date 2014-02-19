@@ -71,6 +71,7 @@ unwrap_line(const char *ln, size_t lz)
 	static char *buf;
 	static size_t bz;
 	static size_t bi;
+	size_t nspc;
 
 	/* get ourselves a little buffer */
 	if (UNLIKELY(buf == NULL)) {
@@ -78,12 +79,15 @@ unwrap_line(const char *ln, size_t lz)
 	}
 
 	/* massage off leading and trailing whitespace */
-	for (; isspace(*ln); ln++, lz--);
+	for (nspc = 0U; isspace(*ln); ln++, lz--, nspc++);
 	for (; isspace(ln[lz - 1U]); lz--);
 
 	if (lz > 80) {
 		/* who's got more than 80 chars per line :O */
 		;
+	} else if (nspc >= 4U) {
+		/* whitespace looks intentional, leave it there */
+		ln -= nspc, lz += nspc;
 	} else if (lz > 0 && bi) {
 		/* try and append */
 		goto append;
