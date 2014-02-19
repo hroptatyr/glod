@@ -98,9 +98,9 @@ BUILT_SOURCES += glod-charstat.yucc
 
 bin_PROGRAMS += glod-classify
 glod_classify_SOURCES = glod-classify.c
-glod_classify_SOURCES += glod-classify.ggo
+glod_classify_SOURCES += glod-classify.yuck
 glod_classify_LDADD = libglod.la
-BUILT_SOURCES += glod-classify.x glod-classify.xh
+BUILT_SOURCES += glod-classify.yucc
 
 bin_PROGRAMS += glod-alert
 glod_alert_SOURCES = glod-alert.c
