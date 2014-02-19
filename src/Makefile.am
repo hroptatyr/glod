@@ -92,9 +92,9 @@ EXTRA_libcoru_la_SOURCES += coru/switch-x86_64.c
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
-glod_charstat_SOURCES += glod-charstat.ggo
+glod_charstat_SOURCES += glod-charstat.yuck
 glod_charstat_LDADD = libglod.la
-BUILT_SOURCES += glod-charstat.x glod-charstat.xh
+BUILT_SOURCES += glod-charstat.yucc
 
 bin_PROGRAMS += glod-classify
 glod_classify_SOURCES = glod-classify.c
