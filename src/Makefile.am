@@ -166,6 +166,13 @@ unwrap_CPPFLAGS = $(AM_CPPFLAGS)
 unwrap_CPPFLAGS += -D_GNU_SOURCE
 BUILT_SOURCES += unwrap.yucc
 
+bin_PROGRAMS += unpgbrk
+unpgbrk_SOURCES = unpgbrk.c
+unpgbrk_SOURCES += unpgbrk.yuck
+unpgbrk_CPPFLAGS = $(AM_CPPFLAGS)
+unpgbrk_CPPFLAGS += -D_GNU_SOURCE
+BUILT_SOURCES += unpgbrk.yucc
+
 
 version.c: version.c.in $(top_builddir)/version.mk
 	sed -e 's,[@]VERSION[@],$(VERSION),g' <$(srcdir)/$@.in >$@
