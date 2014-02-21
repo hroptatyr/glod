@@ -23,7 +23,7 @@ AC_COPYRIGHT([dnl
 ###     autoreconf
 ])
 
-AM_INIT_AUTOMAKE([foreign parallel-tests dist-xz color-tests])
+AM_INIT_AUTOMAKE([foreign parallel-tests dist-xz color-tests subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AX_YUCK_SCMVER
