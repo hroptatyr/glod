@@ -1,6 +1,6 @@
 dnl yuck.m4 --- yuck goodies
 dnl
-dnl Copyright (C) 2013 Sebastian Freundt
+dnl Copyright (C) 2013-2014 Sebastian Freundt
 dnl
 dnl Author: Sebastian Freundt <hroptatyr@fresse.org>
 dnl
@@ -95,6 +95,8 @@ instead of the system-wide one.])], [with_included_yuck="${withval}"], [$1])
 AC_DEFUN([AX_YUCK_SCMVER], [dnl
 ## initially generate version.mk and yuck.version here
 ## because only GNU make can do this at make time
+	pushdef([vfile], [$1])
+
 	AC_MSG_CHECKING([for stipulated version files])
 	if test -f "${srcdir}/.version"; then
 		## transform reference version
@@ -117,13 +119,17 @@ if (PRE == "v" || PRE == "V") {
 		AC_MSG_RESULT([none])
 	fi
 	## also massage version.mk file
-	if test -f "${srcdir}/version.mk"; then
+	if test -f "${srcdir}/[]vfile[]"; then
 		## make sure it's in the builddir as well
-		cp "${srcdir}/version.mk" "version.mk"
-	else
+		cp "${srcdir}/[]vfile[]" "[]vfile[]" 2>/dev/null
+	elif test -f "${srcdir}/[]vfile[].in"; then
 		${M4:-m4} -DYUCK_SCMVER_VERSION="${VERSION}" \
-			"${srcdir}/version.mk.in" > version.mk
+			"${srcdir}/[]vfile[].in" > "[]vfile[]"
+	else
+		echo "VERSION = ${VERSION}" > "[]vfile[]"
 	fi
+
+	popdef([vfile])
 ])dnl AX_YUCK_SCMVER
 
 dnl yuck.m4 ends here
