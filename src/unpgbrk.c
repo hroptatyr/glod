@@ -43,7 +43,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <fcntl.h>
-#include <ctype.h>
 #include <errno.h>
 #include <sys/wait.h>
 #include "nifty.h"
@@ -166,6 +165,7 @@ fin(pid_t p)
 }
 
 
+static char gsep[2U] = "\f\n";
 static const char *gcmd;
 static char **gcmd_argv;
 
@@ -194,7 +194,7 @@ unpgbrk_bb(bbuf_t b[static 1U])
 	}
 out:
 	/* make sure we write a separator char in the output stream too */
-	if (write(STDOUT_FILENO, "\f\n", 2U) < 2U) {
+	if (write(STDOUT_FILENO, gsep, sizeof(gsep)) < (ssize_t)sizeof(gsep)) {
 		rc += -1 << 16U;
 	}
 	return rc;
@@ -214,7 +214,7 @@ unpgbrk_fd(int fd)
 		const char *const ep = buf + nrd;
 
 		for (const char *sp;
-		     (sp = memchr(bp, '\f', ep - bp)) != NULL;
+		     (sp = memchr(bp, *gsep, ep - bp)) != NULL;
 		     bp = (*++sp == '\n' ? ++sp : sp)) {
 			/* feed into bbuf */
 			bbuf_cat(big, bp, sp - bp);
@@ -262,6 +262,18 @@ main(int argc, char *argv[])
 	/* assign command and stuff */
 	gcmd = argi->args[1U];
 	gcmd_argv = argi->args + 1U;
+	with (const char *sep) {
+		if ((sep = argi->separator_arg)) {
+			static char unesc[] = "\a\bcd\e\fghijklm\nopq\rs\tu\v";
+
+			if (*sep == '\\' && sep[1U] &&
+			    (sep++, *sep >= 'a' && *sep <= 'v')) {
+				*gsep = unesc[*sep - 'a'];
+			} else {
+				*gsep = *sep;
+			}
+		}
+	}
 
 	/* beef code */
 	if (unpgbrk_fd(fd) < 0) {
