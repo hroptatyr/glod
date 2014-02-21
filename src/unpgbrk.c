@@ -193,7 +193,14 @@ unpgbrk_bb(bbuf_t b[static 1U])
 		rc = -1;
 	}
 out:
-	/* make sure we write a separator char in the output stream too */
+	return rc;
+}
+
+static int
+write_sep(void)
+{
+	int rc = 0;
+
 	if (write(STDOUT_FILENO, gsep, sizeof(gsep)) < (ssize_t)sizeof(gsep)) {
 		rc += -1 << 16U;
 	}
@@ -220,12 +227,16 @@ unpgbrk_fd(int fd)
 			bbuf_cat(big, bp, sp - bp);
 			rc += unpgbrk_bb(big);
 			big->z = 0U;
+			/* make sure we write the page break in the output
+			 * stream too, aids command chaining */
+			rc += write_sep();
 		}
 		/* just append it and read the next chunk */
 		bbuf_cat(big, bp, ep - bp);
 	}
 	if (big->z) {
 		unpgbrk_bb(big);
+		/* not writing a page break here */
 	}
 	/* get rid of the bbuf memory */
 	free(big->s);
