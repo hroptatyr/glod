@@ -21,6 +21,7 @@ script:
 branches:
   only:
     - master
+    - next
 
 notifications:
   email:
