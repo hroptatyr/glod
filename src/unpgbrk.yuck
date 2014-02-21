@@ -1,0 +1,5 @@
+Usage: unpgbrk FILE [--] COMMAND [ARGS]...
+
+Split FILE at page breaks (^L) and feed those snippets to COMMAND's stdin.
+
+  -s, --separator=SEP   Use SEP as separator character, default \f

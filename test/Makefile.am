@@ -79,6 +79,12 @@ unwrap_TESTS += unwrap_test_02.tst
 EXTRA_DIST += unwrap_test_01.txt
 EXTRA_DIST += unwrap_test_02.txt
 
+unpgbrk_TESTS =
+TESTS += $(unpgbrk_TESTS)
+unpgbrk_TESTS += unpgbrk_test_01.tst
+unpgbrk_TESTS += unpgbrk_test_02.tst
+EXTRA_DIST += xetra.txt
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
