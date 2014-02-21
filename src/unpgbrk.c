@@ -179,8 +179,8 @@ unpgbrk_bb(bbuf_t b[static 1U])
 	int rc = 0;
 
 	if (UNLIKELY(!b->z)) {
-		/* don't call on 0 buffers */
-		return 0;
+		/* don't call on 0 buffers, write the sep though */
+		goto out;
 	}
 
 	/* start the child */
@@ -192,6 +192,7 @@ unpgbrk_bb(bbuf_t b[static 1U])
 	if (fin(chld) != 0) {
 		rc = -1;
 	}
+out:
 	/* make sure we write a separator char in the output stream too */
 	if (write(STDOUT_FILENO, "\f\n", 2U) < 2U) {
 		rc += -1 << 16U;
