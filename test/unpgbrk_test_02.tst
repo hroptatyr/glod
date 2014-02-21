@@ -1,0 +1,22 @@
+#!/usr/bin/clitoris ## -*- shell-script -*-
+
+$ unpgbrk "${srcdir}/xetra.txt" sort
+
+   
+   
+   
+ MARKET SUPERVISION XETRA   
+ PHONE    +69 - 21 01 - 14 00 FAX          +69 - 21 01 - 14 01
+ WELCOME TO THE FIRST TRADING DAY OF XETRA RELEASE 3.   
+/data/data-source/xetra-newsboard/download/1998/1998-10-12T04:47:59-Xetra_Trading_2_-ERSTER_HANDELSTAG_FIRST_TRADING_DAY_XETRA_R3-news=18494&venue=1.html.xz
+WILLKOMMEN ZUM ERSTEN HANDELSTAG VON XETRA RELEASE 3.   
+
+   
+   
+   
+ MARKET SUPERVISION XETRA   
+ PHONE    +69 - 21 01 - 14 00 FAX          +69 - 21 01 - 14 01
+ WELCOME TO THE FIRST TRADING DAY OF XETRA RELEASE 3.   
+/data/data-source/xetra-newsboard/download/1998/1998-10-12T04:47:59-Xetra_Trading_2_-ERSTER_HANDELSTAG_FIRST_TRADING_DAY_XETRA_R3-news=8577&venue=1.html.xz
+WILLKOMMEN ZUM ERSTEN HANDELSTAG VON XETRA RELEASE 3.   
+$
