@@ -249,6 +249,10 @@ main(int argc, char *argv[])
 		error("FILE argument is mandatory, use `-' for stdin");
 		rc = 1;
 		goto out;
+	} else if (argi->nargs < 2U) {
+		error("COMMAND argument is mandatory");
+		rc = 1;
+		goto out;
 	}
 
 	if (argi->args[0U][0U] == '-' && argi->args[0U][1U] == '\0') {
