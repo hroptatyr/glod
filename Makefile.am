@@ -52,6 +52,7 @@ SUBDIRS += test
 
 DISTCLEANFILES = version.mk
 EXTRA_DIST += version.mk.in
+EXTRA_DIST += version.mk
 
 EXTRA_DIST += README.md
 
