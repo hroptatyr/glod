@@ -154,8 +154,13 @@ main(int argc, char *argv[])
 
 	/* get the mset */
 	ms = glep_make_mset(af->nlbls);
-	for (size_t i = 0U; i < argi->nargs; i++) {
-		gr1(af, argi->args[i], ms);
+	for (size_t i = 0U; i < argi->nargs || i + argi->nargs == 0U; i++) {
+		const char *fn = argi->args[i];
+
+		if (gr1(af, fn, ms) < 0) {
+			error("Error: cannot process `%s'", fn ?: "<stdin>");
+			rc = 1;
+		}
 	}
 
 	/* resource hand over */

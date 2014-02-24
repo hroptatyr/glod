@@ -39,10 +39,22 @@
 #endif	/* HAVE_CONFIG_H */
 #include <unistd.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include "fops.h"
+#include "nifty.h"
+
+#if !defined MAP_ANON && defined MAP_ANONYMOUS
+# define MAP_ANON	(MAP_ANONYMOUS)
+#endif	/* !MAP_ANON && MAP_ANONYMOUS */
+#if !defined MREMAP_MAYMOVE
+# define MREMAP_MAYMOVE	0
+#endif	/* !MREMAP_MAYMOVE */
+
+#define PROT_MEM	(PROT_READ | PROT_WRITE)
+#define MAP_MEM		(MAP_PRIVATE | MAP_ANON)
 
 static glodf_t
 mmap_fd(int fd, size_t fz)
@@ -61,6 +73,58 @@ munmap_fd(glodf_t map)
 	return munmap(map.d, map.z);
 }
 
+static glodf_t
+mmap_mem(size_t z)
+{
+	void *p;
+
+	if ((p = mmap(NULL, z, PROT_MEM, MAP_MEM, -1, 0)) == MAP_FAILED) {
+		return (glodf_t){.z = 0U, .d = NULL};
+	}
+	return (glodf_t){.z = z, .d = p};
+}
+
+static glodf_t
+mremap_mem(glodf_t m, size_t new_size)
+{
+	void *p;
+
+	if ((p = mremap(m.d, m.z, new_size, MREMAP_MAYMOVE)) != MAP_FAILED) {
+		/* reassign */
+		m.d = p;
+		m.z = new_size;
+	}
+	return m;
+}
+
+
+static glodfn_t
+mmap_stdin(int UNUSED(flags))
+{
+/* map the whole of stdin, attention this could cause RAM pressure */
+	/* we start out with one page of memory ... */
+	size_t iniz = sysconf(_SC_PAGESIZE);
+	glodf_t m;
+
+	if ((m = mmap_mem(iniz)).d == NULL) {
+		goto out;
+	}
+	{
+		ptrdiff_t off = 0;
+
+		for (ssize_t nrd, bz = m.z - off;
+		     (nrd = read(STDIN_FILENO, (char*)m.d + off, bz)) > 0;
+		     off += nrd, bz = m.z - off) {
+			if (nrd == bz) {
+				/* enlarge and reread */
+				m = mremap_mem(m, 2U * m.z);
+			}
+		}
+	}
+out:
+	return (glodfn_t){.fb = m, .fd = -1};
+}
+
 
 /* public api */
 glodfn_t
@@ -69,6 +133,10 @@ mmap_fn(const char *fn, int flags)
 	struct stat st;
 	glodfn_t res;
 
+	if (UNLIKELY(fn == NULL || fn[0U] == '-' && fn[1U] == '\0')) {
+		/* read from stdin :| */
+		return mmap_stdin(flags);
+	}
 	if ((res.fd = open(fn, flags)) < 0) {
 		;
 	} else if (fstat(res.fd, &st) < 0) {
