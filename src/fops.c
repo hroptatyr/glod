@@ -1,4 +1,4 @@
-/*** fops.h -- file operations
+/*** fops.c -- file operations
  *
  * Copyright (C) 2013 Sebastian Freundt
  *
@@ -34,34 +34,66 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_fops_h_
-#define INCLUDED_fops_h_
-
+#if defined HAVE_CONFIG_H
+# include "config.h"
+#endif	/* HAVE_CONFIG_H */
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include "fops.h"
 
-typedef struct glodf_s glodf_t;
-typedef struct glodfn_s glodfn_t;
+glodf_t
+mmap_fd(int fd, size_t fz)
+{
+	void *p;
 
-struct glodf_s {
-	size_t z;
-	void *d;
-};
+	if ((p = mmap(NULL, fz, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
+		return (glodf_t){.z = 0U, .d = NULL};
+	}
+	return (glodf_t){.z = fz, .d = p};
+}
 
-struct glodfn_s {
-	int fd;
-	struct glodf_s fb;
-};
+int
+munmap_fd(glodf_t map)
+{
+	return munmap(map.d, map.z);
+}
 
 
 /* public api */
-extern glodf_t mmap_fd(int fd, size_t fz);
-extern int munmap_fd(glodf_t map);
+glodfn_t
+mmap_fn(const char *fn, int flags)
+{
+	struct stat st;
+	glodfn_t res;
 
-extern glodfn_t mmap_fn(const char *fn, int flags);
-extern int munmap_fn(glodfn_t);
+	if ((res.fd = open(fn, flags)) < 0) {
+		;
+	} else if (fstat(res.fd, &st) < 0) {
+		res.fb = (glodf_t){.z = 0U, .d = NULL};
+		goto clo;
+	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
+	clo:
+		close(res.fd);
+		res.fd = -1;
+	}
+	return res;
+}
 
-#endif	/* INCLUDED_fops_h_ */
+int
+munmap_fn(glodfn_t f)
+{
+	int rc = 0;
+
+	if (f.fb.d != NULL) {
+		rc += munmap_fd(f.fb);
+	}
+	if (f.fd >= 0) {
+		rc += close(f.fd);
+	}
+	return rc;
+}
+
+/* fops.c ends here */
