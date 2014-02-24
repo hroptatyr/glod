@@ -431,6 +431,8 @@ glep_cc(gleps_t g)
 				}
 			}
 			break;
+		default:
+			break;
 		}
 		return;
 	}
@@ -473,13 +475,13 @@ glep_cc(gleps_t g)
 				     *const ec = pat.fl.left
 				     ? c + countof(cs_wc) : c + countof(cs_ww);
 			     c < ec; c++) {
-				hx_t pi;
+				hx_t i;
 
-				pi = prfh_c(*c, cp0);
+				i = prfh_c(*c, cp0);
 
 				with (hx_t H = --res->HASH[h]) {
 					res->PATPTR[H] = patidx;
-					res->PREFIX[H] = pi;
+					res->PREFIX[H] = i;
 				}
 			}
 			return;
@@ -567,10 +569,10 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
 	const unsigned char *const ep = bp + bsz;
 
-	auto inline const unsigned char *prfs(const unsigned char *bp)
+	auto inline const unsigned char *prfs(const unsigned char *xp)
 	{
-		/* return a pointer to the prefix of BP */
-		return bp - c->m + 1;
+		/* return a pointer to the prefix of X */
+		return xp - c->m + 1;
 	}
 
 	auto bool

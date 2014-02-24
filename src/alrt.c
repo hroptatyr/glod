@@ -187,6 +187,8 @@ glod_rd_alrts(const char *buf, size_t bsz)
 				/* don't deal with yields in glep mode */
 				res = append_lbl(res, w);
 				break;
+			default:
+				break;
 			}
 			break;
 		}
