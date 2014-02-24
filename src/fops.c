@@ -44,7 +44,7 @@
 #include <sys/mman.h>
 #include "fops.h"
 
-glodf_t
+static glodf_t
 mmap_fd(int fd, size_t fz)
 {
 	void *p;
@@ -55,7 +55,7 @@ mmap_fd(int fd, size_t fz)
 	return (glodf_t){.z = fz, .d = p};
 }
 
-int
+static int
 munmap_fd(glodf_t map)
 {
 	return munmap(map.d, map.z);

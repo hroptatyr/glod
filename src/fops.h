@@ -58,9 +58,6 @@ struct glodfn_s {
 
 
 /* public api */
-extern glodf_t mmap_fd(int fd, size_t fz);
-extern int munmap_fd(glodf_t map);
-
 extern glodfn_t mmap_fn(const char *fn, int flags);
 extern int munmap_fn(glodfn_t);
 
