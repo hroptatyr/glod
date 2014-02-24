@@ -144,18 +144,18 @@ glod_rd_gleps(const char *buf, size_t bsz)
 
 	auto inline glep_pat_t clone_pat(word_t w)
 	{
-		glep_pat_t res;
+		glep_pat_t clo;
 
 		if ((cch.i + w.z + 1U) / 256U > (cch.i / 256U)) {
 			size_t nu = ((cch.i + w.z + 1U) / 256U + 1U) * 256U;
 
 			cch.s = realloc(cch.s, nu);
 		}
-		res = w.p, res.s = (const void*)(intptr_t)cch.i;
+		clo = w.p, clo.s = (const void*)(intptr_t)cch.i;
 		memcpy(cch.s + cch.i, w.p.s, w.z);
 		cch.s[cch.i += w.z] = '\0';
 		cch.i++;
-		return res;
+		return clo;
 	}
 
 	auto struct gleps_s *append_pat(struct gleps_s *c, word_t w)
