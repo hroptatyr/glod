@@ -56,54 +56,9 @@ struct glodfn_s {
 	struct glodf_s fb;
 };
 
-static inline glodf_t
-mmap_fd(int fd, size_t fz)
-{
-	void *p;
-
-	if ((p = mmap(NULL, fz, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
-		return (glodf_t){.z = 0U, .d = NULL};
-	}
-	return (glodf_t){.z = fz, .d = p};
-}
-
-static inline int
-munmap_fd(glodf_t map)
-{
-	return munmap(map.d, map.z);
-}
-
-static __attribute__((unused)) glodfn_t
-mmap_fn(const char *fn, int flags)
-{
-	struct stat st;
-	glodfn_t res;
-
-	if ((res.fd = open(fn, flags)) < 0) {
-		;
-	} else if (fstat(res.fd, &st) < 0) {
-		res.fb = (glodf_t){.z = 0U, .d = NULL};
-		goto clo;
-	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
-	clo:
-		close(res.fd);
-		res.fd = -1;
-	}
-	return res;
-}
-
-static __attribute__((unused)) int
-munmap_fn(glodfn_t f)
-{
-	int rc = 0;
-
-	if (f.fb.d != NULL) {
-		rc += munmap_fd(f.fb);
-	}
-	if (f.fd >= 0) {
-		rc += close(f.fd);
-	}
-	return rc;
-}
+
+/* public api */
+extern glodfn_t mmap_fn(const char *fn, int flags);
+extern int munmap_fn(glodfn_t);
 
 #endif	/* INCLUDED_fops_h_ */
