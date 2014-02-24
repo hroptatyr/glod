@@ -1,6 +1,6 @@
 /*** glep.c -- grepping lexemes
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -55,6 +55,10 @@ struct word_s {
 #if defined __INTEL_COMPILER
 # define auto	static
 #endif	/* __INTEL_COMPILER */
+
+#if defined STANDALONE
+static const char stdin_fn[] = "<stdin>";
+#endif	/* STANDALONE */
 
 
 #if !defined STANDALONE
@@ -300,6 +304,8 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 	/* map the file FN and snarf the alerts */
 	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
 		return -1;
+	} else if (fn == NULL) {
+		fn = stdin_fn;
 	}
 	/* magic happens here, rinse ms, ... */
 	glep_mset_rset(ms);
@@ -361,8 +367,13 @@ main(int argc, char *argv[])
 
 	/* get the mset */
 	ms = glep_make_mset(pf->npats);
-	for (size_t i = 0U; i < argi->nargs; i++) {
-		gr1(pf, argi->args[i], ms);
+	for (size_t i = 0U; i < argi->nargs || i + argi->nargs == 0U; i++) {
+		const char *fn = argi->args[i];
+
+		if (gr1(pf, fn, ms) < 0) {
+			error("Error: cannot process `%s'", fn ?: stdin_fn);
+			rc = 1;
+		}
 	}
 
 	/* resource hand over */
