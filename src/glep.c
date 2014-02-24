@@ -193,6 +193,8 @@ glod_rd_gleps(const char *buf, size_t bsz)
 			case CTX_Y:
 				/* don't deal with yields in glep mode */
 				break;
+			default:
+				break;
 			}
 			break;
 		}
