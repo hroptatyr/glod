@@ -342,7 +342,7 @@ DEFCORU(co_prnt_idfs, {
 		float v;
 	} *idfs;
 
-	auto void rec_idf(gl_corpus_t UNUSED(c), gl_crpid_t tid, float tfidf)
+	auto void rec_idf(gl_corpus_t UNUSED(x), gl_crpid_t tid, float tfidf)
 	{
 		size_t pos;
 
