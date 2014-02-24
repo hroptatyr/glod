@@ -122,7 +122,7 @@ mmap_stdin(int UNUSED(flags))
 		}
 	}
 out:
-	return (glodfn_t){.fb = m, .fd = -1};
+	return (glodfn_t){.fb = m, .fd = STDIN_FILENO};
 }
 
 
