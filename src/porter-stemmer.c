@@ -134,16 +134,16 @@ vowelinstem(void)
 	return false;
 }
 
-/* doublec(j) is TRUE <=> j,(j-1) contain a double consonant. */
+/* doublec(l) is TRUE <=> l,(l-1) contain a double consonant. */
 static bool
-doublec(ssize_t j)
+doublec(ssize_t l)
 {
-	if (j < k0 + 1) {
+	if (l < k0 + 1) {
 		return false;
-	} else if (b[j] != b[j-1]) {
+	} else if (b[l] != b[l - 1]) {
 		return false;
 	}
-	return cons(j);
+	return cons(l);
 }
 
 /* cvc(i) is TRUE <=> i-2,i-1,i has the form consonant - vowel - consonant
