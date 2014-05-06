@@ -12,7 +12,7 @@ missing
 src/config.h.in
 *~
 =build*/
-build*/
+build/
 depcomp
 ++*
 Makefile
@@ -26,6 +26,9 @@ stamp-h1
 .deps
 .libs
 test-driver
+compile
 
 ##binaries and shite
-truffle
+glod-alert
+glep
+
