@@ -56,12 +56,19 @@
 #define PROT_MEM	(PROT_READ | PROT_WRITE)
 #define MAP_MEM		(MAP_PRIVATE | MAP_ANON)
 
+#define PROT_FD		(PROT_READ)
+#define MAP_FD		(MAP_PRIVATE)
+
 static glodf_t
 mmap_fd(int fd, size_t fz)
 {
 	void *p;
 
-	if ((p = mmap(NULL, fz, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
+	if (UNLIKELY(fz == 0U)) {
+		/* produce a trick buffer */
+		static char nul[] = "";
+		return (glodf_t){.z = 0U, .d = nul};
+	} else if ((p = mmap(NULL, fz, PROT_FD, MAP_FD, fd, 0)) == MAP_FAILED) {
 		return (glodf_t){.z = 0U, .d = NULL};
 	}
 	return (glodf_t){.z = fz, .d = p};
@@ -70,6 +77,9 @@ mmap_fd(int fd, size_t fz)
 static int
 munmap_fd(glodf_t map)
 {
+	if (UNLIKELY(map.z == 0U)) {
+		return 0;
+	}
 	return munmap(map.d, map.z);
 }
 
