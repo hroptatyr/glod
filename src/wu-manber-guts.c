@@ -584,14 +584,14 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 			return true;
 		}
 		if (!pat.fl.right) {
-			/* we're looking at *foo, so check the right side */
+			/* we're looking at *foo or foo,
+			 * so check the right side for word boundaries */
 			if (UNLIKELY(sp + z >= ep)) {
 				return true;
 			} else if (!xalnump(sp[z])) {
 				return true;
 			}
-		}
-		if (!pat.fl.left) {
+		} else if (!pat.fl.left) {
 			/* we're looking at foo*, so check the left side */
 			if (UNLIKELY(sp == (const unsigned char*)buf)) {
 				return true;
