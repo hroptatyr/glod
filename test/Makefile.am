@@ -85,6 +85,10 @@ unpgbrk_TESTS += unpgbrk_test_01.tst
 unpgbrk_TESTS += unpgbrk_test_02.tst
 EXTRA_DIST += xetra.txt
 
+glep_TESTS =
+TESTS += $(glep_TESTS)
+glep_TESTS += glep.01.tst
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
