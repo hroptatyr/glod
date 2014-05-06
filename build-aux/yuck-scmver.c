@@ -481,8 +481,9 @@ git_version(struct yuck_version_s v[static 1U])
 		v->dist = strtoul(dist, &bp, 10);
 
 		if (*++bp == 'g') {
+			bp++;
 			/* read scm revision */
-			v->rvsn = hextou(++bp, &bp);
+			v->rvsn = hextou(bp, &bp);
 		}
 		if (*bp == '\0') {
 			break;
@@ -657,7 +658,7 @@ yuck_version(struct yuck_version_s *restrict v, const char *path)
 {
 	char cwd[PATH_MAX];
 	char fn[PATH_MAX];
-	int rc;
+	int rc = -1;
 
 	/* initialise result structure */
 	memset(v, 0, sizeof(*v));
@@ -675,7 +676,9 @@ yuck_version(struct yuck_version_s *restrict v, const char *path)
 	case YUCK_SCM_GIT:
 	case YUCK_SCM_BZR:
 	case YUCK_SCM_HG:
-		chdir(fn);
+		if (chdir(fn) < 0) {
+			break;
+		}
 		switch (v->scm) {
 		case YUCK_SCM_GIT:
 			rc = git_version(v);
@@ -687,10 +690,12 @@ yuck_version(struct yuck_version_s *restrict v, const char *path)
 			rc = hg_version(v);
 			break;
 		default:
-			rc = -1;
 			break;
 		}
-		chdir(cwd);
+		if (chdir(cwd) < 0) {
+			/* oh big cluster fuck */
+			rc = -1;
+		}
 		break;
 	}
 	return rc;
