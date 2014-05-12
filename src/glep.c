@@ -80,10 +80,13 @@ snarf_word(const char *bp[static 1], const char *const ep)
 		}
 	}
 	/* create the result */
-	res = (word_t){.z = wp - *bp, .p = {
-			.fl.ci = wp[1] == 'i',
+	res = (word_t){
+		.z = wp - *bp,
+		.p = {
+			.fl.ci = wp[1U] == 'i',
 			.s = *bp,
-		}};
+		}
+	};
 	/* check the word-boundary flags */
 	if (UNLIKELY(**bp == '*')) {
 		/* left boundary is a * */
