@@ -54,11 +54,17 @@ typedef uint_fast8_t ix_t;
 #define TBLZ	(32768U)
 
 struct glepcc_s {
+	/** rolling hash window size (2 or 3) */
 	unsigned int B;
+	/** length of shortest pattern */
 	unsigned int m;
+	/** table with shift values */
 	ix_t SHIFT[TBLZ];
+	/** table with pattern hashes */
 	hx_t HASH[TBLZ];
+	/** table with pattern prefixes */
 	hx_t PREFIX[TBLZ];
+	/** table with pointers into actual pattern array */
 	hx_t PATPTR[TBLZ];
 };
 
