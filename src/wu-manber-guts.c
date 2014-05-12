@@ -628,17 +628,17 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					/* small pattern */
 					sp++;
 
-					switch ((l = c->m - 2U) |
-						(pat.fl.ci << 4U)) {
-					case 3U:
+					switch ((pat.fl.ci << 4U) |
+						(l = c->m - 2U)) {
+					case (0U << 4U) | 3U:
 						if (sp[2U] != pat.s[2U]) {
 							break;
 						}
-					case 2U:
+					case (0U << 4U) | 2U:
 						if (sp[1U] != pat.s[1U]) {
 							break;
 						}
-					case 1U:
+					case (0U << 4U) | 1U:
 						if (sp[0U] != pat.s[0U]) {
 							break;
 						}
