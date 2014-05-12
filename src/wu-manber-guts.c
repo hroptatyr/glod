@@ -713,11 +713,9 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		if (h != hci) {
 			pbeg = c->HASH[hci + 0U];
 			pend = c->HASH[hci + 1U];
-
-			if ((shift = match_prfx(
-				     sp, pbeg, pend, prfh_ci(c, sp)))) {
-				continue;
-			}
+		}
+		if ((shift = match_prfx(sp, pbeg, pend, prfh_ci(c, sp)))) {
+			continue;
 		}
 
 		/* be careful with the stepping then */
