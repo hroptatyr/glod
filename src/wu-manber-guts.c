@@ -611,7 +611,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	auto ix_t
 	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, hx_t p)
 	{
-		/* loop through all patterns that hash to H */
+		/* loop through all patterns that hash to P */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
 			if (p == c->PREFIX[pi]) {
 				hx_t i = c->PATPTR[pi];
