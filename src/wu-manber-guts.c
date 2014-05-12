@@ -582,9 +582,9 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	}
 
 	auto bool
-	w_match_p(const glep_pat_t pat, const unsigned char *const sp, size_t z)
+	matchp(const glep_pat_t pat, const unsigned char *const sp, size_t z)
 	{
-		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
+		/* check if PAT is a whole-word match */
 		if (UNLIKELY(pat.fl.left && pat.fl.right)) {
 			/* we're looking at *foo*, trivial match */
 			return true;
@@ -666,11 +666,11 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					}
 				} else if (pat.fl.ci &&
 					   (l = xicmp(pat.s, sp)) &&
-					   w_match_p(pat, sp, l)) {
+					   matchp(pat, sp, l)) {
 					goto match;
 				} else if (!pat.fl.ci &&
 					   (l = xcmp(pat.s, sp)) &&
-					   w_match_p(pat, sp, l)) {
+					   matchp(pat, sp, l)) {
 					goto match;
 				}
 			}
