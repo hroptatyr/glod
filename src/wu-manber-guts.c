@@ -154,7 +154,7 @@ find_m(gleps_t g)
 	/* otherwise initialise RES to length of first pattern */
 	res = 255U;
 	for (size_t i = 0; i < g->npats; i++) {
-		glep_pat_t p = g->pats[i];
+		const glep_pat_t p = g->pats[i];
 		size_t z = strlen(p.s);
 
 		/* only accept m's > 3 if possible */
@@ -276,7 +276,7 @@ glep_cc(gleps_t g)
 	}
 
 	/* suffix handling helpers */
-	auto void add_pat(glep_pat_t pat)
+	auto void add_pat(const glep_pat_t pat)
 	{
 		const unsigned char *p = (const unsigned char*)pat.s;
 		hx_t h;
@@ -295,7 +295,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_smallpat(glep_pat_t pat, size_t pz)
+	auto void add_smallpat(const glep_pat_t pat, size_t pz)
 	{
 		/* like add_pat() but account for the fact
 		 * that pat.s is shorter than the minimum pattern length */
@@ -443,7 +443,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_prf(glep_pat_t pat, size_t patidx)
+	auto void add_prf(const glep_pat_t pat, size_t patidx)
 	{
 		const unsigned char *p = (const unsigned char*)pat.s;
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
@@ -456,7 +456,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_smallprf(glep_pat_t pat, size_t pz, size_t patidx)
+	auto void add_smallprf(const glep_pat_t pat, size_t pz, size_t patidx)
 	{
 		/* like add_prf() but for particularly small patterns */
 		const unsigned char *const p = (const unsigned char*)pat.s;
@@ -518,8 +518,8 @@ glep_cc(gleps_t g)
 
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		glep_pat_t pat = g->pats[i];
-		size_t z = strlen(pat.s);
+		const glep_pat_t pat = g->pats[i];
+		const size_t z = strlen(pat.s);
 
 		if (res->m > z) {
 			/* handle patters that are apparently too short */
@@ -537,8 +537,8 @@ glep_cc(gleps_t g)
 
 	/* prefix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		glep_pat_t pat = g->pats[i];
-		size_t z = strlen(pat.s);
+		const glep_pat_t pat = g->pats[i];
+		const size_t z = strlen(pat.s);
 
 		if (res->m > z) {
 			/* handle patterns that are apparently too short */
@@ -582,7 +582,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	}
 
 	auto bool
-	ww_match_p(glep_pat_t pat, const unsigned char *const sp, size_t z)
+	w_match_p(const glep_pat_t pat, const unsigned char *const sp, size_t z)
 	{
 		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
 		if (UNLIKELY(pat.fl.left && pat.fl.right)) {
@@ -615,7 +615,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		for (hx_t pi = pbeg; pi < pend; pi++) {
 			if (p == c->PREFIX[pi]) {
 				hx_t i = c->PATPTR[pi];
-				glep_pat_t pat = g->pats[i];
+				const glep_pat_t pat = g->pats[i];
 				size_t l;
 
 				/* check the word */
@@ -666,11 +666,11 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					}
 				} else if (pat.fl.ci &&
 					   (l = xicmp(pat.s, sp)) &&
-					   ww_match_p(pat, sp, l)) {
+					   w_match_p(pat, sp, l)) {
 					goto match;
 				} else if (!pat.fl.ci &&
 					   (l = xcmp(pat.s, sp)) &&
-					   ww_match_p(pat, sp, l)) {
+					   w_match_p(pat, sp, l)) {
 					goto match;
 				}
 			}
