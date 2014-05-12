@@ -54,11 +54,17 @@ typedef uint_fast8_t ix_t;
 #define TBLZ	(32768U)
 
 struct glepcc_s {
+	/** rolling hash window size (2 or 3) */
 	unsigned int B;
+	/** length of shortest pattern */
 	unsigned int m;
+	/** table with shift values */
 	ix_t SHIFT[TBLZ];
+	/** table with pattern hashes */
 	hx_t HASH[TBLZ];
+	/** table with pattern prefixes */
 	hx_t PREFIX[TBLZ];
+	/** table with pointers into actual pattern array */
 	hx_t PATPTR[TBLZ];
 };
 
@@ -148,7 +154,7 @@ find_m(gleps_t g)
 	/* otherwise initialise RES to length of first pattern */
 	res = 255U;
 	for (size_t i = 0; i < g->npats; i++) {
-		glep_pat_t p = g->pats[i];
+		const glep_pat_t p = g->pats[i];
 		size_t z = strlen(p.s);
 
 		/* only accept m's > 3 if possible */
@@ -270,7 +276,7 @@ glep_cc(gleps_t g)
 	}
 
 	/* suffix handling helpers */
-	auto void add_pat(glep_pat_t pat)
+	auto void add_pat(const glep_pat_t pat)
 	{
 		const unsigned char *p = (const unsigned char*)pat.s;
 		hx_t h;
@@ -289,7 +295,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_smallpat(glep_pat_t pat, size_t pz)
+	auto void add_smallpat(const glep_pat_t pat, size_t pz)
 	{
 		/* like add_pat() but account for the fact
 		 * that pat.s is shorter than the minimum pattern length */
@@ -437,7 +443,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_prf(glep_pat_t pat, size_t patidx)
+	auto void add_prf(const glep_pat_t pat, size_t patidx)
 	{
 		const unsigned char *p = (const unsigned char*)pat.s;
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
@@ -450,7 +456,7 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_smallprf(glep_pat_t pat, size_t pz, size_t patidx)
+	auto void add_smallprf(const glep_pat_t pat, size_t pz, size_t patidx)
 	{
 		/* like add_prf() but for particularly small patterns */
 		const unsigned char *const p = (const unsigned char*)pat.s;
@@ -512,8 +518,8 @@ glep_cc(gleps_t g)
 
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		glep_pat_t pat = g->pats[i];
-		size_t z = strlen(pat.s);
+		const glep_pat_t pat = g->pats[i];
+		const size_t z = strlen(pat.s);
 
 		if (res->m > z) {
 			/* handle patters that are apparently too short */
@@ -531,8 +537,8 @@ glep_cc(gleps_t g)
 
 	/* prefix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		glep_pat_t pat = g->pats[i];
-		size_t z = strlen(pat.s);
+		const glep_pat_t pat = g->pats[i];
+		const size_t z = strlen(pat.s);
 
 		if (res->m > z) {
 			/* handle patterns that are apparently too short */
@@ -576,9 +582,9 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	}
 
 	auto bool
-	ww_match_p(glep_pat_t pat, const unsigned char *const sp, size_t z)
+	matchp(const glep_pat_t pat, const unsigned char *const sp, size_t z)
 	{
-		/* check if SP (size Z) fulfills the whole-word policy WWPOL. */
+		/* check if PAT is a whole-word match */
 		if (UNLIKELY(pat.fl.left && pat.fl.right)) {
 			/* we're looking at *foo*, trivial match */
 			return true;
@@ -605,11 +611,11 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	auto ix_t
 	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, hx_t p)
 	{
-		/* loop through all patterns that hash to H */
+		/* loop through all patterns that hash to P */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
 			if (p == c->PREFIX[pi]) {
 				hx_t i = c->PATPTR[pi];
-				glep_pat_t pat = g->pats[i];
+				const glep_pat_t pat = g->pats[i];
 				size_t l;
 
 				/* check the word */
@@ -622,17 +628,17 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					/* small pattern */
 					sp++;
 
-					switch ((l = c->m - 2U) |
-						(pat.fl.ci << 4U)) {
-					case 3U:
+					switch ((pat.fl.ci << 4U) |
+						(l = c->m - 2U)) {
+					case (0U << 4U) | 3U:
 						if (sp[2U] != pat.s[2U]) {
 							break;
 						}
-					case 2U:
+					case (0U << 4U) | 2U:
 						if (sp[1U] != pat.s[1U]) {
 							break;
 						}
-					case 1U:
+					case (0U << 4U) | 1U:
 						if (sp[0U] != pat.s[0U]) {
 							break;
 						}
@@ -660,11 +666,11 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					}
 				} else if (pat.fl.ci &&
 					   (l = xicmp(pat.s, sp)) &&
-					   ww_match_p(pat, sp, l)) {
+					   matchp(pat, sp, l)) {
 					goto match;
 				} else if (!pat.fl.ci &&
 					   (l = xcmp(pat.s, sp)) &&
-					   ww_match_p(pat, sp, l)) {
+					   matchp(pat, sp, l)) {
 					goto match;
 				}
 			}
@@ -707,11 +713,9 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		if (h != hci) {
 			pbeg = c->HASH[hci + 0U];
 			pend = c->HASH[hci + 1U];
-
-			if ((shift = match_prfx(
-				     sp, pbeg, pend, prfh_ci(c, sp)))) {
-				continue;
-			}
+		}
+		if ((shift = match_prfx(sp, pbeg, pend, prfh_ci(c, sp)))) {
+			continue;
 		}
 
 		/* be careful with the stepping then */
