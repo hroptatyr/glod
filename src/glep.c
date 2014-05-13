@@ -173,7 +173,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 		idx_t i;
 		char *s;
 	} cch = {0U};
-	wpat_t cur;
+	wpat_t cur = {0U};
 
 	auto inline glep_pat_t clone_pat(wpat_t p)
 	{
