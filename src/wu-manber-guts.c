@@ -573,7 +573,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 {
 	const glepcc_t c = g->ctx;
 	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
-	const unsigned char *const ep = bp + bsz;
+	const unsigned char *const ep = buf + bsz;
 
 	auto inline const unsigned char *prfs(const unsigned char *xp)
 	{
