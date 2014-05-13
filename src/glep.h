@@ -49,14 +49,20 @@ typedef struct glep_mset_s *glep_mset_t;
 typedef struct glepcc_s *glepcc_t;
 
 struct glep_pat_s {
-	struct {
-		/* case insensitive? */
-		unsigned int ci:1;
-		/* whole word match or just prefix, suffix */
-		unsigned int left:1;
-		unsigned int right:1;
+	union {
+		unsigned int u;
+		struct {
+			/* case insensitive? */
+			unsigned int ci:1;
+			/* whole word match or just prefix, suffix */
+			unsigned int left:1;
+			unsigned int right:1;
+		};
 	} fl/*ags*/;
+	/** the raw pattern string */
 	const char *s;
+	/** the pattern's associated yield string */
+	const char *y;
 };
 
 struct gleps_s {

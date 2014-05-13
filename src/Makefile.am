@@ -61,7 +61,7 @@ libglod_la_SOURCES += nifty.h
 libglod_la_SOURCES += mem.h
 libglod_la_SOURCES += fops.c fops.h
 libglod_la_SOURCES += boobs.h
-libglod_la_SOURCES += alrt.c alrt.h
+libglod_la_SOURCES += intern.c intern.h
 libglod_la_SOURCES += glep.c glep.h
 libglod_la_SOURCES += wu-manber-guts.c
 libglod_la_SOURCES += levenshtein.c levenshtein.h
@@ -101,12 +101,6 @@ glod_classify_SOURCES = glod-classify.c
 glod_classify_SOURCES += glod-classify.yuck
 glod_classify_LDADD = libglod.la
 BUILT_SOURCES += glod-classify.yucc
-
-bin_PROGRAMS += glod-alert
-glod_alert_SOURCES = glod-alert.c
-glod_alert_SOURCES += glod-alert.yuck
-glod_alert_LDADD = libglod.la
-BUILT_SOURCES += glod-alert.yucc
 
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c

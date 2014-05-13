@@ -1,6 +1,6 @@
-/*** alrt.h -- reading/writing glod alert files
+/*** intern.h -- interning system
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -34,52 +34,51 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_alrt_h_
-#define INCLUDED_alrt_h_
+#if !defined INCLUDED_intern_h_
+#define INCLUDED_intern_h_
 
-#include <stddef.h>
 #include <stdint.h>
-#include "glep.h"
 
-typedef struct alrt_s alrt_t;
-typedef const struct alrts_s *alrts_t;
+/**
+ * obints are length+offset integers, at least 32 bits wide, always even.
+ * They can fit short strings up to a length of 256 bytes and two
+ * byte-wise equal strings will produce the same obint.
+ *
+ * OOOOOOOOOOOOOOOOOOOOOOOO LLLLLLLL
+ * ^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^
+ *        offset / 4U        length
+ **/
+typedef uint_fast32_t obint_t;
 
-struct alrt_s {
-	/* index into the label array */
-	uint_fast32_t lbl;
-};
+/**
+ * Return the interned representation of STR. */
+extern obint_t intern(const char *str, size_t len);
 
-struct alrts_s {
-	gleps_t g;
+/**
+ * Unintern the OBINT object. */
+extern void unintern(obint_t);
 
-	/* the global labels vector */
-	size_t nlbls;
-	const char **lbls;
+/**
+ * Return the string representation of an OBINT object. */
+extern const char *obint_name(obint_t);
 
-	size_t nalrts;
-	alrt_t alrts[];
-};
+/**
+ * Clean up resources used by the interning system. */
+extern void clear_interns(void);
 
 
-/**
- * Read and return alerts from BUF (of size BSZ) in plain text form. */
-extern alrts_t glod_rd_alrts(const char *buf, size_t bsz);
+static inline size_t
+obint_off(obint_t ob)
+{
+	/* mask out the length bit */
+	return (ob >> 8U) << 2U;
+}
 
-/**
- * Write alrts into BUF, return the number of significant bytes.
- * Also put the allocation size of BUF into BSZ. */
-extern size_t glod_wr_alrts(const char **buf, size_t *bsz, alrts_t);
+static inline size_t
+obint_len(obint_t ob)
+{
+	/* mask out the offset bit */
+	return ob & 0b11111111U;
+}
 
-/**
- * Free an alerts object. */
-extern void glod_fr_alrts(alrts_t);
-
-/**
- * Compile an ALRTS_T object. */
-extern int glod_cc_alrts(alrts_t);
-
-/**
- * Return the number of matches of C in BUF of size BSZ. */
-extern int glod_gr_alrts(glep_mset_t, alrts_t a, const char *buf, size_t bsz);
-
-#endif	/* INCLUDED_alrt_h_ */
+#endif	/* INCLUDED_intern_h_ */

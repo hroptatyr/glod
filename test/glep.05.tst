@@ -1,6 +1,6 @@
 #!/usr/bin/clitoris  ## -*- shell-script -*-
 
-$ $ glep --show-patterns -f "${srcdir}/case-sensitive.alrt" \
+$ $ glep -f "${srcdir}/case-sensitive.alrt" \
 	"${srcdir}/dax-news.txt" "${srcdir}/foo-news.txt"
-Siemens	${srcdir}/dax-news.txt
+SIE.DE	${srcdir}/dax-news.txt
 $

@@ -41,15 +41,32 @@
 #include <string.h>
 #include "glep.h"
 #include "boobs.h"
+#include "intern.h"
 #include "nifty.h"
 
 /* lib stuff */
 typedef size_t idx_t;
 typedef struct word_s word_t;
+typedef struct wpat_s wpat_t;
 
 struct word_s {
 	size_t z;
-	glep_pat_t p;
+	const char *s;
+};
+
+struct wpat_s {
+	word_t w;
+	obint_t y;
+	union {
+		unsigned int u;
+		struct {
+			/* case insensitive? */
+			unsigned int ci:1;
+			/* whole word match or just prefix, suffix */
+			unsigned int left:1;
+			unsigned int right:1;
+		};
+	} fl/*ags*/;
 };
 
 #if defined __INTEL_COMPILER
@@ -60,6 +77,8 @@ struct word_s {
 static const char stdin_fn[] = "<stdin>";
 #endif	/* STANDALONE */
 
+#define warn(x...)
+
 
 #if !defined STANDALONE
 /* word level */
@@ -67,64 +86,74 @@ static word_t
 snarf_word(const char *bp[static 1], const char *const ep)
 {
 	const char *wp;
-	int has_esc = 0;
 	word_t res;
 
-	for (wp = *bp; wp < ep; wp++) {
-		if (UNLIKELY(*wp == '"')) {
-			if (LIKELY(wp[-1] != '\\')) {
-				break;
-			}
-			/* otherwise de-escape */
-			has_esc = 1;
+	/* find terminating double-quote " */
+	for (wp = *bp; (wp = memchr(wp, '"', ep - wp)) != NULL; wp++) {
+		if (LIKELY(wp[-1] != '\\')) {
+			break;
 		}
+	}
+	if (UNLIKELY(wp == NULL)) {
+		warn("Error: no matching double-quote found");
+		return (word_t){0UL};
 	}
 	/* create the result */
 	res = (word_t){
 		.z = wp - *bp,
-		.p = {
-			.fl.ci = wp[1U] == 'i',
-			.s = *bp,
-		}
+		.s = *bp,
 	};
+	/* advance BP */
+	*bp = ++wp;
+	return res;
+}
+
+static wpat_t
+snarf_pat(word_t w)
+{
+	wpat_t res = {0U};
+
 	/* check the word-boundary flags */
-	if (UNLIKELY(**bp == '*')) {
+	if (UNLIKELY(w.s[0U] == '*')) {
 		/* left boundary is a * */
-		res.p.fl.left = 1;
-		res.p.s++;
-		res.z--;
+		res.fl.left = 1U;
+		w.s++;
+		w.z--;
 	}
-	if (wp[-1] == '*' && wp[-2] != '\\') {
+	if (w.z < 3U) {
+		warn("pattern too small");
+		return res;
+	} else if (w.s[w.z - 1U] == '*' && w.s[w.z - 2U] != '\\') {
 		/* right boundary is a * */
-		res.p.fl.right = 1;
-		res.z--;
+		res.fl.right = 1U;
+		w.z--;
+	}
+	/* check modifiers */
+	if (w.s[w.z + 1U] == 'i') {
+		res.fl.ci = 1U;
 	}
 
-	/* advance the tracker pointer */
-	*bp = wp + 1U;
-
-	if (UNLIKELY(has_esc)) {
+	for (const char *on; (on = memchr(w.s, '\\', w.z)) != NULL;) {
+		/* looks like a for-loop but this is looped over just once */
 		static char *word;
 		static size_t worz;
-		const char *sp = res.p.s;
-		size_t sz = res.z;
-		char *cp;
+		size_t ci = 0U;
 
-		if (UNLIKELY(sz > worz)) {
-			worz = (sz / 64U + 1) * 64U;
+		if (UNLIKELY(w.z + 1U > worz)) {
+			worz = ((w.z + 1U) / 64U + 1U) * 64U;
 			word = realloc(word, worz);
 		}
-		memcpy(cp = word, sp, sz);
-		for (size_t x = sz; x > 0; x--, sp++) {
-			if ((*cp = *sp) != '\\') {
-				cp++;
-			} else {
-				sz--;
+		/* operate on static space for the fun of it */
+		memcpy(word, w.s, w.z);
+		for (size_t wi = 0U; wi < w.z; wi++) {
+			if (LIKELY((word[ci] = w.s[wi]) == '\\')) {
+				/* increment */
+				ci++;
 			}
 		}
-		res.z = sz;
-		res.p.s = word;
+		w = (word_t){.z = ci, .s = word};
 	}
+	res.w = w;
 	return res;
 }
 
@@ -144,41 +173,47 @@ glod_rd_gleps(const char *buf, size_t bsz)
 		idx_t i;
 		char *s;
 	} cch = {0U};
+	wpat_t cur;
 
-	auto inline glep_pat_t clone_pat(word_t w)
+	auto inline glep_pat_t clone_pat(wpat_t p)
 	{
 		glep_pat_t clo;
 
-		if ((cch.i + w.z + 1U) / 256U > (cch.i / 256U)) {
-			size_t nu = ((cch.i + w.z + 1U) / 256U + 1U) * 256U;
+		if ((cch.i + p.w.z + 1U) / 256U > (cch.i / 256U)) {
+			size_t nu = ((cch.i + p.w.z + 1U) / 256U + 1U) * 256U;
 
 			cch.s = realloc(cch.s, nu);
 		}
-		clo = w.p, clo.s = (const void*)(intptr_t)cch.i;
-		memcpy(cch.s + cch.i, w.p.s, w.z);
-		cch.s[cch.i += w.z] = '\0';
+		clo.fl.u = p.fl.u;
+		clo.s = (const void*)(uintptr_t)cch.i;
+		clo.y = (const void*)(uintptr_t)p.y;
+		memcpy(cch.s + cch.i, p.w.s, p.w.z);
+		cch.s[cch.i += p.w.z] = '\0';
 		cch.i++;
 		return clo;
 	}
 
-	auto struct gleps_s *append_pat(struct gleps_s *c, word_t w)
+	auto void append_pat(wpat_t p)
 	{
-		if (UNLIKELY(c == NULL)) {
-			size_t iniz = 64U * sizeof(*c->pats);
-			c = malloc(sizeof(*c) + iniz);
-			c->npats = 0U;
+		if (UNLIKELY(res == NULL)) {
+			size_t iniz = 64U * sizeof(*res->pats);
+			res = malloc(sizeof(*res) + iniz);
+			res->npats = 0U;
 			/* create a bit of breathing space for the
 			 * pats string strand */
 			cch.s = malloc(256U);
-		} else if (UNLIKELY(!(c->npats % 64U))) {
-			size_t nu = (c->npats + 64U) * sizeof(*c->pats);
-			c = realloc(c, sizeof(*c) + nu);
+		} else if (UNLIKELY(!(res->npats % 64U))) {
+			size_t nu = (res->npats + 64U) * sizeof(*res->pats);
+			res = realloc(res, sizeof(*res) + nu);
 		}
-		with (struct glep_pat_s *p = c->pats + c->npats++) {
-			/* copy over the string and \nul-term it */
-			*p = clone_pat(w);
-		}
-		return c;
+		/* copy over the string and \nul-term it */
+		res->pats[res->npats++] = clone_pat(p);
+		return;
+	}
+
+	auto obint_t snarf_yld(word_t w)
+	{
+		return intern(w.s, w.z);
 	}
 
 	/* now go through the buffer looking for " escapes */
@@ -191,10 +226,10 @@ glod_rd_gleps(const char *buf, size_t bsz)
 			/* append the word to cch for now */
 			switch (ctx) {
 			case CTX_W:
-				res = append_pat(res, w);
+				cur = snarf_pat(w);
 				break;
 			case CTX_Y:
-				/* don't deal with yields in glep mode */
+				cur.y = snarf_yld(w);
 				break;
 			default:
 				break;
@@ -216,10 +251,13 @@ glod_rd_gleps(const char *buf, size_t bsz)
 			}
 			break;
 		case '\n':
-			/* switch back to W mode */
+			/* switch back to W mode, and append current */
+			if (LIKELY(cur.w.z > 0UL)) {
+				append_pat(cur);
+			}
 			ctx = CTX_W;
+			cur = (wpat_t){0U};
 			break;
-		case '|':
 		case '&':
 		default:
 			/* keep going */
@@ -229,9 +267,12 @@ glod_rd_gleps(const char *buf, size_t bsz)
 
 	/* fixup pat strings */
 	for (size_t i = 0; i < res->npats; i++) {
-		idx_t soffs = (idx_t)(intptr_t)res->pats[i].s;
+		const idx_t soffs = (idx_t)(uintptr_t)res->pats[i].s;
 
 		res->pats[i].s = cch.s + soffs;
+		if (res->pats[i].y != NULL) {
+			res->pats[i].y = obint_name((obint_t)res->pats[i].y);
+		}
 	}
 	return res;
 }
@@ -261,6 +302,7 @@ glod_fr_gleps(gleps_t g)
 #include "fops.h"
 
 static int invert_match_p;
+static int show_pats_p;
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -271,8 +313,7 @@ error(const char *fmt, ...)
 	vfprintf(stderr, fmt, vap);
 	va_end(vap);
 	if (errno) {
-		fputc(':', stderr);
-		fputc(' ', stderr);
+		fputs(": ", stderr);
 		fputs(strerror(errno), stderr);
 	}
 	fputc('\n', stderr);
@@ -320,12 +361,16 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 	for (size_t i = 0U, bix; i <= ms->nms / MSET_MOD; i++) {
 		bix = i * MSET_MOD;
 		for (uint_fast32_t b = ms->ms[i]; b; b >>= 1U, bix++) {
-			if (b & 1U) {
-				fputs(pf->pats[bix].s, stdout);
-				putchar('\t');
-				puts(fn);
-				nmtch++;
+			const glep_pat_t p = pf->pats[bix];
+
+			if (!(b & 1U)) {
+				continue;
 			}
+			/* otherwise do the printing work */
+			fputs(!show_pats_p ? (p.y ?: p.s) : p.s, stdout);
+			putchar('\t');
+			puts(fn);
+			nmtch++;
 		}
 	}
 	if (invert_match_p && !nmtch) {
@@ -364,9 +409,13 @@ main(int argc, char *argv[])
 	if (argi->invert_match_flag) {
 		invert_match_p = 1;
 	}
+	if (argi->show_patterns_flag) {
+		show_pats_p = 1;
+	}
 
 	/* compile the patterns */
 	if (UNLIKELY(glep_cc(pf) < 0)) {
+		error("Error: cannot compile patterns");
 		goto fr_gl;
 	}
 
