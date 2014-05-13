@@ -111,12 +111,12 @@ xcmp(const char *s1, const unsigned char *s2)
 {
 /* compare S1 to S2, allowing S1 to end prematurely,
  * return S1's length if strings are equal and 0 otherwise. */
-	register const char *p1 = s1;
-	register const unsigned char *p2 = s2;
+	register const uint8_t *p1 = (const uint8_t*)s1;
+	register const uint8_t *p2 = (const uint8_t*)s2;
 
 	do {
 		if (UNLIKELY(!*p1)) {
-			return p1 - s1;
+			return p1 - (const uint8_t*)s1;
 		}
 	} while (*p1++ == *p2++);
 	return 0U;
@@ -127,12 +127,12 @@ xicmp(const char *s1, const unsigned char *s2)
 {
 /* compare S1 to S2 case-insensitively, allowing S1 to end prematurely,
  * return S1's length if strings are equal and 0 otherwise. */
-	register const char *p1 = s1;
-	register const unsigned char *p2 = s2;
+	register const uint8_t *p1 = (const uint8_t*)s1;
+	register const uint8_t *p2 = (const uint8_t*)s2;
 
 	do {
 		if (UNLIKELY(!*p1)) {
-			return p1 - s1;
+			return p1 - (const uint8_t*)s1;
 		}
 	} while (xlcase[*p1++] == xlcase[*p2++]);
 	return 0U;
@@ -609,12 +609,12 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 	}
 
 	auto ix_t
-	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, hx_t p)
+	match_prfx(const unsigned char *sp, hx_t pbeg, hx_t pend, const hx_t p)
 	{
 		/* loop through all patterns that hash to P */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
 			if (p == c->PREFIX[pi]) {
-				hx_t i = c->PATPTR[pi];
+				const hx_t i = c->PATPTR[pi];
 				const glep_pat_t pat = g->pats[i];
 				size_t l;
 

@@ -100,6 +100,13 @@ EXTRA_DIST += foo-news.txt
 EXTRA_DIST += case-insensitive.alrt
 EXTRA_DIST += case-sensitive.alrt
 
+glep_TESTS += glep.06.tst
+glep_TESTS += glep.07.tst
+glep_TESTS += glep.08.tst
+EXTRA_DIST += utf8.alrt utf8.txt
+EXTRA_DIST += latin1.alrt latin1.txt
+EXTRA_DIST += ascii.alrt ascii.txt
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
