@@ -88,6 +88,12 @@ EXTRA_DIST += xetra.txt
 glep_TESTS =
 TESTS += $(glep_TESTS)
 glep_TESTS += glep.01.tst
+glep_TESTS += glep.02.tst
+glep_TESTS += glep.03.tst
+EXTRA_DIST += dax-news.txt
+EXTRA_DIST += foo-news.txt
+EXTRA_DIST += case-insensitive.alrt
+EXTRA_DIST += case-sensitive.alrt
 
 
 ## our friendly helpers
