@@ -302,6 +302,7 @@ glod_fr_gleps(gleps_t g)
 #include "fops.h"
 
 static int invert_match_p;
+static int show_pats_p;
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -360,14 +361,16 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 	for (size_t i = 0U, bix; i <= ms->nms / MSET_MOD; i++) {
 		bix = i * MSET_MOD;
 		for (uint_fast32_t b = ms->ms[i]; b; b >>= 1U, bix++) {
-			if (b & 1U) {
-				glep_pat_t p = pf->pats[bix];
+			const glep_pat_t p = pf->pats[bix];
 
-				fputs(p.y ?: p.s, stdout);
-				putchar('\t');
-				puts(fn);
-				nmtch++;
+			if (!(b & 1U)) {
+				continue;
 			}
+			/* otherwise do the printing work */
+			fputs(!show_pats_p ? (p.y ?: p.s) : p.s, stdout);
+			putchar('\t');
+			puts(fn);
+			nmtch++;
 		}
 	}
 	if (invert_match_p && !nmtch) {
@@ -405,6 +408,9 @@ main(int argc, char *argv[])
 
 	if (argi->invert_match_flag) {
 		invert_match_p = 1;
+	}
+	if (argi->show_patterns_flag) {
+		show_pats_p = 1;
 	}
 
 	/* compile the patterns */
