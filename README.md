@@ -6,7 +6,21 @@ in various disciplines.  This toolbox (while still trying to find its
 niche) focusses on preparing the data for further processing using other
 tools or frameworks.
 
-The toolset consists of various little command line utilities:
+The toolset consists of various little command line utilities.
+
+Rationale
+---------
+The glod suite serves as an umbrella for tools that were/are actually
+needed in a production environment but which are yet too trivial or
+small to justify a full-fledged repository.
+
+This is the primary reason for the seemingly odd coverage of problems,
+and might be the reason for tools to appear and disappear willy-nilly.
+
+All tools deliberately ignore system-wide or user-specific localisation
+settings (locales)!  This (and of course speed) sets glod apart from
+tools like [PRETO][1], [JPreText][3] or [OpenRefine][2].
+
 
 glep
 ----
@@ -63,33 +77,6 @@ System-wide or local i18n settings are explicitly ignored!  This might
 lead to complications when mixing glod tools with other preprocessing
 tools.
 
-tf
---
-Return the term frequency within a document (file or stdin).  When used
-with a corpus it can turn text terms into numerical terms which is
-useful for systems that are number based primarily.
-
-Since `tf` does not massage the input in any way it needs the terms to
-be counted one per line (like `terms` would produce).
-
-    $ terms testfile1 | tf
-    New	1
-    virus	1
-    found	1
-
-
-Rationale
----------
-The glod suite serves as an umbrella for tools that were/are actually
-needed in a production environment but which are yet too trivial or
-small to justify a full-fledged repository.
-
-This is the primary reason for the seemingly odd coverage of problems,
-and might be the reason for tools to appear and disappear willy-nilly.
-
-All tools deliberately ignore system-wide or user-specific localisation
-settings (locales)!  This (and of course speed) sets glod apart from
-tools like [PRETO][1], [JPreText][3] or [OpenRefine][2].
 
   [1]: http://code.google.com/p/preto/
   [2]: http://openrefine.org/
