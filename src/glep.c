@@ -361,7 +361,9 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 		bix = i * MSET_MOD;
 		for (uint_fast32_t b = ms->ms[i]; b; b >>= 1U, bix++) {
 			if (b & 1U) {
-				fputs(pf->pats[bix].s, stdout);
+				glep_pat_t p = pf->pats[bix];
+
+				fputs(p.y ?: p.s, stdout);
 				putchar('\t');
 				puts(fn);
 				nmtch++;
