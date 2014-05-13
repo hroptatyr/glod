@@ -1,6 +1,6 @@
 #!/usr/bin/clitoris  ## -*- shell-script -*-
 
-$ $ glep -f "${srcdir}/case-insensitive.alrt" \
+$ $ glep --show-patterns -f "${srcdir}/case-insensitive.alrt" \
 	"${srcdir}/dax-news.txt" "${srcdir}/foo-news.txt"
 ALLIANZ	${srcdir}/dax-news.txt
 DEUTSCHE TELEKOM	${srcdir}/dax-news.txt
