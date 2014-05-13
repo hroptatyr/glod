@@ -116,7 +116,7 @@ xcmp(const char *s1, const unsigned char *s2)
 
 	do {
 		if (UNLIKELY(!*p1)) {
-			return p1 - s1;
+			return p1 - (const uint8_t*)s1;
 		}
 	} while (*p1++ == *p2++);
 	return 0U;
@@ -132,7 +132,7 @@ xicmp(const char *s1, const unsigned char *s2)
 
 	do {
 		if (UNLIKELY(!*p1)) {
-			return p1 - s1;
+			return p1 - (const uint8_t*)s1;
 		}
 	} while (xlcase[*p1++] == xlcase[*p2++]);
 	return 0U;
