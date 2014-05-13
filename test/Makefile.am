@@ -92,6 +92,7 @@ glep_TESTS += glep.02.tst
 glep_TESTS += glep.03.tst
 glep_TESTS += glep.04.tst
 glep_TESTS += glep.05.tst
+EXTRA_DIST += words.alrt
 EXTRA_DIST += dax-news.txt
 EXTRA_DIST += foo-news.txt
 EXTRA_DIST += case-insensitive.alrt
