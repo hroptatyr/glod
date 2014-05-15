@@ -57,17 +57,15 @@ EXTRA_DIST += version.c.in
 
 noinst_LTLIBRARIES += libglod.la
 libglod_la_SOURCES =
-EXTRA_libglod_la_SOURCES =
 libglod_la_SOURCES += nifty.h
 libglod_la_SOURCES += mem.h
 libglod_la_SOURCES += fops.c fops.h
 libglod_la_SOURCES += boobs.h
 libglod_la_SOURCES += intern.c intern.h
 libglod_la_SOURCES += glep.c glep.h
-libglod_la_SOURCES += freundt-rabin-karp-guts.c
+libglod_la_SOURCES += wu-manber-guts.c
 libglod_la_SOURCES += levenshtein.c levenshtein.h
 libglod_la_SOURCES += version.c version.h
-EXTRA_libglod_la_SOURCES += wikisort.c
 
 noinst_LTLIBRARIES += libcorpus.la
 libcorpus_la_SOURCES =
