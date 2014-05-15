@@ -246,23 +246,14 @@ glep_cc(gleps_t g)
 		res = realloc(res, sizeof(*res) + nu);
 	}
 	res->c[res->nc++] = (struct ccc4_s){0xffffffffU, g->npats};
-	with (xfix1_t last_h = 0U) {
-		/* first one needs to be set manually */
-		res->hints[0U] = 0U;
-		for (size_t i = 0; i < res->nc; i++) {
-			xfix1_t h = prefix421(res->c[i].pre);
 
-			if (h > last_h) {
-				for (size_t j = last_h + 1U; j <= h; j++) {
-					res->hints[j] = i;
-				}
-				last_h = h;
-			}
-			//printf("%08x ~ %zu  %zu %02x\n", res->c[i].pre, res->c[i].idx, i, h);
+	memset(res->hints, 0, sizeof(res->hints));
+	for (size_t i = 0; i < res->nc; i++) {
+		xfix1_t h = prefix421(res->c[i].pre);
+
+		if (res->hints[h] == 0U) {
+			res->hints[h] = i + 1U;
 		}
-	}
-	for (size_t i = 0; i < countof(res->hints); i++) {
-		//printf("%02x -> %zu\n", (xfix1_t)i, res->hints[i]);
 	}
 
 	with (struct gleps_s *pg = deconst(g)) {
@@ -295,10 +286,13 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 		/* update rolling hash and determine hinter hash*/
 		const xfix1_t h = (rh = roll4(rh, c), prefix421(rh));
 
-		for (size_t i = cc->hints[h]; i < cc->hints[h + 1U]; i++) {
+		if (!cc->hints[h]) {
+			continue;
+		}
+		for (size_t i = cc->hints[h] - 1U; i < cc->nc; i++) {
 			if (LIKELY(cc->c[i].pre < rh)) {
 				;
-			} else if (LIKELY(cc->c[i].pre > rh)) {
+			} else if (cc->c[i].pre > rh) {
 				break;
 			} else {
 				size_t j = cc->c[i].idx;
