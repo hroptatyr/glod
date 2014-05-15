@@ -59,6 +59,8 @@ struct glep_pat_s {
 			unsigned int right:1;
 		};
 	} fl/*ags*/;
+	/* pattern length */
+	unsigned int n;
 	/** the raw pattern string */
 	const char *s;
 	/** the pattern's associated yield string */
