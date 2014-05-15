@@ -185,6 +185,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 			cch.s = realloc(cch.s, nu);
 		}
 		clo.fl.u = p.fl.u;
+		clo.n = p.w.z;
 		clo.s = (const void*)(uintptr_t)cch.i;
 		clo.y = (const void*)(uintptr_t)p.y;
 		memcpy(cch.s + cch.i, p.w.s, p.w.z);

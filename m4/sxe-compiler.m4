@@ -1,6 +1,6 @@
 dnl compiler.m4 --- compiler magic
 dnl
-dnl Copyright (C) 2005-2013 Sebastian Freundt
+dnl Copyright (C) 2005-2014 Sebastian Freundt
 dnl Copyright (c) 2005 Steven G. Johnson
 dnl Copyright (c) 2005 Matteo Frigo
 dnl
@@ -48,7 +48,7 @@ dnl SXE_CHECK_COMPILER_FLAG([flag], [action-if-accepted], [action-if-not-accepte
 	AC_CACHE_VAL(AS_TR_SH(sxe_cv_[]_AC_LANG_ABBREV[]_flag_$1), [dnl
 		sxe_save_FLAGS="${[]_AC_LANG_PREFIX[]FLAGS}"
 		_AC_LANG_PREFIX[]FLAGS="$1"
-		AC_COMPILE_IFELSE([AC_LANG_PROGRAM()],
+		AC_COMPILE_IFELSE([AC_LANG_PROGRAM($4)],
 			eval AS_TR_SH(sxe_cv_[]_AC_LANG_ABBREV[]_flag_$1)="yes",
 			eval AS_TR_SH(sxe_cv_[]_AC_LANG_ABBREV[]_flag_$1)="no")
 		_AC_LANG_PREFIX[]FLAGS="${sxe_save_FLAGS}"
@@ -224,8 +224,15 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 
 	## too much at the moment, we rarely define protos
 	#warnflags="$warnflags -Wmissing-prototypes -Wstrict-prototypes"
+
+	## somehow clang seems to think -Wpacked is to inform me
+	## about how unnecessary the packed attr is, so conditionalise ...
 	SXE_CHECK_COMPILER_FLAG([-Wpacked], [
-		warnflags="$warnflags -Wpacked"])
+		warnflags="$warnflags -Wpacked"], [:], [[
+#if defined __clang__
+# error
+#endif  /* __clang__ */
+]])
 
 	## glibc is intentionally not `-Wpointer-arith'-clean.
 	## Ulrich Drepper has rejected patches to fix
@@ -266,8 +273,8 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 	## for gcc, see http://gcc.gnu.org/bugzilla/show_bug.cgi?id=50422
 	## we used to have -Wswitch-default and -Wswitch-enum but that
 	## set gcc off quite badly in the nested switch case
-	SXE_CHECK_COMPILER_FLAG([-Wswitch], [
-		warnflags="$warnflags -Wswitch"])
+	SXE_CHECK_COMPILER_FLAG([-Wno-switch], [
+		warnflags="$warnflags -Wno-switch"])
 
 	SXE_CHECK_COMPILER_FLAG([-Wunused-function], [
 		warnflags="$warnflags -Wunused-function"])
@@ -297,8 +304,8 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 	SXE_CHECK_COMPILER_FLAG([-Wdeprecated], [
 		warnflags="$warnflags -Wdeprecated"])
 
-	SXE_CHECK_COMPILER_FLAG([-Wparentheses], [
-		warnflags="${warnflags} -Wparentheses"])
+	SXE_CHECK_COMPILER_FLAG([-Wno-parentheses], [
+		warnflags="${warnflags} -Wno-parentheses"])
 
 	## icc specific
 	SXE_CHECK_COMPILER_FLAG([-Wcheck], [
@@ -318,11 +325,15 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 		SXE_CHECK_COMPILER_FLAG([-wd 10237], [dnl
 			warnflags="${warnflags} -wd 10237"])])
 
-	dnl SXE_CHECK_COMPILER_FLAG([-diag-disable 2259], [dnl
-	dnl 	warnflags="${warnflags} -diag-disable 2259"], [
-	dnl 	SXE_CHECK_COMPILER_FLAG([-wd 2259], [dnl
-	dnl 		warnflags="${warnflags} -wd 2259"])])
+	SXE_CHECK_COMPILER_FLAG([-debug inline-debug-info], [
+		warnflags="${warnflags} -debug inline-debug-info"])
 
+	SXE_CHECK_COMPILER_FLAG([-diag-enable remark,vec,par], [
+		warnflags="${warnflags} -diag-enable remark,vec,par"])
+
+	## for dfp754
+	SXE_CHECK_COMPILER_FLAG([-Wunsuffixed-float-constants], [
+		warnflags="$warnflags -Wunsuffixed-float-constants"])
 
 	AC_MSG_CHECKING([for preferred warning flags])
 	AC_MSG_RESULT([${warnflags}])
@@ -364,12 +375,13 @@ AC_DEFUN([SXE_FEATFLAGS], [dnl
 	## that affect the outcome of the following tests
 	SXE_CHECK_COMPILER_FLAG([-static-intel], [
 		featflags="${featflags} -static-intel"
-		XCCLDFLAGS="${XCCLDFLAGS} \${XCCFLAG} -static-intel"], [:],
-		[${SXE_CFLAGS}])
+		XCCLDFLAGS="${XCCLDFLAGS} \${XCCFLAG} -static-intel"], [:])
 	SXE_CHECK_COMPILER_FLAG([-static-libgcc], [
 		featflags="${featflags} -static-libgcc"
-		XCCLDFLAGS="${XCCLDFLAGS} \${XCCFLAG} -static-libgcc"], [:],
-		[${SXE_CFLAGS}])
+		XCCLDFLAGS="${XCCLDFLAGS} \${XCCFLAG} -static-libgcc"], [:])
+
+	SXE_CHECK_COMPILER_FLAG([-intel-extensions], [dnl
+		featflags="${featflags} -intel-extensions"])
 
 	AC_SUBST([XCCLDFLAGS])
 	AC_SUBST([XCCFLAG])
