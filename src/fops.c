@@ -152,6 +152,9 @@ mmap_fn(const char *fn, int flags)
 	} else if (fstat(res.fd, &st) < 0) {
 		res.fb = (glodf_t){.z = 0U, .d = NULL};
 		goto clo;
+	} else if (!S_ISREG(st.st_mode)) {
+		res.fb = (glodf_t){.z = 0U, .d = NULL};
+		goto clo;
 	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
 	clo:
 		close(res.fd);
