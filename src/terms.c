@@ -110,7 +110,7 @@ struct clw_s {
 	cls_t cls;
 };
 
-static __attribute__((pure, const)) size_t
+static inline __attribute__((pure, const)) size_t
 mb_width(const char *p, const char *const ep)
 {
 	static uint8_t w1msk = 0xc0U;
@@ -153,7 +153,7 @@ mb_width(const char *p, const char *const ep)
 	return 0U;
 }
 
-static __attribute__((pure, const)) cls_t
+static inline __attribute__((pure, const)) cls_t
 mb_class(const char *p, size_t z)
 {
 #define C(x, i)	((const uint8_t*)x)[i]
