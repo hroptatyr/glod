@@ -60,7 +60,7 @@
 #define MAP_FD		(MAP_PRIVATE)
 
 static glodf_t
-mmap_fd(int fd, size_t fz)
+mmap_f(int fd, size_t fz)
 {
 	void *p;
 
@@ -75,7 +75,7 @@ mmap_fd(int fd, size_t fz)
 }
 
 static int
-munmap_fd(glodf_t map)
+munmap_f(glodf_t map)
 {
 	if (UNLIKELY(map.z == 0U)) {
 		return 0;
@@ -107,9 +107,8 @@ mremap_mem(glodf_t m, size_t new_size)
 	return m;
 }
 
-
-static glodfn_t
-mmap_stdin(int UNUSED(flags))
+static glodf_t
+mmap_fifo(int fd, int UNUSED(flags))
 {
 /* map the whole of stdin, attention this could cause RAM pressure */
 	/* we start out with one page of memory ... */
@@ -123,7 +122,7 @@ mmap_stdin(int UNUSED(flags))
 		ptrdiff_t off = 0;
 
 		for (ssize_t nrd, bz = m.z - off;
-		     (nrd = read(STDIN_FILENO, (char*)m.d + off, bz)) > 0;
+		     (nrd = read(fd, (char*)m.d + off, bz)) > 0;
 		     off += nrd, bz = m.z - off) {
 			if (nrd == bz) {
 				/* enlarge and reread */
@@ -132,7 +131,7 @@ mmap_stdin(int UNUSED(flags))
 		}
 	}
 out:
-	return (glodfn_t){.fb = m, .fd = STDIN_FILENO};
+	return m;
 }
 
 
@@ -144,15 +143,30 @@ mmap_fn(const char *fn, int flags)
 	glodfn_t res;
 
 	if (UNLIKELY(fn == NULL || fn[0U] == '-' && fn[1U] == '\0')) {
-		/* read from stdin :| */
-		return mmap_stdin(flags);
+		/* read from stdin fifo */
+		res.fd = STDIN_FILENO;
+		goto fifo;
 	}
 	if ((res.fd = open(fn, flags)) < 0) {
 		;
 	} else if (fstat(res.fd, &st) < 0) {
 		res.fb = (glodf_t){.z = 0U, .d = NULL};
 		goto clo;
-	} else if ((res.fb = mmap_fd(res.fd, st.st_size)).d == NULL) {
+	} else if (!S_ISREG(st.st_mode)) {
+		/* grml, there's one more chance ...
+		 * namely if the file pointed to by FN is in fact a fifo */
+		if (!S_ISFIFO(st.st_mode)) {
+			/* nope, we're out of options,
+			 * tell the user to get fucked */
+			res.fb = (glodf_t){.z = 0U, .d = NULL};
+			goto clo;
+		}
+	fifo:
+		if ((res.fb = mmap_fifo(res.fd, flags)).d == NULL) {
+			/* and again, fucked, *sigh* */
+			goto clo;
+		}
+	} else if ((res.fb = mmap_f(res.fd, st.st_size)).d == NULL) {
 	clo:
 		close(res.fd);
 		res.fd = -1;
@@ -166,7 +180,7 @@ munmap_fn(glodfn_t f)
 	int rc = 0;
 
 	if (f.fb.d != NULL) {
-		rc += munmap_fd(f.fb);
+		rc += munmap_f(f.fb);
 	}
 	if (f.fd >= 0) {
 		rc += close(f.fd);
