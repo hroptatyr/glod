@@ -10,3 +10,5 @@ one term.
 
   -h, --help     Print help and exit
   -V, --version  Print version and exit
+
+  -n, --ngram=N  Print N-grams, default 1.
