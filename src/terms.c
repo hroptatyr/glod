@@ -110,7 +110,7 @@ struct clw_s {
 	cls_t cls;
 };
 
-static __attribute__((pure, const)) size_t
+static inline __attribute__((pure, const)) size_t
 mb_width(const char *p, const char *const ep)
 {
 	static uint8_t w1msk = 0xc0U;
@@ -153,7 +153,7 @@ mb_width(const char *p, const char *const ep)
 	return 0U;
 }
 
-static __attribute__((pure, const)) cls_t
+static inline __attribute__((pure, const)) cls_t
 mb_class(const char *p, size_t z)
 {
 #define C(x, i)	((const uint8_t*)x)[i]
@@ -268,10 +268,10 @@ classify_mb(const char *p, const char *const ep)
 
 
 static void
-pr_strk(const char *s, size_t z)
+pr_strk(const char *s, size_t z, char sep)
 {
 	fwrite(s, sizeof(*s), z, stdout);
-	fputc('\n', stdout);
+	fputc(sep, stdout);
 	return;
 }
 
@@ -337,8 +337,117 @@ classify_buf(const char *const buf, size_t z)
 			break;
 		yield:
 			/* yield case */
-			pr_strk(bp, ap - bp);
+			pr_strk(bp, ap - bp, '\n');
 			res = pp - buf;
+		default:
+			st = ST_NONE;
+			bp = NULL;
+			ap = NULL;
+			break;
+		}
+	}
+	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
+	 * we actually need to request more data,
+	 * we will return the number of PROCESSED bytes */
+	if (LIKELY(res > 0 && st != ST_SEEN_ALNUM)) {
+		/* pretend we proc'd it all */
+		return z;
+	}
+	return res;
+}
+
+static ssize_t
+classify_buf_n(const char *const buf, size_t z, unsigned int n)
+{
+/* this is the n-gram version of classify_buf() */
+	enum state_e {
+		ST_NONE,
+		ST_SEEN_ALNUM,
+		ST_SEEN_PUNCT,
+	} st = ST_NONE;
+	/* prep/fill state */
+	enum fill_e {
+		ST_PREP,
+		ST_FILL,
+	} pf = ST_PREP;
+	clw_t cl;
+	ssize_t res = 0;
+	unsigned int m = 0U;
+	const char *grams[n];
+	size_t gramz[n];
+
+
+	/* initialise state */
+	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
+	     (cl = classify_mb(pp, ep)).wid > 0; pp += cl.wid) {
+		switch (st) {
+		case ST_NONE:
+			switch (cl.cls) {
+			case CLS_ALNUM:
+				/* start the machine */
+				st = ST_SEEN_ALNUM;
+				ap = (bp = pp) + cl.wid;
+			default:
+				break;
+			}
+			break;
+		case ST_SEEN_ALNUM:
+			switch (cl.cls) {
+			case CLS_PUNCT:
+				/* don't touch sp for now */
+				st = ST_SEEN_PUNCT;
+				break;
+			case CLS_ALNUM:
+				ap += cl.wid;
+				break;
+			default:
+				goto yield;
+			}
+			break;
+		case ST_SEEN_PUNCT:
+			switch (cl.cls) {
+			case CLS_PUNCT:
+				/* nope */
+				break;
+			case CLS_ALNUM:
+				/* aah, good one */
+				st = ST_SEEN_ALNUM;
+				ap = pp + cl.wid;
+				break;
+			default:
+				/* yield! */
+				goto yield;
+			}
+			break;
+		yield:
+			grams[m] = bp;
+			gramz[m] = ap - bp;
+
+			if (++m >= n) {
+				m = 0U;
+			}
+			switch (pf) {
+			case ST_PREP:
+				if (m) {
+					break;
+				}
+				/* otherwise fallthrough */
+				pf = ST_FILL;
+			case ST_FILL:
+			default:
+				/* yield case */
+				for (unsigned int i = m; i < n - !m; i++) {
+					pr_strk(grams[i], gramz[i], ' ');
+				}
+				for (unsigned int i = 0U; i < m - !!m; i++) {
+					pr_strk(grams[i], gramz[i], ' ');
+				}
+				with (const unsigned int last = (m ?: n) - 1U) {
+					pr_strk(grams[last], gramz[last], '\n');
+				}
+				res = pp - buf;
+				break;
+			}
 		default:
 			st = ST_NONE;
 			bp = NULL;
@@ -406,7 +515,7 @@ DEFCORU(co_class, {
 
 
 static int
-classify1(const char *fn)
+classify1(const char *fn, unsigned int n)
 {
 	glodfn_t f;
 	int res = -1;
@@ -417,11 +526,22 @@ classify1(const char *fn)
 	}
 
 	/* peruse */
-	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
-		if (UNLIKELY(npr == 0)) {
-			goto yield;
-		} else if (UNLIKELY(npr < 0)) {
-			goto out;
+	if (LIKELY(n == 1U)) {
+		with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
+			if (UNLIKELY(npr == 0)) {
+				goto yield;
+			} else if (UNLIKELY(npr < 0)) {
+				goto out;
+			}
+		}
+	} else {
+		/* n-gram mode */
+		with (ssize_t npr = classify_buf_n(f.fb.d, f.fb.z, n)) {
+			if (UNLIKELY(npr == 0)) {
+				goto yield;
+			} else if (UNLIKELY(npr < 0)) {
+				goto out;
+			}
 		}
 	}
 
@@ -484,8 +604,16 @@ main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
 	int rc = 0;
+	unsigned int n = 1U;
 
 	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
+		goto out;
+	}
+
+	if (argi->ngram_arg && (n = strtoul(argi->ngram_arg, NULL, 10)) == 0U) {
+		errno = 0;
+		error("Error: cannot read parameter for n-gram mode");
 		rc = 1;
 		goto out;
 	}
@@ -506,7 +634,7 @@ main(int argc, char *argv[])
 	for (size_t i = 0U; i < argi->nargs; i++) {
 		const char *file = argi->args[i];
 
-		if (classify1(file) < 0) {
+		if (classify1(file, n) < 0) {
 			error("Error: processing `%s' failed", file);
 			rc = 1;
 		}
