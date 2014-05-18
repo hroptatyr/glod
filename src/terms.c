@@ -110,160 +110,114 @@ struct clw_s {
 	cls_t cls;
 };
 
-static inline __attribute__((pure, const)) size_t
-mb_width(const char *p, const char *const ep)
+#define U0(x)	(long unsigned int)(0U)
+#define U1(x)	(long unsigned int)((U0(x) << 8U) | (uint8_t)p[0U])
+#define U2(x)	(long unsigned int)((U1(x) << 8U) | (uint8_t)p[1U])
+#define U3(x)	(long unsigned int)((U2(x) << 8U) | (uint8_t)p[2U])
+
+static cls_t
+classify_2o(const char p[static 2U])
 {
-	static uint8_t w1msk = 0xc0U;
-	static uint8_t w2msk = 0xe0U;
-	static uint8_t w3msk = 0xf0U;
-	static uint8_t w4msk = 0xf8U;
-	/* continuation? */
-	static uint8_t c0msk = 0x80U;
-	const uint8_t pc = (uint8_t)*p;
+	switch (U2(p)) {
+#	include "alpha.2.cases"
+#	include "numer.2.cases"
+		return CLS_ALNUM;
 
-	if (LIKELY(pc < c0msk)) {
-		return 1U;
-	} else if (UNLIKELY(pc < w1msk)) {
-		/* invalid input, 0b10xxxxx */
-		;
-	} else if (pc < w2msk &&
-		   ep - p > 1U &&
-		   ((uint8_t)p[1U] & w1msk) == c0msk) {
-		if (LIKELY(pc >= 0xc2U)) {
-			return 2U;
-		}
-		/* otherwise invalid */
-		;
-	} else if (pc < w3msk &&
-		   ep - p > 2U &&
-		   ((uint8_t)p[1U] & w1msk) == c0msk &&
-		   ((uint8_t)p[2U] & w1msk) == c0msk) {
-		return 3U;
-	} else if (pc < w4msk &&
-		   ep - p > 3U &&
-		   ((uint8_t)p[1U] & w1msk) == c0msk &&
-		   ((uint8_t)p[2U] & w1msk) == c0msk &&
-		   ((uint8_t)p[3U] & w1msk) == c0msk) {
-		if (LIKELY(pc < 0xf5U)) {
-			return 4U;
-		}
-		/* otherwise invalid */
-		;
-	}
-	return 0U;
-}
+#	include "punct.2.cases"
+		return CLS_PUNCT;
 
-static inline __attribute__((pure, const)) cls_t
-mb_class(const char *p, size_t z)
-{
-#define C(x, i)	((const uint8_t*)x)[i]
-#define C0(x)	C(x, 0U)
-#define C1(x)	C(x, 1U)
-#define C2(x)	C(x, 2U)
-#define C3(x)	C(x, 3U)
-#define U1(x)	(long unsigned int)(C0(x))
-#define U2(x)	(long unsigned int)((U1(x) << 8U) + C1(x))
-#define U3(x)	(long unsigned int)((U2(x) << 8U) + C2(x))
-#define U4(x)	(long unsigned int)((U3(x) << 8U) + C3(x))
-	uint8_t pc = (uint8_t)(unsigned char)*p;
-
-	switch (z) {
-	case 1U:
-		if (pc >= 'A' && pc <= 'Z' ||
-		    pc >= 'a' && pc <= 'z' ||
-		    pc >= '0' && pc <= '9') {
-			return CLS_ALNUM;
-		}
-		switch (pc) {
-		case '!':
-		case '#':
-		case '$':
-		case '%':
-		case '&':
-		case '\'':
-		case '*':
-		case '+':
-		case ',':
-		case '.':
-		case '/':
-		case ':':
-		case '=':
-		case '?':
-		case '@':
-		case '\\':
-		case '^':
-		case '_':
-		case '`':
-		case '|':
-			return CLS_PUNCT;
-		default:
-			break;
-		}
-
-	case 2U:
-		switch (U2(p)) {
-#		include "alpha.2.cases"
-#		include "numer.2.cases"
-			return CLS_ALNUM;
-
-#		include "punct.2.cases"
-			return CLS_PUNCT;
-
-		default:
-			break;
-		}
-		break;
-
-	case 3U:
-		switch (U3(p)) {
-#		include "alpha.3.cases"
-#		include "numer.3.cases"
-			return CLS_ALNUM;
-
-#		include "punct.3.cases"
-			return CLS_PUNCT;
-
-		default:
-			break;
-		}
-		break;
-
-#if 0
-/* really? */
-	case 4U:
-		switch (U4(p)) {
-#		include "alpha.4.cases"
-#		include "numer.4.cases"
-			return CLS_ALNUM;
-
-#		include "punct.4.cases"
-			return CLS_PUNCT;
-
-		default:
-			break;
-		}
-		break;
-#endif	/* 0 */
 	default:
 		break;
 	}
 	return CLS_UNK;
 }
 
-static clw_t
+static cls_t
+classify_3o(const char p[static 3U])
+{
+	switch (U3(p)) {
+#	include "alpha.3.cases"
+#	include "numer.3.cases"
+		return CLS_ALNUM;
+
+#	include "punct.3.cases"
+		return CLS_PUNCT;
+
+	default:
+		break;
+	}
+	return CLS_UNK;
+}
+
+static inline __attribute__((const, pure, always_inline)) clw_t
 classify_mb(const char *p, const char *const ep)
 {
 /* we're not interested in the character, only its class */
 	static clw_t null_clw;
-	size_t w;
+	clw_t res = {.wid = 1U, .cls = CLS_UNK};
 
 	if (UNLIKELY(p >= ep)) {
-		;
-	} else if (LIKELY((w = mb_width(p, ep)) > 0)) {
-		cls_t cls = mb_class(p, w);
-		return (clw_t){.wid = w, .cls = cls};
-	};
-	return null_clw;
+		return null_clw;
+	}
+	switch (*(const unsigned char*)p) {
+	case 'A' ... 'Z':
+	case 'a' ... 'z':
+	case '0' ... '9':
+		res.cls = CLS_ALNUM;
+		break;
+
+	case '!':
+	case '#':
+	case '$':
+	case '%':
+	case '&':
+	case '\'':
+	case '*':
+	case '+':
+	case ',':
+	case '.':
+	case '/':
+	case ':':
+	case '=':
+	case '?':
+	case '@':
+	case '\\':
+	case '^':
+	case '_':
+	case '`':
+	case '|':
+		res.cls = CLS_PUNCT;
+		break;
+
+	/* UTF8 2-octets */
+	case 0xc0U ... 0xdfU:
+		if (UNLIKELY(p + 1U >= ep)) {
+			return null_clw;
+		}
+		res.wid = 2U;
+		res.cls = classify_2o(p);
+		break;
+
+	/* UTF8 3-octets */
+	case 0xe0U ... 0xefU:
+		if (UNLIKELY(p + 2U >= ep)) {
+			return null_clw;
+		}
+		res.wid = 3U;
+		res.cls = classify_3o(p);
+		break;
+
+	case 0xf0U ... 0xf7U:
+	case 0xf8U ... 0xfbU:
+	case 0xfcU ... 0xfdU:
+	case 0xfeU:
+		/* do nothing for now, pretend they're 1-octets
+		 * after all this could be true, think latin-1 */
+	default:
+		/* all other 1-octet classes */
+		break;
+	}
+	return res;
 }
 
 
