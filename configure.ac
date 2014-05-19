@@ -57,6 +57,7 @@ SXE_CHECK_LIBTOOL
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([build-aux/Makefile])
+AC_CONFIG_FILES([info/Makefile])
 AC_CONFIG_FILES([src/Makefile])
 AC_CONFIG_FILES([test/Makefile])
 AC_OUTPUT

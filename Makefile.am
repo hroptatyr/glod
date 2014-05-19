@@ -48,6 +48,7 @@ BUILT_SOURCES =
 
 SUBDIRS += build-aux
 SUBDIRS += src
+SUBDIRS += info
 SUBDIRS += test
 
 DISTCLEANFILES = version.mk
