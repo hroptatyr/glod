@@ -42,6 +42,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include "levenshtein.h"
 #include "fops.h"
 #include "nifty.h"
@@ -100,14 +101,28 @@ ldmatrix_calc(glodfn_t f1, glodfn_t f2)
 	};
 
 	for (const char *p0 = f1.fb.d, *w0;
-	     (w0 = strchr(p0, '\n')); p0 = w0 + 1U/*\nul*/) {
-		size_t z0 = w0 - p0;
+	     (w0 = strchr(p0, '\n')); p0 = w0 + 1U/*\n*/) {
+		size_t z0;
+
+		/* fast forward over whitspace only lines */
+		for (; p0 < w0 && isspace(*p0); p0++);
+		if ((z0 = w0 - p0) == 0U) {
+			/* don't bother pairing this */
+			continue;
+		}
 
 		for (const char *p1 = f2.fb.d, *w1;
-		     (w1 = strchr(p1, '\n')); p1 = w1 + 1U/*\nul*/) {
-			size_t z1 = w1 - p1;
+		     (w1 = strchr(p1, '\n')); p1 = w1 + 1U/*\n*/) {
+			size_t z1;
 			char *bp = buf;
 			int d;
+
+			/* fast forward over whitspace only lines */
+			for (; p1 < w1 && isspace(*p1); p1++);
+			if ((z1 = w1 - p1) == 0U) {
+				/* don't bother pairing this */
+				continue;
+			}
 
 			if (UNLIKELY((d = ldcalc(p0, z0, p1, z1, opt)) < 0)) {
 				continue;
