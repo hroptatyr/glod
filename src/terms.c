@@ -220,100 +220,141 @@ classify_mb(const char *p, const char *const ep)
 	return res;
 }
 
+static char*
+lower_1o(char *restrict t, const char p[static 1U])
+{
+	unsigned int x;
+
+	switch ((x = U1(p))) {
+	case 'A' ... 'Z':
+		x += 'a' - 'A';
+	default:
+		*t++ = (unsigned char)x;
+		break;
+	}
+	return t;
+}
+
+static char*
+lower_2o(char *restrict t, const char p[static 2U])
+{
+	switch (U2(p)) {
+#	include "alpha.2.lower"
+	default:
+		*t++ = p[0U];
+		*t++ = p[1U];
+		break;
+	}
+	return t;
+}
+
+static char*
+lower_3o(char *restrict t, const char p[static 3U])
+{
+	switch (U3(p)) {
+#	include "alpha.3.lower"
+	default:
+		*t++ = p[0U];
+		*t++ = p[1U];
+		*t++ = p[2U];
+		break;
+	}
+	return t;
+}
+
+static size_t
+lcasecpy(char *restrict t, const char *s, size_t z)
+{
+/* we're not interested in the character, only its class */
+	const char *const bot = t;
+
+	for (const char *const eos = s + z; s < eos;) {
+		switch (*(const unsigned char*)s) {
+		case 0x00U:
+			*t = '\0';
+			goto out;
+			/* UTF8 1-octets */
+		case 0x01U ... 0xbfU:
+			t = lower_1o(t, s++);
+			break;
+
+			/* UTF8 2-octets */
+		case 0xc0U ... 0xdfU:
+			t = lower_2o(t, s);
+			s += 2U;
+			break;
+
+			/* UTF8 3-octets */
+		case 0xe0U ... 0xefU:
+			t = lower_3o(t, s);
+			s += 3U;
+			break;
+
+			/* all other 1-octet classes */
+		case 0xf0U ... 0xf7U:
+		case 0xf8U ... 0xfbU:
+		case 0xfcU ... 0xfdU:
+		case 0xfeU:
+		default:
+			/* not dealing with them */
+			break;
+		}
+	}
+out:
+	return t - bot;
+}
+
 
 static void
-pr_strk(const char *s, size_t z, char sep)
+_pr_strk_lit(const char *s, size_t z, char sep)
 {
 	fwrite(s, sizeof(*s), z, stdout);
 	fputc(sep, stdout);
 	return;
 }
 
+static void
+_pr_strk_norm(const char *s, size_t z, char sep)
+{
+	/* we maintain a local pool where we can scribble */
+	static size_t pz;
+	static char *p;
+
+	/* check that there's at least one lower-case ASCII char in there */
+	for (size_t i = 0U; i < z; i++) {
+		if (s[i] >= 'a' && s[i] <= 'z') {
+			goto lcase;
+		}
+	}
+	_pr_strk_lit(s, z, sep);
+	return;
+
+lcase:
+	if (UNLIKELY(z + 1U > pz)) {
+		pz = ((z / 64U) + 1U) * 64U;
+		p = realloc(p, pz);
+	}
+	z = lcasecpy(p, s, z);
+	p[z + 0U] = sep;
+	p[z + 1U] = '\0';
+	fputs(p, stdout);
+	return;
+}
+
+static void(*pr_strk)(const char *s, size_t z, char sep) = _pr_strk_lit;
+
 static ssize_t
-classify_buf(const char *const buf, size_t z)
+classify_buf(const char *const buf, size_t z, unsigned int n)
 {
 /* this is a simple state machine,
  * we start at NONE and wait for an ALNUM,
  * in state ALNUM we can either go back to NONE (and yield) if neither
  * a punct nor an alnum is read, or we go forward to PUNCT
  * in state PUNCT we can either go back to NONE (and yield) if neither
- * a punct nor an alnum is read, or we go back to ALNUM */
-	enum state_e {
-		ST_NONE,
-		ST_SEEN_ALNUM,
-		ST_SEEN_PUNCT,
-	} st;
-	clw_t cl;
-	ssize_t res = 0;
-
-	/* initialise state */
-	st = ST_NONE;
-	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
-	     (cl = classify_mb(pp, ep)).wid > 0; pp += cl.wid) {
-		switch (st) {
-		case ST_NONE:
-			switch (cl.cls) {
-			case CLS_ALNUM:
-				/* start the machine */
-				st = ST_SEEN_ALNUM;
-				ap = (bp = pp) + cl.wid;
-			default:
-				break;
-			}
-			break;
-		case ST_SEEN_ALNUM:
-			switch (cl.cls) {
-			case CLS_PUNCT:
-				/* don't touch sp for now */
-				st = ST_SEEN_PUNCT;
-				break;
-			case CLS_ALNUM:
-				ap += cl.wid;
-				break;
-			default:
-				goto yield;
-			}
-			break;
-		case ST_SEEN_PUNCT:
-			switch (cl.cls) {
-			case CLS_PUNCT:
-				/* nope */
-				break;
-			case CLS_ALNUM:
-				/* aah, good one */
-				st = ST_SEEN_ALNUM;
-				ap = pp + cl.wid;
-				break;
-			default:
-				/* yield! */
-				goto yield;
-			}
-			break;
-		yield:
-			/* yield case */
-			pr_strk(bp, ap - bp, '\n');
-			res = pp - buf;
-		default:
-			st = ST_NONE;
-			bp = NULL;
-			ap = NULL;
-			break;
-		}
-	}
-	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
-	 * we actually need to request more data,
-	 * we will return the number of PROCESSED bytes */
-	if (LIKELY(res > 0 && st != ST_SEEN_ALNUM)) {
-		/* pretend we proc'd it all */
-		return z;
-	}
-	return res;
-}
-
-static ssize_t
-classify_buf_n(const char *const buf, size_t z, unsigned int n)
-{
-/* this is the n-gram version of classify_buf() */
+ * a punct nor an alnum is read, or we go back to ALNUM
+ *
+ * the N-grams are stored in a ring array GRAMS whose end is indicated
+ * by the loop variable M. */
 	enum state_e {
 		ST_NONE,
 		ST_SEEN_ALNUM,
@@ -373,12 +414,20 @@ classify_buf_n(const char *const buf, size_t z, unsigned int n)
 				goto yield;
 			}
 			break;
-		yield:
+		yield:;
+			unsigned int last;
+
 			grams[m] = bp;
 			gramz[m] = ap - bp;
 
-			if (++m >= n) {
+			if (n <= 1U) {
+				last = 0U;
+				goto yield_last;
+			} else if (++m >= n) {
 				m = 0U;
+				last = n - 1U;
+			} else {
+				last = m - 1U;
 			}
 			switch (pf) {
 			case ST_PREP:
@@ -396,9 +445,8 @@ classify_buf_n(const char *const buf, size_t z, unsigned int n)
 				for (unsigned int i = 0U; i < m - !!m; i++) {
 					pr_strk(grams[i], gramz[i], ' ');
 				}
-				with (const unsigned int last = (m ?: n) - 1U) {
-					pr_strk(grams[last], gramz[last], '\n');
-				}
+			yield_last:
+				pr_strk(grams[last], gramz[last], '\n');
 				res = pp - buf;
 				break;
 			}
@@ -449,18 +497,20 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_class, {
 		char *buf;
-	}, void *UNUSED(arg))
+		unsigned int n;
+	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
+	const unsigned int n = CORU_CLOSUR(n);
 	const size_t bsz = (intptr_t)arg;
 	size_t nrd = bsz;
 	ssize_t npr;
 
 	/* enter the main snarf loop */
 	do {
-		if ((npr = classify_buf(buf, nrd)) < 0) {
+		if ((npr = classify_buf(buf, nrd, n)) < 0) {
 			RETURN(-1);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
@@ -480,22 +530,11 @@ classify1(const char *fn, unsigned int n)
 	}
 
 	/* peruse */
-	if (LIKELY(n == 1U)) {
-		with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
-			if (UNLIKELY(npr == 0)) {
-				goto yield;
-			} else if (UNLIKELY(npr < 0)) {
-				goto out;
-			}
-		}
-	} else {
-		/* n-gram mode */
-		with (ssize_t npr = classify_buf_n(f.fb.d, f.fb.z, n)) {
-			if (UNLIKELY(npr == 0)) {
-				goto yield;
-			} else if (UNLIKELY(npr < 0)) {
-				goto out;
-			}
+	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z, n)) {
+		if (UNLIKELY(npr == 0)) {
+			goto yield;
+		} else if (UNLIKELY(npr < 0)) {
+			goto out;
 		}
 	}
 
@@ -513,7 +552,7 @@ out:
 }
 
 static int
-classify0(void)
+classify0(unsigned int n)
 {
 	static char buf[4096U];
 	struct cocore *snarf;
@@ -525,7 +564,7 @@ classify0(void)
 
 	self = PREP();
 	snarf = START_PACK(co_snarf, .next = self, .buf = buf);
-	class = START_PACK(co_class, .next = self, .buf = buf);
+	class = START_PACK(co_class, .next = self, .buf = buf, .n = n);
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -572,12 +611,16 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
+	if (argi->normal_form_flag) {
+		pr_strk = _pr_strk_norm;
+	}
+
 	/* get the coroutines going */
 	initialise_cocore();
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0() < 0) {
+		if (classify0(n) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}

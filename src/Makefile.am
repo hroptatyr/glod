@@ -202,6 +202,9 @@ CASES += numer.4.cases
 CASES += punct.2.cases
 CASES += punct.3.cases
 CASES += punct.4.cases
+CASES += alpha.2.lower
+CASES += alpha.3.lower
+CASES += alpha.4.lower
 
 BUILT_SOURCES += $(CASES)
 CLEANFILES += $(CASES)
@@ -210,7 +213,7 @@ UnicodeData.txt:
 	curl -qgsfL -o $@ "http://www.unicode.org/Public/UNIDATA/$@"
 
 alpha.codes: UnicodeData.txt
-	cut -d';' -f1,3 $< | grep ';L[ultmo]' | cut -d';' -f1 > $@
+	cut -d';' -f1,3,14 $< | grep ';L[ultmo]' | cut -d';' -f1,3 > $@
 
 numer.codes: UnicodeData.txt
 	cut -d';' -f1,3 $< | grep ';N[dlo]' | cut -d';' -f1  > $@
@@ -226,6 +229,15 @@ alpha.3.cases: alpha.codes $(builddir)/gencls
 
 alpha.4.cases: alpha.codes $(builddir)/gencls
 	$(builddir)/gencls 4 < $< > $@
+
+alpha.2.lower: alpha.codes $(builddir)/gencls
+	$(builddir)/gencls 2 map < $< > $@
+
+alpha.3.lower: alpha.codes $(builddir)/gencls
+	$(builddir)/gencls 3 map < $< > $@
+
+alpha.4.lower: alpha.codes $(builddir)/gencls
+	$(builddir)/gencls 4 map < $< > $@
 
 numer.2.cases: numer.codes $(builddir)/gencls
 	$(builddir)/gencls 2 < $< > $@
