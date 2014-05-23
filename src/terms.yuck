@@ -12,3 +12,4 @@ one term.
   -V, --version  Print version and exit
 
   -n, --ngram=N  Print N-grams, default 1.
+  -l, --normal-form     Print terms that are not all uppercase in lowercase

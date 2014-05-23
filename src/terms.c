@@ -220,14 +220,128 @@ classify_mb(const char *p, const char *const ep)
 	return res;
 }
 
+static char*
+lower_1o(char *restrict t, const char p[static 1U])
+{
+	unsigned int x;
+
+	switch ((x = U1(p))) {
+	case 'A' ... 'Z':
+		x += 'a' - 'A';
+	default:
+		*t++ = (unsigned char)x;
+		break;
+	}
+	return t;
+}
+
+static char*
+lower_2o(char *restrict t, const char p[static 2U])
+{
+	switch (U2(p)) {
+#	include "alpha.2.lower"
+	default:
+		*t++ = p[0U];
+		*t++ = p[1U];
+		break;
+	}
+	return t;
+}
+
+static char*
+lower_3o(char *restrict t, const char p[static 3U])
+{
+	switch (U3(p)) {
+#	include "alpha.3.lower"
+	default:
+		*t++ = p[0U];
+		*t++ = p[1U];
+		*t++ = p[2U];
+		break;
+	}
+	return t;
+}
+
+static size_t
+lcasecpy(char *restrict t, const char *s, size_t z)
+{
+/* we're not interested in the character, only its class */
+	const char *const bot = t;
+
+	for (const char *const eos = s + z; s < eos;) {
+		switch (*(const unsigned char*)s) {
+		case 0x00U:
+			*t = '\0';
+			goto out;
+			/* UTF8 1-octets */
+		case 0x01U ... 0xbfU:
+			t = lower_1o(t, s++);
+			break;
+
+			/* UTF8 2-octets */
+		case 0xc0U ... 0xdfU:
+			t = lower_2o(t, s);
+			s += 2U;
+			break;
+
+			/* UTF8 3-octets */
+		case 0xe0U ... 0xefU:
+			t = lower_3o(t, s);
+			s += 3U;
+			break;
+
+			/* all other 1-octet classes */
+		case 0xf0U ... 0xf7U:
+		case 0xf8U ... 0xfbU:
+		case 0xfcU ... 0xfdU:
+		case 0xfeU:
+		default:
+			/* not dealing with them */
+			break;
+		}
+	}
+out:
+	return t - bot;
+}
+
 
 static void
-pr_strk(const char *s, size_t z, char sep)
+_pr_strk_lit(const char *s, size_t z, char sep)
 {
 	fwrite(s, sizeof(*s), z, stdout);
 	fputc(sep, stdout);
 	return;
 }
+
+static void
+_pr_strk_norm(const char *s, size_t z, char sep)
+{
+	/* we maintain a local pool where we can scribble */
+	static size_t pz;
+	static char *p;
+
+	/* check that there's at least one lower-case ASCII char in there */
+	for (size_t i = 0U; i < z; i++) {
+		if (s[i] >= 'a' && s[i] <= 'z') {
+			goto lcase;
+		}
+	}
+	_pr_strk_lit(s, z, sep);
+	return;
+
+lcase:
+	if (UNLIKELY(z + 1U > pz)) {
+		pz = ((z / 64U) + 1U) * 64U;
+		p = realloc(p, pz);
+	}
+	z = lcasecpy(p, s, z);
+	p[z + 0U] = sep;
+	p[z + 1U] = '\0';
+	fputs(p, stdout);
+	return;
+}
+
+static void(*pr_strk)(const char *s, size_t z, char sep) = _pr_strk_lit;
 
 static ssize_t
 classify_buf(const char *const buf, size_t z, unsigned int n)
@@ -495,6 +609,10 @@ main(int argc, char *argv[])
 		error("Error: cannot read parameter for n-gram mode");
 		rc = 1;
 		goto out;
+	}
+
+	if (argi->normal_form_flag) {
+		pr_strk = _pr_strk_norm;
 	}
 
 	/* get the coroutines going */
