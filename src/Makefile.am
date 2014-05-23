@@ -210,7 +210,7 @@ UnicodeData.txt:
 	curl -qgsfL -o $@ "http://www.unicode.org/Public/UNIDATA/$@"
 
 alpha.codes: UnicodeData.txt
-	cut -d';' -f1,3 $< | grep ';L[ultmo]' | cut -d';' -f1 > $@
+	cut -d';' -f1,3,14 $< | grep ';L[ultmo]' | cut -d';' -f1,3 > $@
 
 numer.codes: UnicodeData.txt
 	cut -d';' -f1,3 $< | grep ';N[dlo]' | cut -d';' -f1  > $@
