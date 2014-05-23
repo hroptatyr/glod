@@ -230,90 +230,17 @@ pr_strk(const char *s, size_t z, char sep)
 }
 
 static ssize_t
-classify_buf(const char *const buf, size_t z)
+classify_buf(const char *const buf, size_t z, unsigned int n)
 {
 /* this is a simple state machine,
  * we start at NONE and wait for an ALNUM,
  * in state ALNUM we can either go back to NONE (and yield) if neither
  * a punct nor an alnum is read, or we go forward to PUNCT
  * in state PUNCT we can either go back to NONE (and yield) if neither
- * a punct nor an alnum is read, or we go back to ALNUM */
-	enum state_e {
-		ST_NONE,
-		ST_SEEN_ALNUM,
-		ST_SEEN_PUNCT,
-	} st;
-	clw_t cl;
-	ssize_t res = 0;
-
-	/* initialise state */
-	st = ST_NONE;
-	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
-	     (cl = classify_mb(pp, ep)).wid > 0; pp += cl.wid) {
-		switch (st) {
-		case ST_NONE:
-			switch (cl.cls) {
-			case CLS_ALNUM:
-				/* start the machine */
-				st = ST_SEEN_ALNUM;
-				ap = (bp = pp) + cl.wid;
-			default:
-				break;
-			}
-			break;
-		case ST_SEEN_ALNUM:
-			switch (cl.cls) {
-			case CLS_PUNCT:
-				/* don't touch sp for now */
-				st = ST_SEEN_PUNCT;
-				break;
-			case CLS_ALNUM:
-				ap += cl.wid;
-				break;
-			default:
-				goto yield;
-			}
-			break;
-		case ST_SEEN_PUNCT:
-			switch (cl.cls) {
-			case CLS_PUNCT:
-				/* nope */
-				break;
-			case CLS_ALNUM:
-				/* aah, good one */
-				st = ST_SEEN_ALNUM;
-				ap = pp + cl.wid;
-				break;
-			default:
-				/* yield! */
-				goto yield;
-			}
-			break;
-		yield:
-			/* yield case */
-			pr_strk(bp, ap - bp, '\n');
-			res = pp - buf;
-		default:
-			st = ST_NONE;
-			bp = NULL;
-			ap = NULL;
-			break;
-		}
-	}
-	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
-	 * we actually need to request more data,
-	 * we will return the number of PROCESSED bytes */
-	if (LIKELY(res > 0 && st != ST_SEEN_ALNUM)) {
-		/* pretend we proc'd it all */
-		return z;
-	}
-	return res;
-}
-
-static ssize_t
-classify_buf_n(const char *const buf, size_t z, unsigned int n)
-{
-/* this is the n-gram version of classify_buf() */
+ * a punct nor an alnum is read, or we go back to ALNUM
+ *
+ * the N-grams are stored in a ring array GRAMS whose end is indicated
+ * by the loop variable M. */
 	enum state_e {
 		ST_NONE,
 		ST_SEEN_ALNUM,
@@ -373,12 +300,20 @@ classify_buf_n(const char *const buf, size_t z, unsigned int n)
 				goto yield;
 			}
 			break;
-		yield:
+		yield:;
+			unsigned int last;
+
 			grams[m] = bp;
 			gramz[m] = ap - bp;
 
-			if (++m >= n) {
+			if (n <= 1U) {
+				last = 0U;
+				goto yield_last;
+			} else if (++m >= n) {
 				m = 0U;
+				last = n - 1U;
+			} else {
+				last = m - 1U;
 			}
 			switch (pf) {
 			case ST_PREP:
@@ -396,9 +331,8 @@ classify_buf_n(const char *const buf, size_t z, unsigned int n)
 				for (unsigned int i = 0U; i < m - !!m; i++) {
 					pr_strk(grams[i], gramz[i], ' ');
 				}
-				with (const unsigned int last = (m ?: n) - 1U) {
-					pr_strk(grams[last], gramz[last], '\n');
-				}
+			yield_last:
+				pr_strk(grams[last], gramz[last], '\n');
 				res = pp - buf;
 				break;
 			}
@@ -449,18 +383,20 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_class, {
 		char *buf;
-	}, void *UNUSED(arg))
+		unsigned int n;
+	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
+	const unsigned int n = CORU_CLOSUR(n);
 	const size_t bsz = (intptr_t)arg;
 	size_t nrd = bsz;
 	ssize_t npr;
 
 	/* enter the main snarf loop */
 	do {
-		if ((npr = classify_buf(buf, nrd)) < 0) {
+		if ((npr = classify_buf(buf, nrd, n)) < 0) {
 			RETURN(-1);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
@@ -480,22 +416,11 @@ classify1(const char *fn, unsigned int n)
 	}
 
 	/* peruse */
-	if (LIKELY(n == 1U)) {
-		with (ssize_t npr = classify_buf(f.fb.d, f.fb.z)) {
-			if (UNLIKELY(npr == 0)) {
-				goto yield;
-			} else if (UNLIKELY(npr < 0)) {
-				goto out;
-			}
-		}
-	} else {
-		/* n-gram mode */
-		with (ssize_t npr = classify_buf_n(f.fb.d, f.fb.z, n)) {
-			if (UNLIKELY(npr == 0)) {
-				goto yield;
-			} else if (UNLIKELY(npr < 0)) {
-				goto out;
-			}
+	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z, n)) {
+		if (UNLIKELY(npr == 0)) {
+			goto yield;
+		} else if (UNLIKELY(npr < 0)) {
+			goto out;
 		}
 	}
 
@@ -513,7 +438,7 @@ out:
 }
 
 static int
-classify0(void)
+classify0(unsigned int n)
 {
 	static char buf[4096U];
 	struct cocore *snarf;
@@ -525,7 +450,7 @@ classify0(void)
 
 	self = PREP();
 	snarf = START_PACK(co_snarf, .next = self, .buf = buf);
-	class = START_PACK(co_class, .next = self, .buf = buf);
+	class = START_PACK(co_class, .next = self, .buf = buf, .n = n);
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -577,7 +502,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0() < 0) {
+		if (classify0(n) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
