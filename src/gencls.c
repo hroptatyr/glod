@@ -120,9 +120,20 @@ lower(size_t width_filter)
 #else  /* !0 */
 		printf("\t\tcase 0x%lxU/*U%zu(\"\\u%04lx\")*/:\n", r.x, r.w, x);
 #endif	/* 0 */
-		printf("\
-\t\t\tlc = 0x%lxU/*U%zu(\"\\u%04lx\")*/;\n\
-\t\t\tbreak;\n", s.x, s.w, y);
+		printf("\t\t\t/*U%zu(\"\\u%04lx\")*/;\n", s.w, y);
+		switch (s.w) {
+		case 4U:
+			printf("\t\t\t*t++ = 0x%02lxU;\n", s.x >> 24U & 0xffU);
+		case 3U:
+			printf("\t\t\t*t++ = 0x%02lxU;\n", s.x >> 16U & 0xffU);
+		case 2U:
+			printf("\t\t\t*t++ = 0x%02lxU;\n", s.x >> 8U & 0xffU);
+		case 1U:
+			printf("\t\t\t*t++ = 0x%02lxU;\n", s.x >> 0U & 0xffU);
+		default:
+			puts("\t\t\tbreak;");
+			break;
+		}
 	}
 	free(line);
 	return;
