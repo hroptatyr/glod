@@ -216,13 +216,13 @@ UnicodeData.txt:
 	curl -qgsfL -o $@ "http://www.unicode.org/Public/UNIDATA/$@"
 
 alpha.codes: UnicodeData.txt
-	cut -d';' -f1,3,14 $< | grep ';L[ultmo]' | cut -d';' -f1,3 > $@
+	grep ';L[ultmo];' $< > $@
 
 numer.codes: UnicodeData.txt
-	cut -d';' -f1,3 $< | grep ';N[dlo]' | cut -d';' -f1  > $@
+	grep ';N[dlo];' $< > $@
 
 punct.codes: UnicodeData.txt
-	cut -d';' -f1,3 $< | grep ';P[cdo]' | cut -d';' -f1  > $@
+	grep ';P[cdo];' $< > $@
 
 alpha.2.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
 	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 struct mb_s {
 	size_t w;
@@ -87,6 +88,15 @@ cases(size_t width_filter)
 	return;
 }
 
+static char*
+skip_cols(const char *s, int c, unsigned int n)
+{
+/* like strchr() but N times */
+	char *p = NULL;
+	for (; n-- > 0 && (p = strchr(s, c)) != NULL; s = p + 1U);
+	return p;
+}
+
 static void
 lower(size_t width_filter)
 {
@@ -102,7 +112,11 @@ lower(size_t width_filter)
 
 		if (*next++ != ';') {
 			continue;
-		} else if (!(y = strtoul(next, NULL, 16U))) {
+		} else if ((next = skip_cols(next, ';', 12U)) == NULL) {
+			continue;
+		} else if (!(y = strtoul(next + 1U, &next, 16U))) {
+			continue;
+		} else if (*next++ != ';') {
 			continue;
 		} else if (!(r = xwctomb(x)).w) {
 			/* error or so? */
