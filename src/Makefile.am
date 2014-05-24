@@ -142,8 +142,11 @@ porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
 porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
 
 noinst_PROGRAMS += gencls
+gencls_SOURCES = gencls.c
+gencls_SOURCES += gencls.yuck
 gencls_CPPFLAGS = $(AM_CPPFLAGS)
 gencls_CPPFLAGS += -D_GNU_SOURCE
+BUILT_SOURCES += gencls.yucc
 
 noinst_PROGRAMS += ldmatrix
 ldmatrix_SOURCES = ldmatrix.c
@@ -221,41 +224,41 @@ numer.codes: UnicodeData.txt
 punct.codes: UnicodeData.txt
 	cut -d';' -f1,3 $< | grep ';P[cdo]' | cut -d';' -f1  > $@
 
-alpha.2.cases: alpha.codes $(builddir)/gencls
-	$(builddir)/gencls 2 < $< > $@
+alpha.2.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
 
-alpha.3.cases: alpha.codes $(builddir)/gencls
-	$(builddir)/gencls 3 < $< > $@
+alpha.3.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 3 < $< > $@
 
-alpha.4.cases: alpha.codes $(builddir)/gencls
-	$(builddir)/gencls 4 < $< > $@
+alpha.4.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 4 < $< > $@
 
-alpha.2.lower: alpha.codes $(builddir)/gencls
-	$(builddir)/gencls 2 map < $< > $@
+alpha.2.lower: alpha.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 2 --upper-lower-maps < $< > $@
 
-alpha.3.lower: alpha.codes $(builddir)/gencls
-	$(builddir)/gencls 3 map < $< > $@
+alpha.3.lower: alpha.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 3 --upper-lower-maps < $< > $@
 
-alpha.4.lower: alpha.codes $(builddir)/gencls
-	$(builddir)/gencls 4 map < $< > $@
+alpha.4.lower: alpha.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 4 --upper-lower-maps < $< > $@
 
-numer.2.cases: numer.codes $(builddir)/gencls
-	$(builddir)/gencls 2 < $< > $@
+numer.2.cases: numer.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
 
-numer.3.cases: numer.codes $(builddir)/gencls
-	$(builddir)/gencls 3 < $< > $@
+numer.3.cases: numer.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 3 < $< > $@
 
-numer.4.cases: numer.codes $(builddir)/gencls
-	$(builddir)/gencls 4 < $< > $@
+numer.4.cases: numer.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 4 < $< > $@
 
-punct.2.cases: punct.codes $(builddir)/gencls
-	$(builddir)/gencls 2 < $< > $@
+punct.2.cases: punct.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
 
-punct.3.cases: punct.codes $(builddir)/gencls
-	$(builddir)/gencls 3 < $< > $@
+punct.3.cases: punct.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 3 < $< > $@
 
-punct.4.cases: punct.codes $(builddir)/gencls
-	$(builddir)/gencls 4 < $< > $@
+punct.4.cases: punct.codes $(builddir)/gencls$(EXEEXT)
+	$(builddir)/gencls$(EXEEXT) -w 4 < $< > $@
 
 ## Help the developers get nice post-processed source files
 

@@ -1,0 +1,6 @@
+Usage: gencls [OPTIONS]... UnicodeData.txt
+
+Generate classifier bitfields.
+
+  -w, --width=N         Output only unicode characters of UTF8-width N
+  --upper-lower-maps    Output upper->lower mapping code

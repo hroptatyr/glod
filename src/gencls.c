@@ -140,25 +140,33 @@ lower(size_t width_filter)
 }
 
 
+#include "gencls.yucc"
+
 int
 main(int argc, char *argv[])
 {
+	yuck_t argi[1U];
 	size_t argw = 0U;
-	unsigned int lmapp = 0U;
+	int rc = 0;
+
+	if (yuck_parse(argi, argc, argv)) {
+		rc = 1;
+		goto out;
+	}
 
 	init_lohi();
 
-	if (argc > 1) {
-		argw = strtoul(argv[1U], NULL, 10);
-		if (argc > 2) {
-			lmapp = 1U;
-		}
+	if (argi->width_arg) {
+		argw = strtoul(argi->width_arg, NULL, 10);
 	}
 
-	if (!lmapp) {
+	if (!argi->upper_lower_maps_flag) {
 		cases(argw);
 	} else {
 		lower(argw);
 	}
-	return 0;
+
+out:
+	yuck_free(argi);
+	return rc;
 }
