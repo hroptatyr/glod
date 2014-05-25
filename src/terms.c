@@ -99,8 +99,9 @@ error(const char *fmt, ...)
 typedef struct clw_s clw_t;
 typedef enum {
 	CLS_UNK,
-	CLS_ALNUM,
 	CLS_PUNCT,
+	CLS_ALPHA,
+	CLS_NUMBR,
 } cls_t;
 
 struct clw_s {
@@ -120,8 +121,10 @@ classify_2o(const char p[static 2U])
 {
 	switch (U2(p)) {
 #	include "alpha.2.cases"
+		return CLS_ALPHA;
+
 #	include "numer.2.cases"
-		return CLS_ALNUM;
+		return CLS_NUMBR;
 
 #	include "punct.2.cases"
 		return CLS_PUNCT;
@@ -137,8 +140,10 @@ classify_3o(const char p[static 3U])
 {
 	switch (U3(p)) {
 #	include "alpha.3.cases"
+		return CLS_ALPHA;
+
 #	include "numer.3.cases"
-		return CLS_ALNUM;
+		return CLS_NUMBR;
 
 #	include "punct.3.cases"
 		return CLS_PUNCT;
@@ -162,8 +167,11 @@ classify_mb(const char *p, const char *const ep)
 	switch (*(const unsigned char*)p) {
 	case 'A' ... 'Z':
 	case 'a' ... 'z':
+		res.cls = CLS_ALPHA;
+		break;
+
 	case '0' ... '9':
-		res.cls = CLS_ALNUM;
+		res.cls = CLS_NUMBR;
 		break;
 
 	case '!':
@@ -378,7 +386,8 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		switch (st) {
 		case ST_NONE:
 			switch (cl.cls) {
-			case CLS_ALNUM:
+			case CLS_ALPHA:
+			case CLS_NUMBR:
 				/* start the machine */
 				st = ST_SEEN_ALNUM;
 				ap = (bp = pp) + cl.wid;
@@ -392,7 +401,8 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 				/* don't touch sp for now */
 				st = ST_SEEN_PUNCT;
 				break;
-			case CLS_ALNUM:
+			case CLS_ALPHA:
+			case CLS_NUMBR:
 				ap += cl.wid;
 				break;
 			default:
@@ -404,7 +414,8 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 			case CLS_PUNCT:
 				/* nope */
 				break;
-			case CLS_ALNUM:
+			case CLS_ALPHA:
+			case CLS_NUMBR:
 				/* aah, good one */
 				st = ST_SEEN_ALNUM;
 				ap = pp + cl.wid;
