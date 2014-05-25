@@ -152,9 +152,8 @@ lower(size_t width_filter)
 }
 
 
-static uint_fast32_t *bf;
+static uint_fast8_t *bf;
 static size_t bz;
-static const size_t bps = sizeof(*bf) * 8U / 2U;
 static unsigned int last_off;
 
 static struct mb_s
@@ -188,11 +187,9 @@ xwctowb(long unsigned int wc)
 }
 
 static void
-bf_set(long unsigned int x, uint_fast32_t c, size_t wf)
+bf_set(long unsigned int x, uint_fast8_t c, size_t wf)
 {
 	struct mb_s wb;
-	unsigned int off;
-	unsigned int mod;
 
 	if (wf && (wb = xwctowb(x)).w != wf) {
 		return;
@@ -201,16 +198,14 @@ bf_set(long unsigned int x, uint_fast32_t c, size_t wf)
 		x -= wb.x;
 	}
 
-	off = x / bps;
-	mod = x % bps;
-	if (off >= bz) {
+	if (x >= bz) {
 		const size_t ol = bz;
-		bz += (off / 64U + 1U) * 64U;
+		bz += (x / 64U + 1U) * 64U;
 		bf = realloc(bf, bz * sizeof(*bf));
 		memset(bf + ol, 0, (bz - ol) * sizeof(*bf));
 	}
-	bf[off] |= c << (2U * mod);
-	last_off = off;
+	bf[x] = c;
+	last_off = x;
 	return;
 }
 
@@ -302,11 +297,11 @@ fields(size_t width_filter)
 	}
 
 
-	printf("static const uint_fast32_t gencls%zu[] = {\n", width_filter);
+	printf("static const uint_fast8_t gencls%zu[] = {\n", width_filter);
 	for (unsigned int i = 0U; i <= last_off; i++) {
-		const long long unsigned int c = bf[i];
+		const unsigned int c = bf[i];
 
-		printf("\t0x%llxU,\n", c);
+		printf("\t0x%02xU,\n", c);
 	}
 	puts("};");
 	bf_free();

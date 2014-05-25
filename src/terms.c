@@ -156,8 +156,6 @@ classify_3o(const char p[static 3U])
 
 #include "unicode.bf"
 
-static const size_t bps = sizeof(uint_fast32_t) * 8U / 2U;
-
 static const uint_fast8_t thresh[] = {0xc0U, 0xe0U, 0xf0U};
 
 static const unsigned int lohi[] = {
@@ -197,16 +195,16 @@ classify_mb(const char *p, const char *const ep)
 		;
 	} else if (LIKELY(*(const uint_fast8_t*)p < thresh[res.wid++])) {
 		/* wid 1U */
-		unsigned int wc = *(const uint_fast8_t*)p;
-		res.cls = (cls_t)(gencls1[wc / bps] >> (2U * (wc % bps)) & 0b11U);
+		const unsigned int wc = *(const uint_fast8_t*)p;
+		res.cls = (cls_t)gencls1[wc];
 	} else if (*(const uint_fast8_t*)p < thresh[res.wid++]) {
 		/* wid 2U */
-		unsigned int wc = xmbtowc(2U, p) - lohi[0U];
-		res.cls = (cls_t)(gencls2[wc / bps] >> (2U * (wc % bps)) & 0b11U);
+		const unsigned int wc = xmbtowc(2U, p) - lohi[0U];
+		res.cls = (cls_t)gencls2[wc];
 	} else if (*(const uint_fast8_t*)p < thresh[res.wid++]) {
 		/* wid 3U */
-		unsigned int wc = xmbtowc(3U, p) - lohi[1U];
-		res.cls = (cls_t)(gencls3[wc / bps] >> (2U * (wc % bps)) & 0b11U);
+		const unsigned int wc = xmbtowc(3U, p) - lohi[1U];
+		res.cls = (cls_t)gencls3[wc];
 	} else {
 		/* nothing we can do */
 		;
