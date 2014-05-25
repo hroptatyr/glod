@@ -160,12 +160,52 @@ static size_t bz;
 static const size_t bps = sizeof(*bf) * 8U / 2U;
 static unsigned int last_off;
 
+static struct mb_s
+xwctowb(long unsigned int wc)
+{
+/* map to width and first wide-character in that width range (base) */
+	static const struct mb_s null_mb = {};
+	long unsigned int x;
+	size_t w;
+
+	if (wc < *lohi) {
+		/* we treat ascii manually */
+		w = 1U;
+		x = 0U;
+	} else if (wc < lohi[1U]) {
+		/* 110xxxxx 10xxxxxx */
+		w = 2U;
+		x = lohi[0U];
+	} else if (wc < lohi[2U]) {
+		/* 1110xxxx 10xxxxxx 10xxxxxx */
+		w = 3U;
+		x = lohi[1U];
+	} else if (wc < lohi[3U]) {
+		/* 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		w = 4U;
+		x = lohi[2U];
+	} else {
+		return null_mb;
+	}
+	return (struct mb_s){w, x};
+}
+
 static void
 bf_set(long unsigned int x, uint_fast32_t c, size_t wf)
 {
-	unsigned int off = x / bps;
-	unsigned int mod = x % bps;
+	struct mb_s wb;
+	unsigned int off;
+	unsigned int mod;
 
+	if (wf && (wb = xwctowb(x)).w != wf) {
+		return;
+	} else if (wf) {
+		/* offset x by base*/
+		x -= wb.x;
+	}
+
+	off = x / bps;
+	mod = x % bps;
 	if (off >= bz) {
 		const size_t ol = bz;
 		bz += (off / 64U + 1U) * 64U;
@@ -174,6 +214,18 @@ bf_set(long unsigned int x, uint_fast32_t c, size_t wf)
 	}
 	bf[off] |= c << (2U * mod);
 	last_off = off;
+	return;
+}
+
+static void
+bf_free(void)
+{
+	if (bf != NULL) {
+		free(bf);
+	}
+	bf = NULL;
+	bz = 0UL;
+	last_off = 0U;
 	return;
 }
 
@@ -228,7 +280,7 @@ fields(size_t width_filter)
 		printf("\t0x%llxU,\n", c);
 	}
 	puts("};");
-	free(bf);
+	bf_free();
 
 	free(line);
 	return 0;
