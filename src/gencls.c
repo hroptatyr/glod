@@ -315,6 +315,50 @@ fields(size_t width_filter)
 	return 0;
 }
 
+static int
+fields_u2l(size_t width_filter)
+{
+	char *line = NULL;
+	size_t llen = 0U;
+	long unsigned int prev = 0U;
+	long unsigned int x;
+
+	if (width_filter > countof(lohi)) {
+		return -1;
+	}
+
+	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0; prev = x) {
+		long unsigned int y;
+		char *next;
+
+		x = strtoul(line, &next, 16U);
+
+		if (*next++ != ';') {
+			continue;
+		} else if (prev > x) {
+			fputs("Error: input file not sorted by code\n", stderr);
+			return -1;
+		} else if ((next = strchr(next, ';')) == NULL) {
+			continue;
+		} else if (*++next != 'L') {
+			/* not even a letter */
+			continue;
+		} else if ((next = skip_cols(next, ';', 11U)) == NULL) {
+			continue;
+		} else if (!(y = strtoul(next + 1U, &next, 16U))) {
+			continue;
+		} else if (*next++ != ';') {
+			continue;
+		}
+
+		/* otherwise it's certain that we've got a lower case representation */
+		printf("0x%lxU -> 0x%lxU\n", x, y);
+	}
+
+	free(line);
+	return 0;
+}
+
 
 #include "gencls.yucc"
 
@@ -334,10 +378,14 @@ main(int argc, char *argv[])
 		argw = strtoul(argi->width_arg, NULL, 10);
 	}
 
-	if (argi->upper_lower_maps_flag) {
+	if (argi->bitfields_flag) {
+		if (argi->upper_lower_maps_flag) {
+			fields_u2l(argw);
+		} else {
+			fields(argw);
+		}
+	} else if (argi->upper_lower_maps_flag) {
 		lower(argw);
-	} else if (argi->bitfields_flag) {
-		fields(argw);
 	} else {
 		cases(argw);
 	}
