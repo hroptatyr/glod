@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 struct mb_s {
 	size_t w;
@@ -154,6 +155,86 @@ lower(size_t width_filter)
 }
 
 
+static uint_fast32_t *bf;
+static size_t bz;
+static const size_t bps = sizeof(*bf) * 8U / 2U;
+static unsigned int last_off;
+
+static void
+bf_set(long unsigned int x, uint_fast32_t c, size_t wf)
+{
+	unsigned int off = x / bps;
+	unsigned int mod = x % bps;
+
+	if (off >= bz) {
+		const size_t ol = bz;
+		bz += (off / 64U + 1U) * 64U;
+		bf = realloc(bf, bz * sizeof(*bf));
+		memset(bf + ol, 0, (bz - ol) * sizeof(*bf));
+	}
+	bf[off] |= c << (2U * mod);
+	last_off = off;
+	return;
+}
+
+static int
+fields(size_t width_filter)
+{
+	char *line = NULL;
+	size_t llen = 0U;
+	long unsigned int prev = 0U;
+	long unsigned int x;
+
+	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0; prev = x) {
+		char *next;
+		uint_fast8_t c;
+
+		x = strtoul(line, &next, 16U);
+
+		if (*next++ != ';') {
+			continue;
+		} else if (prev > x) {
+			fputs("Error: input file not sorted by code\n", stderr);
+			return -1;
+		} else if ((next = strchr(next, ';')) == NULL) {
+			continue;
+		}
+
+		/* read class */
+		switch (*++next) {
+		case 'L':
+			c = 0b10U;
+			break;
+		case 'N':
+			c = 0b11U;
+			break;
+		case 'P':
+			c = 0b01U;
+			break;
+		default:
+			/* don't wanna know about it */
+			c = 0b00U;
+			continue;
+		}
+
+		bf_set(x, c, width_filter);
+	}
+
+
+	printf("static const uint_fast32_t gencls%zu[] = {\n", width_filter);
+	for (unsigned int i = 0U; i <= last_off; i++) {
+		const long long unsigned int c = bf[i];
+
+		printf("\t0x%llxU,\n", c);
+	}
+	puts("};");
+	free(bf);
+
+	free(line);
+	return 0;
+}
+
+
 #include "gencls.yucc"
 
 int
@@ -174,10 +255,12 @@ main(int argc, char *argv[])
 		argw = strtoul(argi->width_arg, NULL, 10);
 	}
 
-	if (!argi->upper_lower_maps_flag) {
-		cases(argw);
-	} else {
+	if (argi->upper_lower_maps_flag) {
 		lower(argw);
+	} else if (argi->bitfields_flag) {
+		fields(argw);
+	} else {
+		cases(argw);
 	}
 
 out:
