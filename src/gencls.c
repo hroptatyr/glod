@@ -262,6 +262,34 @@ fields(size_t width_filter)
 			c = 0b11U;
 			break;
 		case 'P':
+			if (x < lohi[0U]) {
+				/* we have a different idea about PUNCTs*/
+				switch (x) {
+				case '!':
+				case '#':
+				case '$':
+				case '%':
+				case '&':
+				case '\'':
+				case '*':
+				case '+':
+				case ',':
+				case '.':
+				case '/':
+				case ':':
+				case '=':
+				case '?':
+				case '@':
+				case '\\':
+				case '^':
+				case '_':
+				case '`':
+				case '|':
+					break;
+				default:
+					continue;
+				}
+			}
 			c = 0b01U;
 			break;
 		default:
