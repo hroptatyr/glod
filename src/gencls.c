@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#define countof(x)	(sizeof(x) / sizeof(*x))
+
 struct mb_s {
 	size_t w;
 	long unsigned int x;
@@ -231,6 +233,10 @@ fields(size_t width_filter)
 	size_t llen = 0U;
 	long unsigned int prev = 0U;
 	long unsigned int x;
+
+	if (width_filter > countof(lohi)) {
+		return -1;
+	}
 
 	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0; prev = x) {
 		char *next;
