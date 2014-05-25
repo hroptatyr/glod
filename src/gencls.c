@@ -9,17 +9,12 @@ struct mb_s {
 };
 
 /* utf8 seq ranges */
-static long unsigned int lohi[4U];
-
-static void
-init_lohi(void)
-{
-	for (size_t w = 0U; w < 4U; w++) {
-		/* lo and hi values for char ranges wrt W */
-		lohi[w] = 16 * (1U << ((w + 1U) * 4U - 1U));
-	}
-	return;
-}
+static const long unsigned int lohi[4U] = {
+	16U * (1U << (4U - 1U)),
+	16U * (1U << (8U - 1U)),
+	16U * (1U << (12U - 1U)),
+	16U * (1U << (16U - 1U)),
+};
 
 static struct mb_s
 xwctomb(long unsigned int wc)
@@ -300,8 +295,6 @@ main(int argc, char *argv[])
 		rc = 1;
 		goto out;
 	}
-
-	init_lohi();
 
 	if (argi->width_arg) {
 		argw = strtoul(argi->width_arg, NULL, 10);
