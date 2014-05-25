@@ -154,76 +154,62 @@ classify_3o(const char p[static 3U])
 	return CLS_UNK;
 }
 
+#include "unicode.bf"
+
+static const size_t bps = sizeof(uint_fast32_t) * 8U / 2U;
+
+static const uint_fast8_t thresh[] = {0xc0U, 0xe0U, 0xf0U};
+
+static const unsigned int lohi[] = {
+	16U * (1U << (4U - 1U)),
+	16U * (1U << (8U - 1U)),
+	16U * (1U << (12U - 1U)),
+	16U * (1U << (16U - 1U)),
+};
+
+static inline __attribute__((const, pure)) unsigned int
+xmbtowc(unsigned int w, const char p[static w])
+{
+	switch (w) {
+	case 1U:
+		return (unsigned char)*p;
+	case 2U:
+		/* 110xxxxx 10xxxxxx */
+		return ((unsigned char)p[0U] & 0b11111U) << 6U |
+			(unsigned char)p[1U] & 0b111111U << 0U;
+	case 3U:
+		/* 1110xxxx 10xxxxxx 10xxxxxx */
+		return ((unsigned char)p[0U] & 0b1111U) << 12U |
+			(unsigned char)p[1U] & 0b111111U << 6U |
+			(unsigned char)p[2U] & 0b111111U << 0U;
+	default:
+		return 0U;
+	}
+}
+
 static inline __attribute__((const, pure, always_inline)) clw_t
 classify_mb(const char *p, const char *const ep)
 {
 /* we're not interested in the character, only its class */
-	static clw_t null_clw;
-	clw_t res = {.wid = 1U, .cls = CLS_UNK};
+	clw_t res = {.wid = 0U, .cls = CLS_UNK};
 
 	if (UNLIKELY(p >= ep)) {
-		return null_clw;
-	}
-	switch (*(const unsigned char*)p) {
-	case 'A' ... 'Z':
-	case 'a' ... 'z':
-		res.cls = CLS_ALPHA;
-		break;
-
-	case '0' ... '9':
-		res.cls = CLS_NUMBR;
-		break;
-
-	case '!':
-	case '#':
-	case '$':
-	case '%':
-	case '&':
-	case '\'':
-	case '*':
-	case '+':
-	case ',':
-	case '.':
-	case '/':
-	case ':':
-	case '=':
-	case '?':
-	case '@':
-	case '\\':
-	case '^':
-	case '_':
-	case '`':
-	case '|':
-		res.cls = CLS_PUNCT;
-		break;
-
-	/* UTF8 2-octets */
-	case 0xc0U ... 0xdfU:
-		if (UNLIKELY(p + 1U >= ep)) {
-			return null_clw;
-		}
-		res.wid = 2U;
-		res.cls = classify_2o(p);
-		break;
-
-	/* UTF8 3-octets */
-	case 0xe0U ... 0xefU:
-		if (UNLIKELY(p + 2U >= ep)) {
-			return null_clw;
-		}
-		res.wid = 3U;
-		res.cls = classify_3o(p);
-		break;
-
-	case 0xf0U ... 0xf7U:
-	case 0xf8U ... 0xfbU:
-	case 0xfcU ... 0xfdU:
-	case 0xfeU:
-		/* do nothing for now, pretend they're 1-octets
-		 * after all this could be true, think latin-1 */
-	default:
-		/* all other 1-octet classes */
-		break;
+		;
+	} else if (LIKELY(*(const uint_fast8_t*)p < thresh[res.wid++])) {
+		/* wid 1U */
+		unsigned int wc = *(const uint_fast8_t*)p;
+		res.cls = (cls_t)(gencls1[wc / bps] >> (2U * (wc % bps)) & 0b11U);
+	} else if (*(const uint_fast8_t*)p < thresh[res.wid++]) {
+		/* wid 2U */
+		unsigned int wc = xmbtowc(2U, p) - lohi[0U];
+		res.cls = (cls_t)(gencls2[wc / bps] >> (2U * (wc % bps)) & 0b11U);
+	} else if (*(const uint_fast8_t*)p < thresh[res.wid++]) {
+		/* wid 3U */
+		unsigned int wc = xmbtowc(3U, p) - lohi[1U];
+		res.cls = (cls_t)(gencls3[wc / bps] >> (2U * (wc % bps)) & 0b11U);
+	} else {
+		/* nothing we can do */
+		;
 	}
 	return res;
 }
