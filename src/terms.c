@@ -204,24 +204,29 @@ out:
 }
 
 
+/* streak buffer */
+static char strk_buf[4U * 4096U];
+static size_t strk_i;
+
 static void
 _pr_strk_lit(const char *s, size_t z, char sep)
 {
-	static char buf[4U * 4096U];
-	static char *bp = buf;
-
-	if (UNLIKELY((bp - buf) + z >= sizeof(buf) || s == NULL)) {
-		write(STDOUT_FILENO, buf, bp - buf);
-		bp = buf;
-	}
-	if (UNLIKELY(s == NULL)) {
-		/* flush instruction */
-		return;
+	if (UNLIKELY(strk_i + z >= sizeof(strk_buf))) {
+		write(STDOUT_FILENO, strk_buf, strk_i);
+		strk_i = 0U;
 	}
 
-	memcpy(bp, s, z);
-	bp += z;
-	*bp++ = sep;
+	memcpy(strk_buf + strk_i, s, z);
+	strk_i += z;
+	strk_buf[strk_i++] = sep;
+	return;
+}
+
+static void
+pr_flsh(void)
+{
+	write(STDOUT_FILENO, strk_buf, strk_i);
+	strk_i = 0U;
 	return;
 }
 
@@ -426,7 +431,7 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 	 * we will return the number of PROCESSED bytes */
 	if (LIKELY(st != ST_SEEN_ALNUM)) {
 		/* pretend we proc'd it all */
-		pr_strk(NULL, 0U, '\0');
+		pr_flsh();
 		return z;
 	}
 	return res;
