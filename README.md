@@ -24,6 +24,7 @@ tools like [PRETO][1], [JPreText][3] or [OpenRefine][2].
 
 glep
 ----
+A multi-pattern grep.
 Report matching patterns in files.
 All patterns are looked for in parallel in all of the specified files.
 
@@ -41,6 +42,7 @@ Matching files and patterns are printed to stdout (separated by tabs):
 
 terms
 -----
+A fast text file tokeniser.
 Output terms occurring in the specified files, one term per line, and
 different files separated by a form feed.
 

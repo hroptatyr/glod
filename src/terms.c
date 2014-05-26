@@ -41,6 +41,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -99,8 +100,9 @@ error(const char *fmt, ...)
 typedef struct clw_s clw_t;
 typedef enum {
 	CLS_UNK,
-	CLS_ALNUM,
 	CLS_PUNCT,
+	CLS_ALPHA,
+	CLS_NUMBR,
 } cls_t;
 
 struct clw_s {
@@ -115,110 +117,7 @@ struct clw_s {
 #define U2(x)	(long unsigned int)((U1(x) << 8U) | (uint8_t)p[1U])
 #define U3(x)	(long unsigned int)((U2(x) << 8U) | (uint8_t)p[2U])
 
-static cls_t
-classify_2o(const char p[static 2U])
-{
-	switch (U2(p)) {
-#	include "alpha.2.cases"
-#	include "numer.2.cases"
-		return CLS_ALNUM;
-
-#	include "punct.2.cases"
-		return CLS_PUNCT;
-
-	default:
-		break;
-	}
-	return CLS_UNK;
-}
-
-static cls_t
-classify_3o(const char p[static 3U])
-{
-	switch (U3(p)) {
-#	include "alpha.3.cases"
-#	include "numer.3.cases"
-		return CLS_ALNUM;
-
-#	include "punct.3.cases"
-		return CLS_PUNCT;
-
-	default:
-		break;
-	}
-	return CLS_UNK;
-}
-
-static inline __attribute__((const, pure, always_inline)) clw_t
-classify_mb(const char *p, const char *const ep)
-{
-/* we're not interested in the character, only its class */
-	static clw_t null_clw;
-	clw_t res = {.wid = 1U, .cls = CLS_UNK};
-
-	if (UNLIKELY(p >= ep)) {
-		return null_clw;
-	}
-	switch (*(const unsigned char*)p) {
-	case 'A' ... 'Z':
-	case 'a' ... 'z':
-	case '0' ... '9':
-		res.cls = CLS_ALNUM;
-		break;
-
-	case '!':
-	case '#':
-	case '$':
-	case '%':
-	case '&':
-	case '\'':
-	case '*':
-	case '+':
-	case ',':
-	case '.':
-	case '/':
-	case ':':
-	case '=':
-	case '?':
-	case '@':
-	case '\\':
-	case '^':
-	case '_':
-	case '`':
-	case '|':
-		res.cls = CLS_PUNCT;
-		break;
-
-	/* UTF8 2-octets */
-	case 0xc0U ... 0xdfU:
-		if (UNLIKELY(p + 1U >= ep)) {
-			return null_clw;
-		}
-		res.wid = 2U;
-		res.cls = classify_2o(p);
-		break;
-
-	/* UTF8 3-octets */
-	case 0xe0U ... 0xefU:
-		if (UNLIKELY(p + 2U >= ep)) {
-			return null_clw;
-		}
-		res.wid = 3U;
-		res.cls = classify_3o(p);
-		break;
-
-	case 0xf0U ... 0xf7U:
-	case 0xf8U ... 0xfbU:
-	case 0xfcU ... 0xfdU:
-	case 0xfeU:
-		/* do nothing for now, pretend they're 1-octets
-		 * after all this could be true, think latin-1 */
-	default:
-		/* all other 1-octet classes */
-		break;
-	}
-	return res;
-}
+#include "unicode.bf"
 
 static char*
 lower_1o(char *restrict t, const char p[static 1U])
@@ -305,11 +204,29 @@ out:
 }
 
 
+/* streak buffer */
+static char strk_buf[4U * 4096U];
+static size_t strk_i;
+
 static void
 _pr_strk_lit(const char *s, size_t z, char sep)
 {
-	fwrite(s, sizeof(*s), z, stdout);
-	fputc(sep, stdout);
+	if (UNLIKELY(strk_i + z >= sizeof(strk_buf))) {
+		write(STDOUT_FILENO, strk_buf, strk_i);
+		strk_i = 0U;
+	}
+
+	memcpy(strk_buf + strk_i, s, z);
+	strk_i += z;
+	strk_buf[strk_i++] = sep;
+	return;
+}
+
+static void
+pr_flsh(void)
+{
+	write(STDOUT_FILENO, strk_buf, strk_i);
+	strk_i = 0U;
 	return;
 }
 
@@ -335,9 +252,14 @@ lcase:
 		p = realloc(p, pz);
 	}
 	z = lcasecpy(p, s, z);
-	p[z + 0U] = sep;
-	p[z + 1U] = '\0';
-	fputs(p, stdout);
+	_pr_strk_lit(p, z, sep);
+	return;
+}
+
+static void
+pr_feed(void)
+{
+	write(STDOUT_FILENO, "\f\n", 2U);
 	return;
 }
 
@@ -365,60 +287,106 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		ST_PREP,
 		ST_FILL,
 	} pf = ST_PREP;
-	clw_t cl;
-	ssize_t res = 0;
 	unsigned int m = 0U;
 	const char *grams[n];
 	size_t gramz[n];
+	ptrdiff_t res = z;
 
+	for (const uint8_t *bp = (const uint8_t*)buf, *ap, *fp,
+		     *const ep = (const uint8_t*)buf + z; bp < ep;) {
+		const uint8_t *const sp = bp;
+		const uint_fast8_t c = *bp++;
+		cls_t cl = CLS_UNK;
 
-	/* initialise state */
-	for (const char *bp = NULL, *ap = NULL, *pp = buf, *const ep = buf + z;
-	     (cl = classify_mb(pp, ep)).wid > 0; pp += cl.wid) {
+		if (LIKELY(c < 0x40U)) {
+			cl = (cls_t)gencls1[0U][c];
+		} else if (LIKELY(c < 0x80U)) {
+			cl = (cls_t)gencls1[1U][c - 0x40U];
+		} else if (UNLIKELY(c < 0xc2U)) {
+			/* continuation char, we should never be here */
+			goto ill;
+		} else if (c < 0xe0U) {
+			/* width-2 character, 110x xxxx 10xx xxxx */
+			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
+			const unsigned int off = (c - 0xc2U);
+
+			if (UNLIKELY(nx1 >= 0x40U)) {
+				goto ill;
+			}
+			cl = (cls_t)gencls2[off][nx1];
+		} else if (c < 0xf0U) {
+			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
+			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
+			const uint_fast8_t nx2 = (uint_fast8_t)(*bp++ - 0x80U);
+			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+
+			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+				goto ill;
+			}
+			cl = (cls_t)gencls3[off][nx2];
+		} else {
+		ill:;
+			const ptrdiff_t rngb = (const char*)sp - buf;
+
+			fprintf(stderr, "\
+illegal character sequence @%td (0x%tx):", rngb, rngb);
+			for (const unsigned char *xp = sp; xp < bp; xp++) {
+				fprintf(stderr, " %02x", *xp);
+			}
+			fputc('\n', stderr);
+		}
+
+		/* now enter the state machine */
 		switch (st) {
 		case ST_NONE:
-			switch (cl.cls) {
-			case CLS_ALNUM:
+			switch (cl) {
+			case CLS_ALPHA:
+			case CLS_NUMBR:
 				/* start the machine */
 				st = ST_SEEN_ALNUM;
-				ap = (bp = pp) + cl.wid;
+				ap = sp;
 			default:
 				break;
 			}
 			break;
+
 		case ST_SEEN_ALNUM:
-			switch (cl.cls) {
+			switch (cl) {
 			case CLS_PUNCT:
-				/* don't touch sp for now */
+				/* better record the preliminary end-of-streak */
 				st = ST_SEEN_PUNCT;
+				fp = sp;
 				break;
-			case CLS_ALNUM:
-				ap += cl.wid;
+			case CLS_ALPHA:
+			case CLS_NUMBR:
 				break;
 			default:
+				fp = sp;
 				goto yield;
 			}
 			break;
+
 		case ST_SEEN_PUNCT:
-			switch (cl.cls) {
+			switch (cl) {
 			case CLS_PUNCT:
-				/* nope */
+				/* 2 puncts in a row, not on my account */
 				break;
-			case CLS_ALNUM:
+			case CLS_ALPHA:
+			case CLS_NUMBR:
 				/* aah, good one */
 				st = ST_SEEN_ALNUM;
-				ap = pp + cl.wid;
 				break;
 			default:
 				/* yield! */
 				goto yield;
 			}
 			break;
+
 		yield:;
 			unsigned int last;
 
-			grams[m] = bp;
-			gramz[m] = ap - bp;
+			grams[m] = (const char*)ap;
+			gramz[m] = fp - ap;
 
 			if (n <= 1U) {
 				last = 0U;
@@ -447,21 +415,23 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 				}
 			yield_last:
 				pr_strk(grams[last], gramz[last], '\n');
-				res = pp - buf;
+				res = bp - (const uint8_t*)buf;
 				break;
 			}
+
 		default:
 			st = ST_NONE;
-			bp = NULL;
 			ap = NULL;
+			fp = NULL;
 			break;
 		}
 	}
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data,
 	 * we will return the number of PROCESSED bytes */
-	if (LIKELY(res > 0 && st != ST_SEEN_ALNUM)) {
+	if (LIKELY(st != ST_SEEN_ALNUM)) {
 		/* pretend we proc'd it all */
+		pr_flsh();
 		return z;
 	}
 	return res;
@@ -540,7 +510,7 @@ classify1(const char *fn, unsigned int n)
 
 	/* we printed our findings by side-effect already,
 	 * finalise the output here */
-	puts("\f");
+	pr_feed();
 
 yield:
 	/* total success innit? */
