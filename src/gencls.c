@@ -257,6 +257,7 @@ fields(size_t width_filter)
 			c = 0b11U;
 			break;
 		case 'P':
+		case 'S':
 			if (x < lohi[0U]) {
 				/* we have a different idea about PUNCTs*/
 				switch (x) {
