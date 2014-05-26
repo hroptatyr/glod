@@ -297,13 +297,13 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 			cl = (cls_t)gencls1[0U][c];
 		} else if (LIKELY(c < 0x80U)) {
 			cl = (cls_t)gencls1[1U][c - 0x40U];
-		} else if (UNLIKELY(c < 0xc0U)) {
+		} else if (UNLIKELY(c < 0xc2U)) {
 			/* continuation char, we should never be here */
 			goto ill;
 		} else if (c < 0xe0U) {
 			/* width-2 character, 110x xxxx 10xx xxxx */
 			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
-			const unsigned int off = (c & 0b11111U);
+			const unsigned int off = (c - 0xc2U);
 
 			if (UNLIKELY(nx1 >= 0x40U)) {
 				goto ill;
