@@ -297,11 +297,17 @@ fields(size_t width_filter)
 	}
 
 
-	printf("static const uint_fast8_t gencls%zu[] = {\n", width_filter);
-	for (unsigned int i = 0U; i <= last_off; i++) {
-		const unsigned int c = bf[i];
+	printf("static const uint_fast8_t gencls%zu[][64U] = {\n", width_filter);
+	const unsigned int off = width_filter > 1 ? lohi[width_filter - 2] : 0U;
+	for (unsigned int i = 0U; i <= last_off; i += 64) {
+		puts("\t{");
+		for (unsigned int j = 0; j < 64U; j++) {
+			const unsigned int c = bf[i + j];
+			const unsigned int rc = i + j + off;
 
-		printf("\t0x%02xU,\n", c);
+			printf("\t\t0x%02xU,\t/* 0x%02xU */\n", c, rc);
+		}
+		puts("\t},");
 	}
 	puts("};");
 	bf_free();
