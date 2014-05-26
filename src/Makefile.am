@@ -231,7 +231,6 @@ unicode.bf: UnicodeData.txt $(builddir)/gencls$(EXEEXT)
 	$(builddir)/gencls$(EXEEXT) -w1 --bitfields < $< >> $@
 	$(builddir)/gencls$(EXEEXT) -w2 --bitfields < $< >> $@
 	$(builddir)/gencls$(EXEEXT) -w3 --bitfields < $< >> $@
-	$(builddir)/gencls$(EXEEXT) -w4 --bitfields < $< >> $@
 
 alpha.2.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
 	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
