@@ -171,6 +171,7 @@ mmap_fn(const char *fn, int flags)
 		close(res.fd);
 		res.fd = -1;
 	}
+	posix_fadvise(res.fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 	return res;
 }
 
