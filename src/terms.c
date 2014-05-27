@@ -293,7 +293,13 @@ lcase:
 static void
 pr_feed(void)
 {
-	write(STDOUT_FILENO, "\f\n", 2U);
+	static const char feed[] = "\f\n";
+	size_t tot = 0U;
+	ssize_t nwr;
+
+	do {
+		nwr = write(STDOUT_FILENO, feed + tot, sizeof(feed) - tot - 1U);
+	} while (nwr > 0 && (tot += nwr) < sizeof(feed) - 1U);
 	return;
 }
 
