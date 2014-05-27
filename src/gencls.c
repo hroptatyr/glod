@@ -154,6 +154,8 @@ lower(size_t width_filter)
 
 static uint_fast8_t *bf;
 static size_t bz;
+static uint_fast32_t *cm;
+static size_t cz;
 static unsigned int last_off;
 
 static struct mb_s
@@ -216,6 +218,41 @@ bf_free(void)
 		free(bf);
 	}
 	bf = NULL;
+	bz = 0UL;
+	last_off = 0U;
+	return;
+}
+
+static void
+cm_set(long unsigned int x, long unsigned int c, size_t wf)
+{
+	struct mb_s wb;
+
+	if (wf && (wb = xwctowb(x)).w != wf) {
+		return;
+	} else if (wf) {
+		/* offset x by base*/
+		x -= wb.x;
+	}
+
+	if (x >= cz) {
+		const size_t ol = cz;
+		cz += (x / 64U + 1U) * 64U;
+		cm = realloc(cm, cz * sizeof(*cm));
+		memset(cm + ol, 0, (cz - ol) * sizeof(*cm));
+	}
+	cm[x] = c;
+	last_off = x;
+	return;
+}
+
+static void
+cm_free(void)
+{
+	if (cm != NULL) {
+		free(cm);
+	}
+	cm = NULL;
 	bz = 0UL;
 	last_off = 0U;
 	return;
@@ -321,8 +358,8 @@ static int
 fields_u2l(size_t width_filter)
 {
 	char *line = NULL;
-	size_t llen = 0U;
-	long unsigned int prev = 0U;
+	size_t llen = 0UL;
+	long unsigned int prev = 0UL;
 	long unsigned int x;
 
 	if (width_filter > countof(lohi)) {
@@ -353,9 +390,26 @@ fields_u2l(size_t width_filter)
 			continue;
 		}
 
-		/* otherwise it's certain that we've got a lower case representation */
-		printf("0x%lxU -> 0x%lxU\n", x, y);
+		/* otherwise it's certain that we've got a
+		 * lower case representation */
+		cm_set(x, y, width_filter);
 	}
+
+
+	printf("static const uint_fast32_t genmap%zu[][64U] = {\n", width_filter);
+	const unsigned int off = width_filter > 1 ? lohi[width_filter - 2] : 0U;
+	for (unsigned int i = 0U; i <= last_off; i += 64) {
+		puts("\t{");
+		for (unsigned int j = 0; j < 64U; j++) {
+			const unsigned int rc = i + j + off;
+			const unsigned int c = cm[i + j] ?: rc;
+
+			printf("\t\t0x%02xU,\t/* \\u%04x */\n", c, rc);
+		}
+		puts("\t},");
+	}
+	puts("};");
+	cm_free();
 
 	free(line);
 	return 0;
