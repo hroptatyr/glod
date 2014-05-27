@@ -322,8 +322,8 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		ST_FILL,
 	} pf = ST_PREP;
 	unsigned int m = 0U;
-	const char *grams[n];
 	size_t gramz[n];
+	size_t zaccu = 0U;
 	ptrdiff_t res = z;
 
 	for (const uint8_t *bp = (const uint8_t*)buf, *ap, *fp,
@@ -417,48 +417,42 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 			break;
 
 		yield:;
-			unsigned int last;
+			const char *lstr;
+			size_t llen;
 
-			grams[m] = (const char*)ap;
-			gramz[m] = fp - ap;
+			lstr = (const char*)ap;
+			llen = fp - ap;
 
 			if (n <= 1U) {
-				last = 0U;
 				goto yield_last;
-			} else if (++m >= n) {
-				m = 0U;
-				last = n - 1U;
-			} else {
-				last = m - 1U;
 			}
 			switch (pf) {
-				unsigned int nrep;
 			case ST_PREP:
-				if (m) {
-					break;
+				gramz[m++] = llen;
+				zaccu += llen;
+				if (m >= n) {
+					/* switch to fill-mode */
+					pf = ST_FILL;
+					m = 0U;
+					zaccu -= gramz[0U];
+					goto yield_last;
 				}
-				/* otherwise fill up initial buffer */
-				pf = ST_FILL;
-				for (unsigned int i = m; i < n - !m; i++) {
-					pr_strk(grams[i], gramz[i], ' ');
-				}
-				for (unsigned int i = 0U; i < m - !!m; i++) {
-					pr_strk(grams[i], gramz[i], ' ');
-				}
-				goto yield_last;
+				/* otherwise fill the buffer */
+				pr_strk(lstr, llen, ' ');
+				break;
 			case ST_FILL:
 			default:
 				/* yield case */
-				nrep = 0U;
-				for (unsigned int i = m; i < n - !m; i++) {
-					nrep += gramz[i];
+				pr_srep(zaccu, n - 1U);
+				/* keep track of gram sizes */
+				gramz[m++] = llen;
+				if (UNLIKELY(m >= n)) {
+					m = 0U;
 				}
-				for (unsigned int i = 0U; i < m - !!m; i++) {
-					nrep += gramz[i];
-				}
-				pr_srep(nrep, n - 1U);
+				zaccu -= gramz[m];
+				zaccu += llen;
 			yield_last:
-				pr_strk(grams[last], gramz[last], '\n');
+				pr_strk(lstr, llen, '\n');
 				res = bp - (const uint8_t*)buf;
 				break;
 			}
