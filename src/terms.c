@@ -206,14 +206,37 @@ out:
 
 /* streak buffer */
 static char strk_buf[4U * 4096U];
+static size_t strk_j;
 static size_t strk_i;
+
+static void
+pr_flsh(bool drainp)
+{
+	ssize_t nwr;
+	size_t tot = 0U;
+	const size_t i = !drainp ? strk_j : strk_i;
+
+	do {
+		nwr = write(STDOUT_FILENO, strk_buf + tot, i - tot);
+	} while (nwr > 0 && (tot += nwr) < i);
+
+	if (i < strk_i) {
+		/* copy the leftovers back to the beginning of the buffer */
+		memcpy(strk_buf, strk_buf + i, strk_i - i);
+		strk_i -= i;
+	} else {
+		strk_i = 0U;
+	}
+	return;
+}
 
 static void
 _pr_strk_lit(const char *s, size_t z, char sep)
 {
 	if (UNLIKELY(strk_i + z >= sizeof(strk_buf))) {
-		write(STDOUT_FILENO, strk_buf, strk_i);
-		strk_i = 0U;
+		/* flush, if there's n-grams in the making (j > 0U)
+		 * flush only up to the last full n-gram */
+		pr_flsh(strk_j == 0U);
 	}
 
 	memcpy(strk_buf + strk_i, s, z);
@@ -223,10 +246,21 @@ _pr_strk_lit(const char *s, size_t z, char sep)
 }
 
 static void
-pr_flsh(void)
+pr_srep(unsigned int m, unsigned int n)
 {
-	write(STDOUT_FILENO, strk_buf, strk_i);
-	strk_i = 0U;
+	/* repeat the last M characters (plus N separators) in buf */
+	if (UNLIKELY(strk_i <= (m + n))) {
+		/* can't repeat fuckall :( */
+		return;
+	} else if (UNLIKELY(strk_i + (m + n) > sizeof(strk_buf))) {
+		pr_flsh(false);
+	}
+	strk_j = strk_i;
+	with (size_t srep_i = strk_i - (m + n)) {
+		memcpy(strk_buf + strk_i, strk_buf + srep_i, m + n - 1U);
+		strk_i += m + n - 1U;
+		strk_buf[strk_i++] = strk_buf[srep_i - 1U];
+	}
 	return;
 }
 
@@ -265,7 +299,7 @@ pr_feed(void)
 
 static void(*pr_strk)(const char *s, size_t z, char sep) = _pr_strk_lit;
 
-static ssize_t
+static __attribute__((noinline)) ssize_t
 classify_buf(const char *const buf, size_t z, unsigned int n)
 {
 /* this is a simple state machine,
@@ -398,21 +432,31 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 				last = m - 1U;
 			}
 			switch (pf) {
+				unsigned int nrep;
 			case ST_PREP:
 				if (m) {
 					break;
 				}
-				/* otherwise fallthrough */
+				/* otherwise fill up initial buffer */
 				pf = ST_FILL;
-			case ST_FILL:
-			default:
-				/* yield case */
 				for (unsigned int i = m; i < n - !m; i++) {
 					pr_strk(grams[i], gramz[i], ' ');
 				}
 				for (unsigned int i = 0U; i < m - !!m; i++) {
 					pr_strk(grams[i], gramz[i], ' ');
 				}
+				goto yield_last;
+			case ST_FILL:
+			default:
+				/* yield case */
+				nrep = 0U;
+				for (unsigned int i = m; i < n - !m; i++) {
+					nrep += gramz[i];
+				}
+				for (unsigned int i = 0U; i < m - !!m; i++) {
+					nrep += gramz[i];
+				}
+				pr_srep(nrep, n - 1U);
 			yield_last:
 				pr_strk(grams[last], gramz[last], '\n');
 				res = bp - (const uint8_t*)buf;
@@ -431,7 +475,7 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 	 * we will return the number of PROCESSED bytes */
 	if (LIKELY(st != ST_SEEN_ALNUM)) {
 		/* pretend we proc'd it all */
-		pr_flsh();
+		pr_flsh(true);
 		return z;
 	}
 	return res;
