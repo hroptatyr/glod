@@ -143,6 +143,30 @@ xwctomb(char *restrict s, uint_fast32_t c)
 	return n;
 }
 
+static uint_fast32_t
+xmbtowc(const char *s)
+{
+	const uint_fast8_t c = (uint_fast8_t)*s;
+
+	if (LIKELY(c < 0x80U)) {
+		return c;
+	} else if (UNLIKELY(c < 0xc2U)) {
+		/* illegal */
+		;
+	} else if (c < 0xe0U) {
+		/* 110x xxxx  10xx xxxx */
+		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
+		return (c & 0b11111U) << 6U | (nx1 & 0b111111U);
+	} else if (c < 0xf0U) {
+		/* 1110 xxxx  10xx xxxx  10xx xxxx */
+		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
+		const uint_fast8_t nx2 = (uint_fast8_t)s[2U];
+		return ((c & 0b1111U) << 6U | (nx1 & 0b111111U)) << 6U |
+			(nx2 & 0b111111U);
+	}
+	return 0U;
+}
+
 
 /* streak buffer */
 static char strk_buf[4U * 4096U];
@@ -215,10 +239,68 @@ _pr_strk_norm(const char *s, size_t z, char sep)
 
 	/* cut off separator */
 	strk_i--;
-	/* inspect first, B points to the source, O to the output */
-	for (b = strk_i - z; b < strk_i; b++) {
-		if (strk_buf[b] >= 'a' && strk_buf[b] <= 'z') {
-			goto lcase;
+	/* inspect first, B points to the source
+	 * we're trying to detect characters that would have been mapped */
+	for (b = strk_i - z; b < strk_i;) {
+		const uint_fast8_t c = strk_buf[b];
+
+		if (c < 0x40U) {
+			if (gencls1[0U][c] == CLS_ALPHA) {
+				size_t mof = genmof1[0U];
+
+				if (!mof || c == genmap1[mof][c]) {
+					goto lcase;
+				}
+			}
+			b++;
+		} else if (LIKELY(c < 0x80U)) {
+			if (gencls1[1U][c - 0x40U] == CLS_ALPHA) {
+				size_t mof = genmof1[1U];
+
+				if (!mof || c == genmap1[mof][c - 0x40U]) {
+					goto lcase;
+				}
+			}
+			b++;
+		} else if (UNLIKELY(c < 0xc2U)) {
+			/* continuation char, we should never be here */
+			b++;
+		} else if (c < 0xe0U) {
+			/* width-2 character, 110x xxxx 10xx xxxx */
+			const uint_fast8_t nx1 =
+				(uint_fast8_t)(strk_buf[b + 1U] - 0x80U);
+			const unsigned int off = (c - 0xc2U);
+
+			if (UNLIKELY(nx1 >= 0x40U)) {
+				;
+			} else if (gencls2[off][nx1] == CLS_ALPHA) {
+				const size_t m = genmof2[off];
+
+				if (!m ||
+				    xmbtowc(strk_buf + b) == genmap2[m][nx1]) {
+					goto lcase;
+				}
+			}
+			b += 2U;
+		} else if (c < 0xf0U) {
+			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
+			const uint_fast8_t nx1 =
+				(uint_fast8_t)(strk_buf[b + 1U] - 0x80U);
+			const uint_fast8_t nx2 =
+				(uint_fast8_t)(strk_buf[b + 2U] - 0x80U);
+			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+
+			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+				;
+			} else if (gencls3[off][nx2] == CLS_ALPHA) {
+				const size_t m = genmof3[off];
+
+				if (!m ||
+				    xmbtowc(strk_buf + b) == genmap3[m][nx2]) {
+					goto lcase;
+				}
+			}
+			b += 3U;
 		}
 	}
 	/* mend separator */
