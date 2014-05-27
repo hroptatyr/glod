@@ -39,9 +39,12 @@ terms_TESTS += terms.08.tst
 terms_TESTS += terms.09.tst
 terms_TESTS += terms.10.tst
 terms_TESTS += terms.11.tst
+terms_TESTS += terms.12.tst
+terms_TESTS += terms.13.tst
 EXTRA_DIST += 1206796.txt
 EXTRA_DIST += 12abrdg.txt
 EXTRA_DIST += punct-terms.txt
+EXTRA_DIST += utf8-terms.txt
 
 tf_TESTS =
 TESTS += $(tf_TESTS)
