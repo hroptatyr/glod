@@ -293,12 +293,9 @@ static void
 pr_feed(void)
 {
 	static const char feed[] = "\f\n";
-	size_t tot = 0U;
-	ssize_t nwr;
 
-	do {
-		nwr = write(STDOUT_FILENO, feed + tot, sizeof(feed) - tot - 1U);
-	} while (nwr > 0 && (tot += nwr) < sizeof(feed) - 1U);
+	_pr_strk_lit(feed, 1U, '\n');
+	pr_flsh(true);
 	return;
 }
 
@@ -337,7 +334,12 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		const uint_fast8_t c = *bp++;
 		cls_t cl = CLS_UNK;
 
-		if (LIKELY(c < 0x40U)) {
+		if (UNLIKELY(c == '\f')) {
+			pr_feed();
+			pf = ST_PREP;
+			m = 0U;
+			zaccu = 0U;
+		} else if (LIKELY(c < 0x40U)) {
 			cl = (cls_t)gencls1[0U][c];
 		} else if (LIKELY(c < 0x80U)) {
 			cl = (cls_t)gencls1[1U][c - 0x40U];
@@ -474,7 +476,6 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 	 * we will return the number of PROCESSED bytes */
 	if (LIKELY(st != ST_SEEN_ALNUM)) {
 		/* pretend we proc'd it all */
-		pr_flsh(true);
 		return z;
 	}
 	return res;
@@ -597,6 +598,9 @@ classify0(unsigned int n)
 			break;
 		}
 	} while (nrd > 0);
+
+	/* make sure we've got it all written */
+	pr_flsh(true);
 
 	UNPREP();
 	return res;
