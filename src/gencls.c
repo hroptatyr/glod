@@ -395,10 +395,38 @@ fields_u2l(size_t width_filter)
 		cm_set(x, y, width_filter);
 	}
 
+	const unsigned int off = width_filter > 1 ? lohi[width_filter - 2] : 0U;
+
+	printf("/* tracks the map offsets in genmap[] */\n");
+	printf("static const uint_fast8_t genmof%zu[] = {\n", width_filter);
+	for (unsigned int i = 0U, o = 0U; i <= last_off; i += 64) {
+		unsigned int this_o = 0U;
+
+		for (unsigned int j = 0; j < 64U; j++) {
+			const unsigned int c = cm[i + j];
+
+			if (c) {
+				this_o = ++o;
+				break;
+			}
+		}
+		printf("\t%uU,\n", this_o);
+	}
+	puts("};");
 
 	printf("static const uint_fast32_t genmap%zu[][64U] = {\n", width_filter);
-	const unsigned int off = width_filter > 1 ? lohi[width_filter - 2] : 0U;
+	puts("\t{0U},");
 	for (unsigned int i = 0U; i <= last_off; i += 64) {
+		for (unsigned int j = 0; j < 64U; j++) {
+			const unsigned int c = cm[i + j];
+
+			if (c) {
+				goto pr;
+			}
+		}
+		continue;
+
+	pr:
 		puts("\t{");
 		for (unsigned int j = 0; j < 64U; j++) {
 			const unsigned int rc = i + j + off;
