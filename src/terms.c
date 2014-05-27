@@ -274,7 +274,7 @@ lcase:
 			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
 				goto ill;
 			} else if (LIKELY(mof)) {
-				o += xwctomb(strk_buf + o, genmap3[mof][nx1]);
+				o += xwctomb(strk_buf + o, genmap3[mof][nx2]);
 			} else {
 				/* leave as is */
 				o += 3U;
