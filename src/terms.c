@@ -112,95 +112,35 @@ struct clw_s {
 	cls_t cls;
 };
 
-#define U0(x)	(long unsigned int)(0U)
-#define U1(x)	(long unsigned int)((U0(x) << 8U) | (uint8_t)p[0U])
-#define U2(x)	(long unsigned int)((U1(x) << 8U) | (uint8_t)p[1U])
-#define U3(x)	(long unsigned int)((U2(x) << 8U) | (uint8_t)p[2U])
-
 #include "unicode.bf"
+#include "unicode.cm"
 
-static char*
-lower_1o(char *restrict t, const char p[static 1U])
-{
-	unsigned int x;
-
-	switch ((x = U1(p))) {
-	case 'A' ... 'Z':
-		x += 'a' - 'A';
-	default:
-		*t++ = (unsigned char)x;
-		break;
-	}
-	return t;
-}
-
-static char*
-lower_2o(char *restrict t, const char p[static 2U])
-{
-	switch (U2(p)) {
-#	include "alpha.2.lower"
-	default:
-		*t++ = p[0U];
-		*t++ = p[1U];
-		break;
-	}
-	return t;
-}
-
-static char*
-lower_3o(char *restrict t, const char p[static 3U])
-{
-	switch (U3(p)) {
-#	include "alpha.3.lower"
-	default:
-		*t++ = p[0U];
-		*t++ = p[1U];
-		*t++ = p[2U];
-		break;
-	}
-	return t;
-}
+/* utf8 seq ranges */
+static const long unsigned int lohi[4U] = {
+	16U * (1U << (4U - 1U)),
+	16U * (1U << (8U - 1U)),
+	16U * (1U << (12U - 1U)),
+	16U * (1U << (16U - 1U)),
+};
 
 static size_t
-lcasecpy(char *restrict t, const char *s, size_t z)
+xwctomb(char *restrict s, uint_fast32_t c)
 {
-/* we're not interested in the character, only its class */
-	const char *const bot = t;
+	size_t n = 0U;
 
-	for (const char *const eos = s + z; s < eos;) {
-		switch (*(const unsigned char*)s) {
-		case 0x00U:
-			*t = '\0';
-			goto out;
-			/* UTF8 1-octets */
-		case 0x01U ... 0xbfU:
-			t = lower_1o(t, s++);
-			break;
-
-			/* UTF8 2-octets */
-		case 0xc0U ... 0xdfU:
-			t = lower_2o(t, s);
-			s += 2U;
-			break;
-
-			/* UTF8 3-octets */
-		case 0xe0U ... 0xefU:
-			t = lower_3o(t, s);
-			s += 3U;
-			break;
-
-			/* all other 1-octet classes */
-		case 0xf0U ... 0xf7U:
-		case 0xf8U ... 0xfbU:
-		case 0xfcU ... 0xfdU:
-		case 0xfeU:
-		default:
-			/* not dealing with them */
-			break;
-		}
+	if (c < lohi[0U]) {
+		s[n++] = (char)c;
+	} else if (c < lohi[1U]) {
+		/* 110x xxxx  10xx xxxx */
+		s[n++] = 0xc0U | (c >> 6U);
+		s[n++] = 0x80U | (c & 0b111111U);
+	} else if (c < lohi[2U]) {
+		/* 1110 xxxx  10xx xxxx  10xx xxxx */
+		s[n++] = 0xe0U | (c >> 12U);
+		s[n++] = 0x80U | ((c >> 6U) & 0b111111U);
+		s[n++] = 0x80U | (c & 0b111111U);
 	}
-out:
-	return t - bot;
+	return n;
 }
 
 
@@ -267,26 +207,85 @@ pr_srep(unsigned int m, unsigned int n)
 static void
 _pr_strk_norm(const char *s, size_t z, char sep)
 {
-	/* we maintain a local pool where we can scribble */
-	static size_t pz;
-	static char *p;
+	size_t b;
+	size_t o;
 
-	/* check that there's at least one lower-case ASCII char in there */
-	for (size_t i = 0U; i < z; i++) {
-		if (s[i] >= 'a' && s[i] <= 'z') {
+	/* copy to result streak buffer */
+	_pr_strk_lit(s, z, sep);
+
+	/* cut off separator */
+	strk_i--;
+	/* inspect first, B points to the source, O to the output */
+	for (b = strk_i - z; b < strk_i; b++) {
+		if (strk_buf[b] >= 'a' && strk_buf[b] <= 'z') {
 			goto lcase;
 		}
 	}
-	_pr_strk_lit(s, z, sep);
+	/* mend separator */
+	strk_i++;
 	return;
 
 lcase:
-	if (UNLIKELY(z + 1U > pz)) {
-		pz = ((z / 64U) + 1U) * 64U;
-		p = realloc(p, pz);
+	/* inspect, B points to the source, O to the output */
+	for (b = strk_i - z, o = b; b < strk_i; b++) {
+		const uint_fast8_t c = strk_buf[b];
+
+		if (c < 0x40U) {
+			size_t mof = genmof1[0U];
+
+			if (UNLIKELY(mof)) {
+				strk_buf[o] = genmap1[mof][c];
+			}
+			o++;
+		} else if (LIKELY(c < 0x80U)) {
+			size_t mof = genmof1[1U];
+
+			if (LIKELY(mof)) {
+				strk_buf[o] = genmap1[mof][c - 0x40U];
+			}
+			o++;
+		} else if (UNLIKELY(c < 0xc2U)) {
+			/* continuation char, we should never be here */
+			goto ill;
+		} else if (c < 0xe0U) {
+			/* width-2 character, 110x xxxx 10xx xxxx */
+			const uint_fast8_t nx1 =
+				(uint_fast8_t)(strk_buf[++b] - 0x80U);
+			const unsigned int off = (c - 0xc2U);
+			const size_t mof = genmof2[off];
+
+			if (UNLIKELY(nx1 >= 0x40U)) {
+				goto ill;
+			} else if (LIKELY(mof)) {
+				o += xwctomb(strk_buf + o, genmap2[off][nx1]);
+			} else {
+				/* leave as is */
+				o += 2U;
+			}
+		} else if (c < 0xf0U) {
+			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
+			const uint_fast8_t nx1 =
+				(uint_fast8_t)(strk_buf[++b] - 0x80U);
+			const uint_fast8_t nx2 =
+				(uint_fast8_t)(strk_buf[++b] - 0x80U);
+			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			const size_t mof = genmof3[off];
+
+			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+				goto ill;
+			} else if (LIKELY(mof)) {
+				o += xwctomb(strk_buf + o, genmap3[off][nx1]);
+			} else {
+				/* leave as is */
+				o += 3U;
+			}
+		} else {
+		ill:
+			abort();
+		}
 	}
-	z = lcasecpy(p, s, z);
-	_pr_strk_lit(p, z, sep);
+	strk_buf[o++] = sep;
+	strk_i = o;
 	return;
 }
 
