@@ -1,0 +1,4 @@
+Usage: glang [FILE]
+
+Guess language from terms presented in FILE (or stdin if omitted).
+

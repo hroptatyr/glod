@@ -164,6 +164,15 @@ unpgbrk_CPPFLAGS += -D_GNU_SOURCE
 BUILT_SOURCES += unpgbrk.yucc
 
 
+noinst_PROGRAMS += glang
+glang_SOURCES = glang.c
+glang_SOURCES += glang.yuck
+glang_CPPFLAGS = $(AM_CPPFLAGS)
+glang_CPPFLAGS += -D_GNU_SOURCE
+glang_LDADD = libcoru.la
+BUILT_SOURCES += glang.yucc
+
+
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
 	$(AM_V_GEN) PATH="$(top_builddir)/build-aux:$${PATH}" \
