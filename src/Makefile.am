@@ -117,15 +117,8 @@ terms_LDADD = libglod.la
 terms_LDADD += libcoru.la
 BUILT_SOURCES += terms.yucc
 EXTRA_terms_SOURCES =
-EXTRA_terms_SOURCES += alpha.2.cases
-EXTRA_terms_SOURCES += alpha.3.cases
-EXTRA_terms_SOURCES += alpha.4.cases
-EXTRA_terms_SOURCES += numer.2.cases
-EXTRA_terms_SOURCES += numer.3.cases
-EXTRA_terms_SOURCES += numer.4.cases
-EXTRA_terms_SOURCES += punct.2.cases
-EXTRA_terms_SOURCES += punct.3.cases
-EXTRA_terms_SOURCES += punct.4.cases
+EXTRA_terms_SOURCES += unicode.bf
+EXTRA_terms_SOURCES += unicode.cm
 
 bin_PROGRAMS += tf
 tf_SOURCES = tf.c
@@ -195,25 +188,12 @@ BUILT_SOURCES += alpha.codes
 BUILT_SOURCES += numer.codes
 BUILT_SOURCES += punct.codes
 
-CASES =
-CASES += alpha.2.cases
-CASES += alpha.3.cases
-CASES += alpha.4.cases
-CASES += numer.2.cases
-CASES += numer.3.cases
-CASES += numer.4.cases
-CASES += punct.2.cases
-CASES += punct.3.cases
-CASES += punct.4.cases
-CASES += alpha.2.lower
-CASES += alpha.3.lower
-CASES += alpha.4.lower
 FIELDS =
 FIELDS += unicode.bf
 FIELDS += unicode.cm
 
-BUILT_SOURCES += $(CASES) $(FIELDS)
-CLEANFILES += $(CASES) $(FIELDS)
+BUILT_SOURCES += $(FIELDS)
+CLEANFILES += $(FIELDS)
 
 UnicodeData.txt:
 	curl -qgsfL -o $@ "http://www.unicode.org/Public/UNIDATA/$@"
@@ -238,42 +218,6 @@ unicode.cm: UnicodeData.txt $(builddir)/gencls$(EXEEXT)
 	$(builddir)/gencls$(EXEEXT) -w1 --bitfields --upper-lower-maps < $< >> $@
 	$(builddir)/gencls$(EXEEXT) -w2 --bitfields --upper-lower-maps < $< >> $@
 	$(builddir)/gencls$(EXEEXT) -w3 --bitfields --upper-lower-maps < $< >> $@
-
-alpha.2.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
-
-alpha.3.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 3 < $< > $@
-
-alpha.4.cases: alpha.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 4 < $< > $@
-
-alpha.2.lower: alpha.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 2 --upper-lower-maps < $< > $@
-
-alpha.3.lower: alpha.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 3 --upper-lower-maps < $< > $@
-
-alpha.4.lower: alpha.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 4 --upper-lower-maps < $< > $@
-
-numer.2.cases: numer.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
-
-numer.3.cases: numer.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 3 < $< > $@
-
-numer.4.cases: numer.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 4 < $< > $@
-
-punct.2.cases: punct.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 2 < $< > $@
-
-punct.3.cases: punct.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 3 < $< > $@
-
-punct.4.cases: punct.codes $(builddir)/gencls$(EXEEXT)
-	$(builddir)/gencls$(EXEEXT) -w 4 < $< > $@
 
 ## Help the developers get nice post-processed source files
 
