@@ -82,8 +82,16 @@ struct alpha1_2gram_s {
 	char g[2U];
 };
 
+struct alpha1_3gram_s {
+	char g[3U];
+};
+
 struct alpha1_2gramv_s {
 	struct alpha1_2gram_s v[16U];
+};
+
+struct alpha1_3gramv_s {
+	struct alpha1_3gram_s v[16U];
 };
 
 
@@ -129,13 +137,24 @@ hx_alpha1_2gram(uint_fast8_t a0, uint_fast8_t a1)
 	return (uint_fast8_t)((a0 << 5U) + a1);
 }
 
+static inline uint_fast8_t
+hx_alpha1_3gram(uint_fast8_t a0, uint_fast8_t a1, uint_fast8_t a2)
+{
+	return (uint_fast8_t)((((a0 << 5U) + a1) << 5U) + a2);
+}
+
 
 static uint_fast32_t occ[256U];
-static struct alpha1_2gramv_s _2g[256U];
+static struct alpha1_2gramv_s _2g[countof(occ)];
+static struct alpha1_3gramv_s _3g[countof(occ)];
 
 static ssize_t
-glangify_buf(const char *buf, const size_t bsz)
+glangify_buf2(const char *buf, const size_t bsz)
 {
+	if (UNLIKELY(bsz < 2U)) {
+		/* don't worry about it */
+		return 0;
+	}
 	/* pretend we've done it all */
 	for (size_t i = 0U; i < bsz - 1U; i++) {
 		const uint_fast8_t b0 = buf[i + 0U];
@@ -173,6 +192,64 @@ glangify_buf(const char *buf, const size_t bsz)
 		}
 	}
 	return bsz - 1U;
+}
+
+static ssize_t
+glangify_buf3(const char *buf, const size_t bsz)
+{
+	if (UNLIKELY(bsz < 2U)) {
+		/* don't worry about it */
+		return 0;
+	}
+	/* pretend we've done it all */
+	for (size_t i = 0U; i < bsz - 2U; i++) {
+		const uint_fast8_t b0 = buf[i + 0U];
+		const uint_fast8_t b1 = buf[i + 1U];
+		const uint_fast8_t b2 = buf[i + 2U];
+
+		if (b0 < 0x80U) {
+			if (UNLIKELY(!xisalpha(b0))) {
+				/* don't want no non-alpha grams */
+				continue;
+			}
+		} else if (b0 < 0xc2U) {
+			/* continuation character, just fuck it */
+			continue;
+		} else if (b0 >= 0xf0U) {
+			/* 4-octet sequence */
+			i += 2U;
+			continue;
+		}
+
+		if (b1 < 0x80U) {
+			if (UNLIKELY(!xisalpha(b1))) {
+				/* don't want no non-alpha grams */
+				i++;
+				continue;
+			}
+		} else if (b1 >= 0xe0U) {
+			/* 3-octet sequence (or higher) coming up */
+			continue;
+		}
+
+		if (b2 < 0x80U) {
+			if (UNLIKELY(!xisalpha(b2))) {
+				/* don't want no non-alpha grams */
+				i += 2U;
+				continue;
+			}
+		} else if (b2 >= 0xc0U) {
+			/* 2-octet sequence (or higher) coming up */
+			continue;
+		}
+
+		with (uint_fast8_t hx = hx_alpha1_3gram(b0, b1, b2)) {
+			size_t k = occ[hx]++ % countof(_2g[hx].v);
+
+			_3g[hx].v[k] = (struct alpha1_3gram_s){b0, b1, b2};
+		}
+	}
+	return bsz - 2U;
 }
 
 
@@ -218,7 +295,7 @@ DEFCORU(co_glang, {
 
 	/* enter the main snarf loop */
 	do {
-		if ((npr = glangify_buf(buf, nrd)) < 0) {
+		if ((npr = glangify_buf3(buf, nrd)) < 0) {
 			RETURN(-1);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
@@ -274,10 +351,10 @@ glangify1(const char *fn)
 			continue;
 		}
 		printf("%02zx\t%lu", i, occ[i]);
-		for (size_t k = 0U, n = minz(occ[i], countof(_2g[i].v));
+		for (size_t k = 0U, n = minz(occ[i], countof(_3g[i].v));
 		     k < n; k++) {
-			struct alpha1_2gram_s g = _2g[i].v[k];
-			printf("\t%c%c", g.g[0U], g.g[1U]);
+			struct alpha1_3gram_s g = _3g[i].v[k];
+			printf("\t%c%c%c", g.g[0U], g.g[1U], g.g[2U]);
 		}
 		putchar('\n');
 	}
