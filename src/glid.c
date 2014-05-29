@@ -131,73 +131,22 @@ xisalpha(uint_fast8_t x)
 	return false;
 }
 
-static inline uint_fast8_t
-hx_alpha1_2gram(uint_fast8_t a0, uint_fast8_t a1)
+static inline __attribute__((const, pure)) uint_fast32_t
+hx_alpha1(uint_fast8_t a0, uint_fast8_t a1)
 {
-	return (uint_fast8_t)((a0 << 5U) + a1);
-}
-
-static inline uint_fast8_t
-hx_alpha1_3gram(uint_fast8_t a0, uint_fast8_t a1, uint_fast8_t a2)
-{
-	return (uint_fast8_t)((((a0 << 5U) + a1) << 5U) + a2);
+	return (a0 << 5U) + a1;
 }
 
 
-static uint_fast32_t occ[256U];
-static struct alpha1_2gramv_s _2g[countof(occ)];
-static struct alpha1_3gramv_s _3g[countof(occ)];
+static uint_fast32_t occ2[256U];
+static uint_fast32_t occ3[4096U];
+static struct alpha1_2gramv_s _2g[countof(occ2)];
+static struct alpha1_3gramv_s _3g[countof(occ3)];
 
 static ssize_t
-glangify_buf2(const char *buf, const size_t bsz)
+glangify_buf(const char *buf, const size_t bsz)
 {
-	if (UNLIKELY(bsz < 2U)) {
-		/* don't worry about it */
-		return 0;
-	}
-	/* pretend we've done it all */
-	for (size_t i = 0U; i < bsz - 1U; i++) {
-		const uint_fast8_t b0 = buf[i + 0U];
-		const uint_fast8_t b1 = buf[i + 1U];
-
-		if (b0 < 0x80U) {
-			if (UNLIKELY(!xisalpha(b0))) {
-				/* don't want no non-alpha grams */
-				continue;
-			}
-		} else if (b0 < 0xc2U) {
-			/* continuation character, just fuck it */
-			continue;
-		} else if (b0 >= 0xe0U) {
-			/* 3-octet sequence */
-			i++;
-			continue;
-		}
-
-		if (b1 < 0x80U) {
-			if (UNLIKELY(!xisalpha(b1))) {
-				/* don't want no non-alpha grams */
-				i++;
-				continue;
-			}
-		} else if (b1 >= 0xc0U) {
-			/* 2-octet sequence (or higher) coming up */
-			continue;
-		}
-
-		with (uint_fast8_t hx = hx_alpha1_2gram(b0, b1)) {
-			size_t k = occ[hx]++ % countof(_2g[hx].v);
-
-			_2g[hx].v[k] = (struct alpha1_2gram_s){b0, b1};
-		}
-	}
-	return bsz - 1U;
-}
-
-static ssize_t
-glangify_buf3(const char *buf, const size_t bsz)
-{
-	if (UNLIKELY(bsz < 2U)) {
+	if (UNLIKELY(bsz < 3U)) {
 		/* don't worry about it */
 		return 0;
 	}
@@ -206,6 +155,7 @@ glangify_buf3(const char *buf, const size_t bsz)
 		const uint_fast8_t b0 = buf[i + 0U];
 		const uint_fast8_t b1 = buf[i + 1U];
 		const uint_fast8_t b2 = buf[i + 2U];
+		uint_fast32_t hx;
 
 		if (b0 < 0x80U) {
 			if (UNLIKELY(!xisalpha(b0))) {
@@ -243,10 +193,15 @@ glangify_buf3(const char *buf, const size_t bsz)
 			continue;
 		}
 
-		with (uint_fast8_t hx = hx_alpha1_3gram(b0, b1, b2)) {
-			size_t k = occ[hx]++ % countof(_2g[hx].v);
-
-			_3g[hx].v[k] = (struct alpha1_3gram_s){b0, b1, b2};
+		/* start off with the first 2gram */
+		hx = hx_alpha1(b0, b1);
+		with (const size_t h2 = hx % countof(occ2), k = occ2[h2]++) {
+			_2g[h2].v[k] = (struct alpha1_2gram_s){b0, b1};
+		}
+		/* and now the 3gram */
+		hx = hx_alpha1(hx & 0xffU, b2);
+		with (const size_t h3 = hx % countof(occ3), k = occ3[h3]++) {
+			_3g[h3].v[k] = (struct alpha1_3gram_s){b0, b1, b2};
 		}
 	}
 	return bsz - 2U;
@@ -295,7 +250,7 @@ DEFCORU(co_glang, {
 
 	/* enter the main snarf loop */
 	do {
-		if ((npr = glangify_buf3(buf, nrd)) < 0) {
+		if ((npr = glangify_buf(buf, nrd)) < 0) {
 			RETURN(-1);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
@@ -346,12 +301,26 @@ glangify1(const char *fn)
 
 	UNPREP();
 
-	for (size_t i = 0; i < countof(occ); i++) {
-		if (occ[i] == 0U) {
+	/* print 2grams */
+	for (size_t i = 0; i < countof(occ2); i++) {
+		if (occ2[i] == 0U) {
 			continue;
 		}
-		printf("%02zx\t%lu", i, occ[i]);
-		for (size_t k = 0U, n = minz(occ[i], countof(_3g[i].v));
+		printf("%03zx\t%lu", i, occ2[i]);
+		for (size_t k = 0U, n = minz(occ2[i], countof(_2g[i].v));
+		     k < n; k++) {
+			struct alpha1_2gram_s g = _2g[i].v[k];
+			printf("\t%c%c", g.g[0U], g.g[1U]);
+		}
+		putchar('\n');
+	}
+	/* and 3grams */
+	for (size_t i = 0; i < countof(occ3); i++) {
+		if (occ3[i] == 0U) {
+			continue;
+		}
+		printf("%03zx\t%lu", i, occ3[i]);
+		for (size_t k = 0U, n = minz(occ3[i], countof(_3g[i].v));
 		     k < n; k++) {
 			struct alpha1_3gram_s g = _3g[i].v[k];
 			printf("\t%c%c%c", g.g[0U], g.g[1U], g.g[2U]);
