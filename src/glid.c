@@ -78,20 +78,20 @@
 #define PACK(x, args...)	&((CORU_STRUCT(x)){args})
 #define START_PACK(x, args...)	START(x, PACK(x, args))
 
-struct alpha1_2gram_s {
+typedef struct {
 	char g[2U];
-};
+} alpha1_2gram_t;
 
-struct alpha1_3gram_s {
+typedef struct {
 	char g[3U];
-};
+} alpha1_3gram_t;
 
 struct alpha1_2gramv_s {
-	struct alpha1_2gram_s v[16U];
+	alpha1_2gram_t v[16U];
 };
 
 struct alpha1_3gramv_s {
-	struct alpha1_3gram_s v[16U];
+	alpha1_3gram_t v[16U];
 };
 
 
@@ -132,16 +132,14 @@ xisalpha(uint_fast8_t x)
 }
 
 static inline __attribute__((const, pure)) uint_fast32_t
-hx_alpha1(uint_fast8_t a0, uint_fast8_t a1)
+hx_alpha1(uint_fast32_t a0, uint_fast32_t a1)
 {
 	return (a0 << 5U) + a1;
 }
 
 
-static uint_fast32_t occ2[256U];
-static uint_fast32_t occ3[4096U];
-static struct alpha1_2gramv_s _2g[countof(occ2)];
-static struct alpha1_3gramv_s _3g[countof(occ3)];
+static uint_fast32_t occ[4096U];
+static struct alpha1_3gramv_s _3g[countof(occ)];
 
 static ssize_t
 glangify_buf(const char *buf, const size_t bsz)
@@ -156,6 +154,7 @@ glangify_buf(const char *buf, const size_t bsz)
 		const uint_fast8_t b1 = buf[i + 1U];
 		const uint_fast8_t b2 = buf[i + 2U];
 		uint_fast32_t hx;
+		bool skip2 = false;
 
 		if (b0 < 0x80U) {
 			if (UNLIKELY(!xisalpha(b0))) {
@@ -177,6 +176,8 @@ glangify_buf(const char *buf, const size_t bsz)
 				i++;
 				continue;
 			}
+		} else if (b1 >= 0xc0U) {
+			skip2 = true;
 		} else if (b1 >= 0xe0U) {
 			/* 3-octet sequence (or higher) coming up */
 			continue;
@@ -194,14 +195,17 @@ glangify_buf(const char *buf, const size_t bsz)
 		}
 
 		/* start off with the first 2gram */
-		hx = hx_alpha1(b0, b1);
-		with (const size_t h2 = hx % countof(occ2), k = occ2[h2]++) {
-			_2g[h2].v[k] = (struct alpha1_2gram_s){b0, b1};
+		if (LIKELY(!skip2)) {
+			/* we're only interested in 10 bits, 5 for each char */
+			hx = hx_alpha1(b0, b1) & 0x3ffU;
+			with (const size_t h = hx, k = occ[h]++) {
+				_3g[h].v[k] = (alpha1_3gram_t){b0, b1, 0U};
+			}
 		}
 		/* and now the 3gram */
 		hx = hx_alpha1(hx & 0xffU, b2);
-		with (const size_t h3 = hx % countof(occ3), k = occ3[h3]++) {
-			_3g[h3].v[k] = (struct alpha1_3gram_s){b0, b1, b2};
+		with (const size_t h = hx % countof(occ), k = occ[h]++) {
+			_3g[h].v[k] = (alpha1_3gram_t){b0, b1, b2};
 		}
 	}
 	return bsz - 2U;
@@ -301,29 +305,16 @@ glangify1(const char *fn)
 
 	UNPREP();
 
-	/* print 2grams */
-	for (size_t i = 0; i < countof(occ2); i++) {
-		if (occ2[i] == 0U) {
+	/* print 2grams and 3grams */
+	for (size_t i = 0; i < countof(occ); i++) {
+		if (occ[i] == 0U) {
 			continue;
 		}
-		printf("%03zx\t%lu", i, occ2[i]);
-		for (size_t k = 0U, n = minz(occ2[i], countof(_2g[i].v));
+		printf("%03zx\t%lu", i, occ[i]);
+		for (size_t k = 0U, n = minz(occ[i], countof(_3g[i].v));
 		     k < n; k++) {
-			struct alpha1_2gram_s g = _2g[i].v[k];
-			printf("\t%c%c", g.g[0U], g.g[1U]);
-		}
-		putchar('\n');
-	}
-	/* and 3grams */
-	for (size_t i = 0; i < countof(occ3); i++) {
-		if (occ3[i] == 0U) {
-			continue;
-		}
-		printf("%03zx\t%lu", i, occ3[i]);
-		for (size_t k = 0U, n = minz(occ3[i], countof(_3g[i].v));
-		     k < n; k++) {
-			struct alpha1_3gram_s g = _3g[i].v[k];
-			printf("\t%c%c%c", g.g[0U], g.g[1U], g.g[2U]);
+			alpha1_3gram_t g = _3g[i].v[k];
+			printf("\t%c%c%c", g.g[0U], g.g[1U], g.g[2U] ?: ' ');
 		}
 		putchar('\n');
 	}
