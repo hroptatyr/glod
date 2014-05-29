@@ -164,13 +164,13 @@ unpgbrk_CPPFLAGS += -D_GNU_SOURCE
 BUILT_SOURCES += unpgbrk.yucc
 
 
-noinst_PROGRAMS += glang
-glang_SOURCES = glang.c
-glang_SOURCES += glang.yuck
-glang_CPPFLAGS = $(AM_CPPFLAGS)
-glang_CPPFLAGS += -D_GNU_SOURCE
-glang_LDADD = libcoru.la
-BUILT_SOURCES += glang.yucc
+noinst_PROGRAMS += glid
+glid_SOURCES = glid.c
+glid_SOURCES += glid.yuck
+glid_CPPFLAGS = $(AM_CPPFLAGS)
+glid_CPPFLAGS += -D_GNU_SOURCE
+glid_LDADD = libcoru.la
+BUILT_SOURCES += glid.yucc
 
 
 ## version rules
