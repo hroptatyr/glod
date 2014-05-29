@@ -78,6 +78,14 @@
 #define PACK(x, args...)	&((CORU_STRUCT(x)){args})
 #define START_PACK(x, args...)	START(x, PACK(x, args))
 
+struct alpha1_2gram_s {
+	char g[2U];
+};
+
+struct alpha1_2gramv_s {
+	struct alpha1_2gram_s v[16U];
+};
+
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -96,12 +104,75 @@ error(const char *fmt, ...)
 	return;
 }
 
+static inline size_t
+minz(size_t a, size_t b)
+{
+	return a < b ? a : b;
+}
+
+static inline bool
+xisalpha(uint_fast8_t x)
+{
+	switch (x) {
+	case 'A' ... 'Z':
+	case 'a' ... 'z':
+		return true;
+	default:
+		break;
+	}
+	return false;
+}
+
+static inline uint_fast8_t
+hx_alpha1_2gram(uint_fast8_t a0, uint_fast8_t a1)
+{
+	return (uint_fast8_t)((a0 << 5U) + a1);
+}
+
 
+static uint_fast32_t occ[256U];
+static struct alpha1_2gramv_s _2g[256U];
+
 static ssize_t
-glangify_buf(const char *buf, size_t bsz)
+glangify_buf(const char *buf, const size_t bsz)
 {
 	/* pretend we've done it all */
-	return bsz;
+	for (size_t i = 0U; i < bsz - 1U; i++) {
+		const uint_fast8_t b0 = buf[i + 0U];
+		const uint_fast8_t b1 = buf[i + 1U];
+
+		if (b0 < 0x80U) {
+			if (UNLIKELY(!xisalpha(b0))) {
+				/* don't want no non-alpha grams */
+				continue;
+			}
+		} else if (b0 < 0xc2U) {
+			/* continuation character, just fuck it */
+			continue;
+		} else if (b0 >= 0xe0U) {
+			/* 3-octet sequence */
+			i++;
+			continue;
+		}
+
+		if (b1 < 0x80U) {
+			if (UNLIKELY(!xisalpha(b1))) {
+				/* don't want no non-alpha grams */
+				i++;
+				continue;
+			}
+		} else if (b1 >= 0xc0U) {
+			/* 2-octet sequence (or higher) coming up */
+			continue;
+		}
+
+		with (uint_fast8_t hx = hx_alpha1_2gram(b0, b1)) {
+			size_t k = occ[hx]++ % countof(_2g[hx].v);
+
+			_2g[hx].v[k] = (struct alpha1_2gram_s){b0, b1};
+		}
+	}
+	return bsz - 1U;
 }
 
 
@@ -197,6 +268,19 @@ glangify1(const char *fn)
 	} while (nrd > 0);
 
 	UNPREP();
+
+	for (size_t i = 0; i < countof(occ); i++) {
+		if (occ[i] == 0U) {
+			continue;
+		}
+		printf("%02zx\t%lu", i, occ[i]);
+		for (size_t k = 0U, n = minz(occ[i], countof(_2g[i].v));
+		     k < n; k++) {
+			struct alpha1_2gram_s g = _2g[i].v[k];
+			printf("\t%c%c", g.g[0U], g.g[1U]);
+		}
+		putchar('\n');
+	}
 
 	/* close descriptor */
 	close(fd);
