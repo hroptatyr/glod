@@ -148,10 +148,12 @@ hx_alpha1(uint_fast32_t a0, uint_fast32_t a1)
 
 static uint_fast32_t occ2[1U << 10U];
 static uint_fast32_t occ3[1U << 15U];
-static uint_fast32_t occ4[1U << 20U];
 static struct alpha1_2gramv_s ngr2[countof(occ2)];
 static struct alpha1_3gramv_s ngr3[countof(occ3)];
+#if defined WITH_4GRAMS
+static uint_fast32_t occ4[1U << 20U];
 static struct alpha1_4gramv_s ngr4[countof(occ4)];
+#endif	/* WITH_4GRAMS */
 
 static ssize_t
 glangify_buf(const char *buf, const size_t bsz)
@@ -165,11 +167,13 @@ glangify_buf(const char *buf, const size_t bsz)
 		const uint_fast8_t b0 = buf[i + 0U];
 		const uint_fast8_t b1 = buf[i + 1U];
 		const uint_fast8_t b2 = buf[i + 2U];
-		const uint_fast8_t b3 = buf[i + 3U];
 		uint_fast32_t hx;
 		bool skip2 = false;
 		bool skip3 = false;
+#if defined WITH_4GRAMS
+		const uint_fast8_t b3 = buf[i + 3U];
 		bool skip4 = false;
+#endif	/* WITH_4GRAMS */
 
 		if (b0 < 0x80U) {
 			if (UNLIKELY(!xisalpha(b0))) {
@@ -214,7 +218,9 @@ glangify_buf(const char *buf, const size_t bsz)
 				/* don't want no non-alpha grams */
 				i += 2U;
 				skip3 = true;
+#if defined WITH_4GRAMS
 				skip4 = true;
+#endif	/* WITH_4GRAMS */
 			}
 		} else if (b2 >= 0xe0U) {
 			/* 3b or 4b seq */
@@ -224,6 +230,7 @@ glangify_buf(const char *buf, const size_t bsz)
 			skip3 = true;
 		}
 
+#if defined WITH_4GRAMS
 		if (b3 < 0x80U) {
 			if (UNLIKELY(!xisalpha(b3))) {
 				skip4 = true;
@@ -232,6 +239,7 @@ glangify_buf(const char *buf, const size_t bsz)
 			/* 2-octet sequence (or higher) coming up */
 			skip4 = true;
 		}
+#endif	/* WITH_4GRAMS */
 
 		/* start off with the first 2gram */
 		if (LIKELY(!skip2)) {
@@ -251,6 +259,7 @@ glangify_buf(const char *buf, const size_t bsz)
 				ngr3[h].v[k] = (alpha1_3gram_t){b0, b1, b2};
 			}
 		}
+#if defined WITH_4GRAMS
 		/* and the 4gram */
 		if (LIKELY(!skip4)) {
 			/* only interested in the top 20 bits */
@@ -260,6 +269,7 @@ glangify_buf(const char *buf, const size_t bsz)
 				ngr4[h].v[k] = (alpha1_4gram_t){b0, b1, b2, b3};
 			}
 		}
+#endif	/* WITH_4GRAMS */
 	}
 	return bsz - 1U;
 }
@@ -308,10 +318,12 @@ DEFCORU(co_glang, {
 	/* rinse */
 	memset(occ2, 0, sizeof(occ2));
 	memset(occ3, 0, sizeof(occ3));
-	memset(occ4, 0, sizeof(occ4));
 	memset(ngr2, 0, sizeof(ngr2));
 	memset(ngr3, 0, sizeof(ngr3));
+#if defined WITH_4GRAMS
+	memset(occ4, 0, sizeof(occ4));
 	memset(ngr4, 0, sizeof(ngr4));
+#endif	/* WITH_4GRAMS */
 
 	/* enter the main snarf loop */
 	do {
@@ -454,6 +466,7 @@ pr_rfreq(double least)
 		putchar('\n');
 	}
 
+#if defined WITH_4GRAMS
 	/* get sum */
 	sum = 0U;
 	for (size_t i = 0; i < countof(occ4); i++) {
@@ -476,6 +489,7 @@ pr_rfreq(double least)
 		}
 		putchar('\n');
 	}
+#endif	/* WITH_4GRAMS */
 	return;
 }
 #endif
