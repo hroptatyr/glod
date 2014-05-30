@@ -425,6 +425,9 @@ pr_rfreq(double least)
 	for (size_t i = 0; i < countof(occ2); i++) {
 		sum += occ2[i];
 	}
+	if (sum == 0U) {
+		return;
+	}
 	const double dsum2 = (double)sum;
 
 	for (size_t i = 0; i < countof(occ2); i++) {
@@ -447,6 +450,9 @@ pr_rfreq(double least)
 	sum = 0U;
 	for (size_t i = 0; i < countof(occ3); i++) {
 		sum += occ3[i];
+	}
+	if (sum == 0U) {
+		return;
 	}
 	const double dsum3 = (double)sum;
 
@@ -471,6 +477,9 @@ pr_rfreq(double least)
 	sum = 0U;
 	for (size_t i = 0; i < countof(occ4); i++) {
 		sum += occ4[i];
+	}
+	if (sum == 0U) {
+		return;
 	}
 	const double dsum4 = (double)sum;
 
