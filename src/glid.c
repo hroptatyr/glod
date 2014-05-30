@@ -383,38 +383,6 @@ glangify1(const char *fn)
 	return rc;
 }
 
-#if 0
-static void
-pr_rfreq(double confidence)
-{
-	uint_fast32_t sum = 0U;
-
-	for (size_t i = 0; i < countof(occ); i++) {
-		sum += occ[i];
-	}
-
-	/* get sum and 95% confidence */
-	const double dsum = (double)sum;
-	const uint_fast32_t _95 = ((1 - confidence) * dsum) / countof(occ);
-
-	for (size_t i = 0; i < countof(occ); i++) {
-		if (occ[i] < _95) {
-			/* insignificant */
-			continue;
-		}
-		printf("%03zx\t%f%%\t", i, 100. * (double)occ[i] / dsum);
-		for (size_t k = 0U, n = minz(occ[i], countof(ngr[i].v));
-		     k < n; k++) {
-			alpha1_4gram_t g = ngr[i].v[k];
-			printf("%c%c%c%c ",
-			       g.g[0U], g.g[1U],
-			       g.g[2U] ?: ' ', g.g[3U] ?: ' ');
-		}
-		putchar('\n');
-	}
-	return;
-}
-#else
 static void
 pr_rfreq(double least)
 {
@@ -501,7 +469,6 @@ pr_rfreq(double least)
 #endif	/* WITH_4GRAMS */
 	return;
 }
-#endif
 
 
 #include "glid.yucc"
