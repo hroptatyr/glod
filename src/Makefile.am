@@ -164,6 +164,15 @@ unpgbrk_CPPFLAGS += -D_GNU_SOURCE
 BUILT_SOURCES += unpgbrk.yucc
 
 
+noinst_PROGRAMS += glid
+glid_SOURCES = glid.c
+glid_SOURCES += glid.yuck
+glid_CPPFLAGS = $(AM_CPPFLAGS)
+glid_CPPFLAGS += -D_GNU_SOURCE
+glid_LDADD = libcoru.la
+BUILT_SOURCES += glid.yucc
+
+
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
 	$(AM_V_GEN) PATH="$(top_builddir)/build-aux:$${PATH}" \

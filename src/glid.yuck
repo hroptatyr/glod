@@ -1,0 +1,13 @@
+Usage: glid COMMAND [FILE]
+
+Guess language from terms presented in FILE (or stdin if omitted).
+
+
+Usage: glid show [FILE]...
+
+Show relative n-gram frequencies.
+
+  --least=F             Show results with relative frequency of
+                        at least F, default 0.1
+
+
