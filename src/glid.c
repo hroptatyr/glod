@@ -198,13 +198,15 @@ glangify_buf(const char *buf, const size_t bsz)
 		if (LIKELY(!skip2)) {
 			/* we're only interested in 10 bits, 5 for each char */
 			hx = hx_alpha1(b0, b1) & 0x3ffU;
-			with (const size_t h = hx, k = occ[h]++) {
+			with (const size_t h = hx,
+			      k = occ[h]++ % countof(_3g->v)) {
 				_3g[h].v[k] = (alpha1_3gram_t){b0, b1, 0U};
 			}
 		}
 		/* and now the 3gram */
 		hx = hx_alpha1(hx & 0xffU, b2);
-		with (const size_t h = hx % countof(occ), k = occ[h]++) {
+		with (const size_t h = hx % countof(occ),
+		      k = occ[h]++ % countof(_3g->v)) {
 			_3g[h].v[k] = (alpha1_3gram_t){b0, b1, b2};
 		}
 	}
