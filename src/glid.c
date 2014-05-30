@@ -359,13 +359,12 @@ glangify1(const char *fn)
 	for (size_t i = 0; i < countof(occ); i++) {
 		sum += occ[i];
 	}
+	/* get sum and 95% quantile */
 	const double dsum = (double)sum;
-	for (size_t i = 0; i < countof(occ); i++) {
-		double rel;
+	const uint_fast32_t _95 = (uint_fast32_t)(0.05 * dsum) / countof(occ);
 
-		if (occ[i] == 0U) {
-			continue;
-		} else if ((rel = 100. * (double)occ[i] / dsum) < 0.1) {
+	for (size_t i = 0; i < countof(occ); i++) {
+		if (occ[i] < _95) {
 			/* insignificant */
 			continue;
 		}
