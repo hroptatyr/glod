@@ -146,8 +146,12 @@ hx_alpha1(uint_fast32_t a0, uint_fast32_t a1)
 }
 
 
-static uint_fast32_t occ[4096U];
-static struct alpha1_4gramv_s ngr[countof(occ)];
+static uint_fast32_t occ2[1U << 10U];
+static uint_fast32_t occ3[1U << 15U];
+static uint_fast32_t occ4[1U << 20U];
+static struct alpha1_2gramv_s ngr2[countof(occ2)];
+static struct alpha1_3gramv_s ngr3[countof(occ3)];
+static struct alpha1_4gramv_s ngr4[countof(occ4)];
 
 static ssize_t
 glangify_buf(const char *buf, const size_t bsz)
@@ -233,27 +237,27 @@ glangify_buf(const char *buf, const size_t bsz)
 		if (LIKELY(!skip2)) {
 			/* we're only interested in 10 bits, 5 for each char */
 			hx = hx_alpha1(b0, b1) & 0x3ffU;
-			with (const size_t h = hx,
-			      k = occ[h]++ % countof(ngr->v)) {
-				ngr[h].v[k] = (alpha1_4gram_t){b0, b1, 0U, 0U};
+			with (const size_t h = hx % countof(occ2),
+			      k = occ2[h]++ % countof(ngr2->v)) {
+				ngr2[h].v[k] = (alpha1_2gram_t){b0, b1};
 			}
 		}
 		/* and now the 3gram */
 		if (LIKELY(!skip3)) {
 			/* only interested in the top 15 bits */
 			hx = hx_alpha1(hx, b2) & 0x7fffU;
-			with (const size_t h = hx % countof(occ),
-			      k = occ[h]++ % countof(ngr->v)) {
-				ngr[h].v[k] = (alpha1_4gram_t){b0, b1, b2, 0U};
+			with (const size_t h = hx % countof(occ3),
+			      k = occ3[h]++ % countof(ngr3->v)) {
+				ngr3[h].v[k] = (alpha1_3gram_t){b0, b1, b2};
 			}
 		}
 		/* and the 4gram */
 		if (LIKELY(!skip4)) {
-			/* only interested in the top 15 bits */
-			hx = hx_alpha1(hx, b3);
-			with (const size_t h = hx % countof(occ),
-			      k = occ[h]++ % countof(ngr->v)) {
-				ngr[h].v[k] = (alpha1_4gram_t){b0, b1, b2, b3};
+			/* only interested in the top 20 bits */
+			hx = hx_alpha1(hx, b3) & 0xfffffU;
+			with (const size_t h = hx % countof(occ4),
+			      k = occ4[h]++ % countof(ngr4->v)) {
+				ngr4[h].v[k] = (alpha1_4gram_t){b0, b1, b2, b3};
 			}
 		}
 	}
@@ -302,8 +306,12 @@ DEFCORU(co_glang, {
 	ssize_t npr;
 
 	/* rinse */
-	memset(occ, 0, sizeof(occ));
-	memset(ngr, 0, sizeof(ngr));
+	memset(occ2, 0, sizeof(occ2));
+	memset(occ3, 0, sizeof(occ3));
+	memset(occ4, 0, sizeof(occ4));
+	memset(ngr2, 0, sizeof(ngr2));
+	memset(ngr3, 0, sizeof(ngr3));
+	memset(ngr4, 0, sizeof(ngr4));
 
 	/* enter the main snarf loop */
 	do {
@@ -363,6 +371,7 @@ glangify1(const char *fn)
 	return rc;
 }
 
+#if 0
 static void
 pr_rfreq(double confidence)
 {
@@ -393,6 +402,83 @@ pr_rfreq(double confidence)
 	}
 	return;
 }
+#else
+static void
+pr_rfreq(double least)
+{
+	uint_fast32_t sum;
+
+	/* get sum */
+	sum = 0U;
+	for (size_t i = 0; i < countof(occ2); i++) {
+		sum += occ2[i];
+	}
+	const double dsum2 = (double)sum;
+
+	for (size_t i = 0; i < countof(occ2); i++) {
+		const double rel = occ2[i] * 100. / dsum2;
+
+		if (rel < least) {
+			/* insignificant */
+			continue;
+		}
+		printf("2:%03zx\t%f%%\t", i, rel);
+		for (size_t k = 0U, n = minz(occ2[i], countof(ngr2[i].v));
+		     k < n; k++) {
+			alpha1_2gram_t g = ngr2[i].v[k];
+			printf(" %.*s", 2, g.g);
+		}
+		putchar('\n');
+	}
+
+	/* get sum */
+	sum = 0U;
+	for (size_t i = 0; i < countof(occ3); i++) {
+		sum += occ3[i];
+	}
+	const double dsum3 = (double)sum;
+
+	for (size_t i = 0; i < countof(occ3); i++) {
+		const double rel = occ3[i] * 100. / dsum3;
+
+		if (rel < least) {
+			/* insignificant */
+			continue;
+		}
+		printf("3:%03zx\t%f%%\t", i, rel);
+		for (size_t k = 0U, n = minz(occ3[i], countof(ngr3[i].v));
+		     k < n; k++) {
+			alpha1_3gram_t g = ngr3[i].v[k];
+			printf(" %.*s", 3, g.g);
+		}
+		putchar('\n');
+	}
+
+	/* get sum */
+	sum = 0U;
+	for (size_t i = 0; i < countof(occ4); i++) {
+		sum += occ4[i];
+	}
+	const double dsum4 = (double)sum;
+
+	for (size_t i = 0; i < countof(occ4); i++) {
+		const double rel = occ4[i] * 100. / dsum4;
+
+		if (rel < least) {
+			/* insignificant */
+			continue;
+		}
+		printf("4:%03zx\t%f%%\t", i, rel);
+		for (size_t k = 0U, n = minz(occ4[i], countof(ngr4[i].v));
+		     k < n; k++) {
+			alpha1_4gram_t g = ngr4[i].v[k];
+			printf(" %.*s", 4, g.g);
+		}
+		putchar('\n');
+	}
+	return;
+}
+#endif
 
 
 #include "glid.yucc"
@@ -401,11 +487,11 @@ static int
 cmd_show(struct yuck_cmd_show_s argi[static 1U])
 {
 	int rc = 0;
-	double conf = 0.05;
+	double least = 0.1;
 
-	if (argi->confidence_arg) {
-		if ((conf = strtod(argi->confidence_arg, NULL)) <= 0.0) {
-			error("Error: confidence must be positive");
+	if (argi->least_arg) {
+		if ((least = strtod(argi->least_arg, NULL)) <= 0.0) {
+			error("Error: argument to --least must be positive");
 			return 1;
 		}
 	}
@@ -415,7 +501,7 @@ cmd_show(struct yuck_cmd_show_s argi[static 1U])
 		if (glangify1(NULL) < 0) {
 			rc = 1;
 		}
-		pr_rfreq(conf);
+		pr_rfreq(least);
 		return rc;
 	}
 
@@ -426,7 +512,7 @@ cmd_show(struct yuck_cmd_show_s argi[static 1U])
 		if (glangify1(file) < 0) {
 			rc = 1;
 		}
-		pr_rfreq(conf);
+		pr_rfreq(least);
 	}
 	return rc;
 }
