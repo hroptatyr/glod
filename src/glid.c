@@ -91,15 +91,15 @@ typedef struct {
 } alpha1_4gram_t;
 
 struct alpha1_2gramv_s {
-	alpha1_2gram_t v[16U];
+	alpha1_2gram_t v[1U];
 };
 
 struct alpha1_3gramv_s {
-	alpha1_3gram_t v[16U];
+	alpha1_3gram_t v[1U];
 };
 
 struct alpha1_4gramv_s {
-	alpha1_4gram_t v[16U];
+	alpha1_4gram_t v[1U];
 };
 
 
