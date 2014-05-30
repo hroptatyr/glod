@@ -301,6 +301,10 @@ DEFCORU(co_glang, {
 	size_t nrd = bsz;
 	ssize_t npr;
 
+	/* rinse */
+	memset(occ, 0, sizeof(occ));
+	memset(ngr, 0, sizeof(ngr));
+
 	/* enter the main snarf loop */
 	do {
 		if ((npr = glangify_buf(buf, nrd)) < 0) {
