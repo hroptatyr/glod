@@ -86,12 +86,20 @@ typedef struct {
 	char g[3U];
 } alpha1_3gram_t;
 
+typedef struct {
+	char g[4U];
+} alpha1_4gram_t;
+
 struct alpha1_2gramv_s {
 	alpha1_2gram_t v[16U];
 };
 
 struct alpha1_3gramv_s {
 	alpha1_3gram_t v[16U];
+};
+
+struct alpha1_4gramv_s {
+	alpha1_4gram_t v[16U];
 };
 
 
@@ -139,7 +147,7 @@ hx_alpha1(uint_fast32_t a0, uint_fast32_t a1)
 
 
 static uint_fast32_t occ[4096U];
-static struct alpha1_3gramv_s _3g[countof(occ)];
+static struct alpha1_4gramv_s ngr[countof(occ)];
 
 static ssize_t
 glangify_buf(const char *buf, const size_t bsz)
@@ -149,12 +157,15 @@ glangify_buf(const char *buf, const size_t bsz)
 		return 0;
 	}
 	/* pretend we've done it all */
-	for (size_t i = 0U; i < bsz - 2U; i++) {
+	for (size_t i = 0U; i < bsz - 1U; i++) {
 		const uint_fast8_t b0 = buf[i + 0U];
 		const uint_fast8_t b1 = buf[i + 1U];
 		const uint_fast8_t b2 = buf[i + 2U];
+		const uint_fast8_t b3 = buf[i + 3U];
 		uint_fast32_t hx;
 		bool skip2 = false;
+		bool skip3 = false;
+		bool skip4 = false;
 
 		if (b0 < 0x80U) {
 			if (UNLIKELY(!xisalpha(b0))) {
@@ -166,8 +177,13 @@ glangify_buf(const char *buf, const size_t bsz)
 			continue;
 		} else if (b0 >= 0xf0U) {
 			/* 4-octet sequence */
+			i += 3U;
+			skip2 = true;
+			skip3 = true;
+		} else if (b0 >= 0xe0U) {
+			/* 3-octet sequence */
 			i += 2U;
-			continue;
+			skip2 = true;
 		}
 
 		if (b1 < 0x80U) {
@@ -176,22 +192,41 @@ glangify_buf(const char *buf, const size_t bsz)
 				i++;
 				continue;
 			}
-		} else if (b1 >= 0xc0U) {
-			skip2 = true;
-		} else if (b1 >= 0xe0U) {
-			/* 3-octet sequence (or higher) coming up */
+		} else if (b1 >= 0xf0U) {
+			/* 4b seq */
+			i += 3U;
 			continue;
+		} else if (b1 >= 0xe0U) {
+			/* 3b seq */
+			skip2 = true;
+			skip3 = true;
+		} else if (b1 >= 0xc0U) {
+			/* 2b seq */
+			skip2 = true;
 		}
 
 		if (b2 < 0x80U) {
 			if (UNLIKELY(!xisalpha(b2))) {
 				/* don't want no non-alpha grams */
 				i += 2U;
-				continue;
+				skip3 = true;
+				skip4 = true;
+			}
+		} else if (b2 >= 0xe0U) {
+			/* 3b or 4b seq */
+			skip3 = true;
+		} else if (b2 >= 0xc0U) {
+			/* 2b seq coming */
+			skip3 = true;
+		}
+
+		if (b3 < 0x80U) {
+			if (UNLIKELY(!xisalpha(b3))) {
+				skip4 = true;
 			}
 		} else if (b2 >= 0xc0U) {
 			/* 2-octet sequence (or higher) coming up */
-			continue;
+			skip4 = true;
 		}
 
 		/* start off with the first 2gram */
@@ -199,18 +234,30 @@ glangify_buf(const char *buf, const size_t bsz)
 			/* we're only interested in 10 bits, 5 for each char */
 			hx = hx_alpha1(b0, b1) & 0x3ffU;
 			with (const size_t h = hx,
-			      k = occ[h]++ % countof(_3g->v)) {
-				_3g[h].v[k] = (alpha1_3gram_t){b0, b1, 0U};
+			      k = occ[h]++ % countof(ngr->v)) {
+				ngr[h].v[k] = (alpha1_4gram_t){b0, b1, 0U, 0U};
 			}
 		}
 		/* and now the 3gram */
-		hx = hx_alpha1(hx & 0xffU, b2);
-		with (const size_t h = hx % countof(occ),
-		      k = occ[h]++ % countof(_3g->v)) {
-			_3g[h].v[k] = (alpha1_3gram_t){b0, b1, b2};
+		if (LIKELY(!skip3)) {
+			/* only interested in the top 15 bits */
+			hx = hx_alpha1(hx, b2) & 0x7fffU;
+			with (const size_t h = hx % countof(occ),
+			      k = occ[h]++ % countof(ngr->v)) {
+				ngr[h].v[k] = (alpha1_4gram_t){b0, b1, b2, 0U};
+			}
+		}
+		/* and the 4gram */
+		if (LIKELY(!skip4)) {
+			/* only interested in the top 15 bits */
+			hx = hx_alpha1(hx, b3);
+			with (const size_t h = hx % countof(occ),
+			      k = occ[h]++ % countof(ngr->v)) {
+				ngr[h].v[k] = (alpha1_4gram_t){b0, b1, b2, b3};
+			}
 		}
 	}
-	return bsz - 2U;
+	return bsz - 1U;
 }
 
 
@@ -267,7 +314,7 @@ DEFCORU(co_glang, {
 static int
 glangify1(const char *fn)
 {
-	static char buf[4096U];
+	static char buf[4096U + 4U];
 	struct cocore *snarf;
 	struct cocore *glang;
 	struct cocore *self;
@@ -288,7 +335,7 @@ glangify1(const char *fn)
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
-	npr = sizeof(buf);
+	npr = sizeof(buf) - 4U;
 	do {
 		/* technically we could let the corus flip-flop call each other
 		 * but we'd like to filter bad input right away */
@@ -322,11 +369,13 @@ glangify1(const char *fn)
 			/* insignificant */
 			continue;
 		}
-		printf("%03zx\t%f%%", i, 100. * (double)occ[i] / dsum);
-		for (size_t k = 0U, n = minz(occ[i], countof(_3g[i].v));
+		printf("%03zx\t%f%%\t", i, 100. * (double)occ[i] / dsum);
+		for (size_t k = 0U, n = minz(occ[i], countof(ngr[i].v));
 		     k < n; k++) {
-			alpha1_3gram_t g = _3g[i].v[k];
-			printf("\t%c%c%c", g.g[0U], g.g[1U], g.g[2U] ?: ' ');
+			alpha1_4gram_t g = ngr[i].v[k];
+			printf("%c%c%c%c ",
+			       g.g[0U], g.g[1U],
+			       g.g[2U] ?: ' ', g.g[3U] ?: ' ');
 		}
 		putchar('\n');
 	}
