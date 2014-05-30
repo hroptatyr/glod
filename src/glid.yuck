@@ -1,4 +1,10 @@
-Usage: glang [FILE]
+Usage: glid COMMAND [FILE]
 
 Guess language from terms presented in FILE (or stdin if omitted).
 
+
+Usage: glid show [FILE]...
+
+Show relative n-gram frequencies.
+
+

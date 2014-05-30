@@ -308,11 +308,21 @@ glangify1(const char *fn)
 	UNPREP();
 
 	/* print 2grams and 3grams */
+	uint_fast32_t sum = 0U;
 	for (size_t i = 0; i < countof(occ); i++) {
+		sum += occ[i];
+	}
+	const double dsum = (double)sum;
+	for (size_t i = 0; i < countof(occ); i++) {
+		double rel;
+
 		if (occ[i] == 0U) {
 			continue;
+		} else if ((rel = 100. * (double)occ[i] / dsum) < 0.1) {
+			/* insignificant */
+			continue;
 		}
-		printf("%03zx\t%lu", i, occ[i]);
+		printf("%03zx\t%f%%", i, 100. * (double)occ[i] / dsum);
 		for (size_t k = 0U, n = minz(occ[i], countof(_3g[i].v));
 		     k < n; k++) {
 			alpha1_3gram_t g = _3g[i].v[k];
@@ -327,7 +337,31 @@ glangify1(const char *fn)
 }
 
 
-#include "glang.yucc"
+#include "glid.yucc"
+
+static int
+cmd_show(struct yuck_cmd_show_s argi[static 1U])
+{
+	int rc = 0;
+
+	/* process stdin? */
+	if (!argi->nargs) {
+		if (glangify1(NULL) < 0) {
+			rc = 1;
+		}
+		return rc;
+	}
+
+	/* process files given on the command line */
+	for (size_t i = 0U; i < argi->nargs; i++) {
+		const char *file = argi->args[i];
+
+		if (glangify1(file) < 0) {
+			rc = 1;
+		}
+	}
+	return rc;
+}
 
 int
 main(int argc, char *argv[])
@@ -343,21 +377,11 @@ main(int argc, char *argv[])
 	/* get the coroutines going */
 	initialise_cocore();
 
-	/* process stdin? */
-	if (!argi->nargs) {
-		if (glangify1(NULL) < 0) {
-			rc = 1;
-		}
-		goto out;
-	}
-
-	/* process files given on the command line */
-	for (size_t i = 0U; i < argi->nargs; i++) {
-		const char *file = argi->args[i];
-
-		if (glangify1(file) < 0) {
-			rc = 1;
-		}
+	switch (argi->cmd) {
+	case GLID_CMD_SHOW:
+	default:
+		rc = cmd_show((struct yuck_cmd_show_s*)argi);
+		break;
 	}
 
 out:
