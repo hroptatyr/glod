@@ -7,4 +7,6 @@ Usage: glid show [FILE]...
 
 Show relative n-gram frequencies.
 
+  --confidence=F  Set confidence interval to F, default 0.95
+
 

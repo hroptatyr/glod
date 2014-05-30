@@ -358,14 +358,23 @@ glangify1(const char *fn)
 
 	UNPREP();
 
-	/* print 2grams and 3grams */
+	/* close descriptor */
+	close(fd);
+	return rc;
+}
+
+static void
+pr_rfreq(double confidence)
+{
 	uint_fast32_t sum = 0U;
+
 	for (size_t i = 0; i < countof(occ); i++) {
 		sum += occ[i];
 	}
-	/* get sum and 95% quantile */
+
+	/* get sum and 95% confidence */
 	const double dsum = (double)sum;
-	const uint_fast32_t _95 = (uint_fast32_t)(0.05 * dsum) / countof(occ);
+	const uint_fast32_t _95 = ((1 - confidence) * dsum) / countof(occ);
 
 	for (size_t i = 0; i < countof(occ); i++) {
 		if (occ[i] < _95) {
@@ -382,10 +391,7 @@ glangify1(const char *fn)
 		}
 		putchar('\n');
 	}
-
-	/* close descriptor */
-	close(fd);
-	return rc;
+	return;
 }
 
 
@@ -395,12 +401,21 @@ static int
 cmd_show(struct yuck_cmd_show_s argi[static 1U])
 {
 	int rc = 0;
+	double conf = 0.05;
+
+	if (argi->confidence_arg) {
+		if ((conf = strtod(argi->confidence_arg, NULL)) <= 0.0) {
+			error("Error: confidence must be positive");
+			return 1;
+		}
+	}
 
 	/* process stdin? */
 	if (!argi->nargs) {
 		if (glangify1(NULL) < 0) {
 			rc = 1;
 		}
+		pr_rfreq(conf);
 		return rc;
 	}
 
@@ -411,6 +426,7 @@ cmd_show(struct yuck_cmd_show_s argi[static 1U])
 		if (glangify1(file) < 0) {
 			rc = 1;
 		}
+		pr_rfreq(conf);
 	}
 	return rc;
 }
