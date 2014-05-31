@@ -89,6 +89,15 @@ EXTRA_libcoru_la_SOURCES += coru/switch-ppc_osx.c
 EXTRA_libcoru_la_SOURCES += coru/switch-x86.c
 EXTRA_libcoru_la_SOURCES += coru/switch-x86_64.c
 
+noinst_LTLIBRARIES += libbloom.la
+libbloom_la_SOURCES =
+libbloom_la_SOURCES += libbloom/bloom.c libbloom/bloom.h
+libbloom_la_SOURCES += libbloom/bitmap.c libbloom/bitmap.h
+libbloom_la_SOURCES += libbloom/murmur.c libbloom/murmur.h
+libbloom_la_SOURCES += libbloom/spooky.c libbloom/spooky.h
+libbloom_la_CPPFLAGS = $(AM_CPPFLAGS)
+libbloom_la_CPPFLAGS += -I$(srcdir)/libbloom
+
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
