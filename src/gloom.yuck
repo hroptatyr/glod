@@ -1,0 +1,8 @@
+Usage: gloom COMMAND [FILE]
+
+Operate on bloom filters.
+
+
+Usage: gloom add [FILE]...
+
+Run FILE through bloom filter.

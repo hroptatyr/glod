@@ -181,6 +181,15 @@ glid_CPPFLAGS += -D_GNU_SOURCE
 glid_LDADD = libcoru.la
 BUILT_SOURCES += glid.yucc
 
+noinst_PROGRAMS += gloom
+gloom_SOURCES = gloom.c
+gloom_SOURCES += gloom.yuck
+gloom_CPPFLAGS = $(AM_CPPFLAGS)
+gloom_CPPFLAGS += -D_GNU_SOURCE
+gloom_LDADD = libcoru.la
+gloom_LDADD += libbloom.la
+BUILT_SOURCES += gloom.yucc
+
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
