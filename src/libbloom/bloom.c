@@ -5,14 +5,13 @@
 #include <stdio.h>
 #include <syslog.h>
 #include "bloom.h"
+#include "murmur.h"
+#include "spooky.h"
 
 /*
  * Static definitions
  */
 static const uint32_t MAGIC_HEADER = 0xCB1005DD;  // Vaguely like CBLOOMDD
-extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
-extern void SpookyHash128(const void *key, size_t len, uint64_t seed1, uint64_t seed2,
-        uint64_t *hash1, uint64_t *hash2);
 
 /**
  * Creates a new bloom filter using a given bitmap and k-value.
@@ -312,7 +311,7 @@ void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes) {
     // Compute the second hash
     uint64_t *hash1 = (uint64_t*)&out;
     uint64_t *hash2 = hash1+1;
-    SpookyHash128(key, len, 0, 0, hash1, hash2);
+    SpookyHash128(key, len, hash1, hash2);
 
     // Copy these out
     hashes[2] = out[0];   // Use the upper 64bits of Spooky
