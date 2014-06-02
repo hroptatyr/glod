@@ -128,7 +128,7 @@ bf_init(bloom_bitmap *map, unsigned int k_num)
 	}
 
 	/* set header in map */
-	memcpy(map, &h, sizeof(h));
+	memcpy(map->mmap, &h, sizeof(h));
 
 	/* Since this is a new filter, force a flush of
 	 * the headers. This mainly affects bitmaps that
