@@ -187,7 +187,7 @@ gloom_SOURCES += gloom.yuck
 gloom_CPPFLAGS = $(AM_CPPFLAGS)
 gloom_CPPFLAGS += -D_GNU_SOURCE
 gloom_LDADD = libcoru.la
-gloom_LDADD += libbloom.la
+gloom_LDADD += libbloom.la -lm
 BUILT_SOURCES += gloom.yucc
 
 
