@@ -103,6 +103,31 @@ error(const char *fmt, ...)
 static const char dflt_bffn[] = "gloom.bf";
 
 static int
+cmd_init(struct yuck_cmd_init_s argi[static 1U])
+{
+	bloom_bitmap m[1U];
+	const char *fn = argi->filter_arg ?: dflt_bffn;
+	int rc = 0;
+	int fd;
+
+	if ((fd = open(fn, O_CREAT | O_TRUNC | O_RDWR, 0644)) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		rc = 1;
+		goto out;
+	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		rc = 1;
+		goto out;
+	} else if (bf_init(m, 17) < 0) {
+		error("Error: file `%s' is not a valid filter file", fn);
+		rc = 1;
+	}
+	bitmap_close(m);
+out:
+	return rc;
+}
+
+static int
 cmd_add(struct yuck_cmd_add_s argi[static 1U])
 {
 	bloom_bitmap m[1U];
@@ -191,6 +216,9 @@ main(int argc, char *argv[])
 	initialise_cocore();
 
 	switch (argi->cmd) {
+	case GLOOM_CMD_INIT:
+		rc = cmd_init((struct yuck_cmd_init_s*)argi);
+		break;
 	case GLOOM_CMD_ADD:
 		rc = cmd_add((struct yuck_cmd_add_s*)argi);
 		break;
