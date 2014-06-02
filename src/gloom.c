@@ -120,7 +120,7 @@ cmd_add(struct yuck_cmd_add_s argi[static 1U])
 	} else if ((rc = bitmap_from_file(fd, 4194304U, PERSISTENT, m)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		goto out;
-	} else if ((rc = bf_from_bitmap(m, 17, 1, f)) < 0) {
+	} else if ((rc = bf_from_bitmap(m, 17, 0, f)) < 0) {
 		error("Error: file `%s' is not a valid filter file", fn);
 		goto bm_out;
 	}
@@ -128,6 +128,43 @@ cmd_add(struct yuck_cmd_add_s argi[static 1U])
 	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
 		line[--nrd] = '\0';
 		bf_add(f, line);
+	}
+	free(line);
+	bf_close(f);
+bm_out:
+	bitmap_close(m);
+out:
+	return rc;
+}
+
+static int
+cmd_has(struct yuck_cmd_has_s argi[static 1U])
+{
+	int rc;
+	bloom_bitmap m[1U];
+	bloom_bloomfilter f[1U];
+	char *line = NULL;
+	size_t llen =  0UL;
+	const char *fn = argi->filter_arg ?: dflt_bffn;
+	int fd;
+
+	if ((fd = open(fn, O_RDONLY)) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		rc = -1;
+		goto out;
+	} else if ((rc = bitmap_from_file(fd, 4194304U, PERSISTENT, m)) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		goto out;
+	} else if ((rc = bf_from_bitmap(m, 17, 0, f)) < 0) {
+		error("Error: file `%s' is not a valid filter file", fn);
+		goto bm_out;
+	}
+
+	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
+		line[--nrd] = '\0';
+		if (bf_contains(f, line) > 0) {
+			puts(line);
+		}
 	}
 	free(line);
 	bf_close(f);
@@ -154,6 +191,9 @@ main(int argc, char *argv[])
 	switch (argi->cmd) {
 	case GLOOM_CMD_ADD:
 		rc = cmd_add((struct yuck_cmd_add_s*)argi);
+		break;
+	case GLOOM_CMD_HAS:
+		rc = cmd_has((struct yuck_cmd_has_s*)argi);
 		break;
 	default:
 		rc = 1;
