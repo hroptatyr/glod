@@ -28,21 +28,8 @@ typedef struct {
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *map);
-
-/**
- * Returns a bloom_bitmap pointer from a filename.
- * Opens the file with read/write privileges. If create
- * is true, then a file will be created if it does not exist.
- * If the file cannot be opened, NULL will be returned.
- * @arg fileno The fileno
- * @arg len The length of the bitmap in bytes.
- * @arg create If 1, then the file will be created if it does not exist.
- * @arg mode The mode to use for the bitmap.
- * @arg map The output map. Will be initialized.
- * @return 0 on success. Negative on error.
- */
-int bitmap_from_filename(char* filename, uint64_t len, int create, bitmap_mode mode, bloom_bitmap *map);
+extern int
+bitmap_from_file(int fd, size_t len, bitmap_mode mode, bloom_bitmap *map);
 
 /**
  * Flushes the bitmap back to disk. This is
