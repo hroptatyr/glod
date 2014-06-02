@@ -112,8 +112,7 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 
 	if ((fd = open(fn, O_CREAT | O_TRUNC | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
-		rc = 1;
-		goto out;
+		return 1;
 	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
@@ -124,6 +123,7 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 	}
 	bitmap_close(m);
 out:
+	close(fd);
 	return rc;
 }
 
@@ -140,8 +140,7 @@ cmd_add(struct yuck_cmd_add_s argi[static 1U])
 
 	if ((fd = open(fn, O_CREAT | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
-		rc = 1;
-		goto out;
+		return 1;
 	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
@@ -160,6 +159,7 @@ cmd_add(struct yuck_cmd_add_s argi[static 1U])
 	free(line);
 	bf_close(f);
 out:
+	close(fd);
 	return rc;
 }
 
@@ -176,8 +176,7 @@ cmd_has(struct yuck_cmd_has_s argi[static 1U])
 
 	if ((fd = open(fn, O_RDONLY)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
-		rc = 1;
-		goto out;
+		return 1;
 	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
@@ -198,6 +197,7 @@ cmd_has(struct yuck_cmd_has_s argi[static 1U])
 	free(line);
 	bf_close(f);
 out:
+	close(fd);
 	return rc;
 }
 
