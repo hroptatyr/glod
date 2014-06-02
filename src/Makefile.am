@@ -1,6 +1,6 @@
 ### Makefile.am -- glod src/ make file
 ##
-## Copyright (C) 2010-2013 Sebastian Freundt
+## Copyright (C) 2010-2014 Sebastian Freundt
 ##
 ## Author:  Sebastian Freundt <hroptatyr@fresse.org>
 ##
@@ -187,7 +187,7 @@ gloom_SOURCES += gloom.yuck
 gloom_CPPFLAGS = $(AM_CPPFLAGS)
 gloom_CPPFLAGS += -D_GNU_SOURCE
 gloom_LDADD = libcoru.la
-gloom_LDADD += libbloom.la
+gloom_LDADD += libbloom.la -lm
 BUILT_SOURCES += gloom.yucc
 
 
