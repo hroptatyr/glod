@@ -451,6 +451,11 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		ill:;
 			const ptrdiff_t rngb = (const char*)sp - buf;
 
+			if (bp >= ep) {
+				/* just quietly return */
+				res = rngb;
+				break;
+			}
 			fprintf(stderr, "\
 illegal character sequence @%td (0x%tx):", rngb, rngb);
 			for (const unsigned char *xp = sp; xp < bp; xp++) {
