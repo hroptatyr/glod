@@ -1,0 +1,20 @@
+Usage: gloom COMMAND [FILE]
+
+Operate on bloom filters.
+
+  -f, --filter=FILE     Use bloom filter in FILE, default gloom.bf
+
+
+Usage: gloom init
+
+Initialise filter file.
+
+
+Usage: gloom add [FILE]...
+
+Add terms from FILE (or stdin) to bloom filter.
+
+
+Usage: gloom has [FILE]...
+
+Shows terms from FILE (or stdin) the bloom filter (probably) has.

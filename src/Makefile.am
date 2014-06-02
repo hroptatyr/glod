@@ -89,6 +89,15 @@ EXTRA_libcoru_la_SOURCES += coru/switch-ppc_osx.c
 EXTRA_libcoru_la_SOURCES += coru/switch-x86.c
 EXTRA_libcoru_la_SOURCES += coru/switch-x86_64.c
 
+noinst_LTLIBRARIES += libbloom.la
+libbloom_la_SOURCES =
+libbloom_la_SOURCES += libbloom/bloom.c libbloom/bloom.h
+libbloom_la_SOURCES += libbloom/bitmap.c libbloom/bitmap.h
+libbloom_la_SOURCES += libbloom/murmur.c libbloom/murmur.h
+libbloom_la_SOURCES += libbloom/spooky.c libbloom/spooky.h
+libbloom_la_CPPFLAGS = $(AM_CPPFLAGS)
+libbloom_la_CPPFLAGS += -I$(srcdir)/libbloom
+
 
 bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
@@ -171,6 +180,15 @@ glid_CPPFLAGS = $(AM_CPPFLAGS)
 glid_CPPFLAGS += -D_GNU_SOURCE
 glid_LDADD = libcoru.la
 BUILT_SOURCES += glid.yucc
+
+noinst_PROGRAMS += gloom
+gloom_SOURCES = gloom.c
+gloom_SOURCES += gloom.yuck
+gloom_CPPFLAGS = $(AM_CPPFLAGS)
+gloom_CPPFLAGS += -D_GNU_SOURCE
+gloom_LDADD = libcoru.la
+gloom_LDADD += libbloom.la
+BUILT_SOURCES += gloom.yucc
 
 
 ## version rules
