@@ -175,10 +175,16 @@ bitmap_from_file(int fileno, size_t len, bitmap_mode mode, bloom_bitmap *map)
 		} else if ((fd = dup(fileno)) < 0) {
 			return -1;
 		}
-		flags = (mode == SHARED)
-			? MAP_SHARED
-			: (MAP_ANON | MAP_PRIVATE);
-		prot = PROT_READ | ((tmp & O_RDWR) ? PROT_WRITE : 0);
+		switch (mode) {
+		case SHARED:
+			flags = MAP_SHARED;
+			prot = PROT_READ | ((tmp & O_RDWR) ? PROT_WRITE : 0);
+			break;
+		case PERSISTENT:
+			flags = MAP_ANON | MAP_PRIVATE;
+			prot = PROT_READ | PROT_WRITE;
+			break;
+		}
 		break;
 
 	case ANONYMOUS:
