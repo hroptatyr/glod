@@ -1,6 +1,6 @@
 ### Makefile.am -- glod src/ make file
 ##
-## Copyright (C) 2010-2013 Sebastian Freundt
+## Copyright (C) 2010-2014 Sebastian Freundt
 ##
 ## Author:  Sebastian Freundt <hroptatyr@fresse.org>
 ##
