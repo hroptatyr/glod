@@ -2,7 +2,9 @@ Usage: gloom COMMAND [FILE]
 
 Operate on bloom filters.
 
+  -f, --filter=FILE     Use bloom filter in FILE, default gloom.bf
+
 
 Usage: gloom add [FILE]...
 
-Run FILE through bloom filter.
+Add terms from FILE (or stdin) to bloom filter.

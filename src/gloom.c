@@ -100,36 +100,40 @@ error(const char *fmt, ...)
 
 
 #include "gloom.yucc"
+static const char dflt_bffn[] = "gloom.bf";
 
 static int
 cmd_add(struct yuck_cmd_add_s argi[static 1U])
 {
-	int rc = 0;
+	int rc;
 	bloom_bitmap m[1U];
 	bloom_bloomfilter f[1U];
 	char *line = NULL;
 	size_t llen =  0UL;
+	const char *fn = argi->filter_arg ?: dflt_bffn;
+	int fd;
 
-	rc += bitmap_from_filename("test.bf", 4194304, 1, PERSISTENT | NEW_BITMAP, m);
-	if (rc) {
-		printf("bm_from_fn() no go %d\n", rc);
-		goto cunt_off;
-	}
-
-	rc += bf_from_bitmap(m, 17, 1, f);
-	if (rc) {
-		printf("no go %d\n", rc);
-		goto cunt_off;
+	if ((fd = open(fn, O_CREAT | O_RDWR, 0644)) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		rc = -1;
+		goto out;
+	} else if ((rc = bitmap_from_file(fd, 4194304U, PERSISTENT, m)) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		goto out;
+	} else if ((rc = bf_from_bitmap(m, 17, 1, f)) < 0) {
+		error("Error: file `%s' is not a valid filter file", fn);
+		goto bm_out;
 	}
 
 	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
 		line[--nrd] = '\0';
 		bf_add(f, line);
 	}
-cunt_off:
-	bf_close(f);
-	bitmap_close(m);
 	free(line);
+	bf_close(f);
+bm_out:
+	bitmap_close(m);
+out:
 	return rc;
 }
 
