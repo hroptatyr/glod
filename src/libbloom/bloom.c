@@ -90,7 +90,7 @@ bf_internal_contains(bloom_filter *filter, const uint64_t *hashes)
 		const uint64_t h = hashes[i];
 		/* and partition offset */
 		const uint64_t offset =
-			BITS_PER_UF8 * sizeof(filter->header) + i * m;
+			BITS_PER_UF8 * sizeof(*filter->header) + i * m;
 		/* Compute the bit offset */
 		const idx_t bit = offset + (h % m);
 
