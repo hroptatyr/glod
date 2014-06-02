@@ -8,6 +8,10 @@
 #include "murmur.h"
 #include "spooky.h"
 
+#if !defined countof
+# define countof(x)	(sizeof(x) / sizeof(*x))
+#endif	/* !countof */
+
 /**
  * We use a magic header to identify the bloom filters.
  */
@@ -185,11 +189,11 @@ bf_from_bitmap(bloom_bitmap *map, bloom_filter *filter)
 int bf_add(bloom_filter *filter, char* key)
 {
 	// Allocate the hash space
-	uint64_t hashes[filter->header->k_num * sizeof(uint64_t)];
+	uint64_t hashes[filter->header->k_num];
 	int rc;
 
 	// Compute the hashes
-	bf_compute_hashes(hashes, filter->header->k_num, key);
+	bf_compute_hashes(hashes, countof(hashes), key);
 
 	// Check if the item exists
 	if ((rc = bf_internal_contains(filter, hashes)) == 1) {
@@ -223,10 +227,10 @@ int bf_add(bloom_filter *filter, char* key)
 int bf_contains(bloom_filter *filter, char* key)
 {
 	// Allocate the hash space
-	uint64_t hashes[filter->header->k_num * sizeof(uint64_t)];
+	uint64_t hashes[filter->header->k_num];
 
 	// Compute the hashes
-	bf_compute_hashes(hashes, filter->header->k_num, key);
+	bf_compute_hashes(hashes, countof(hashes), key);
 
 	// Use the internal contains method
 	return bf_internal_contains(filter, hashes);
