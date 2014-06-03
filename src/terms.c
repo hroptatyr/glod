@@ -45,6 +45,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 #include "nifty.h"
 #include "fops.h"
 
@@ -693,6 +694,8 @@ classify0(unsigned int n)
 			res = -1;
 			break;
 		}
+
+		assert(npr <= nrd);
 	} while (nrd > 0);
 
 	/* make sure we've got it all written */
