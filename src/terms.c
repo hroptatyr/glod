@@ -593,10 +593,11 @@ DEFCORU(co_snarf, {
 	/* enter the main snarf loop */
 	do {
 		/* first, move the remaining bytes afront */
-		if (LIKELY(0 < npr && (size_t)npr < bsz)) {
+		if (LIKELY(npr > 0 && (size_t)npr < bsz)) {
 			nun -= npr;
 			memmove(buf, buf + npr, nun);
-		} else {
+		} else if (npr > 0) {
+			/* we processed it all */
 			nun = 0U;
 		}
 	} while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) >= 0 &&
