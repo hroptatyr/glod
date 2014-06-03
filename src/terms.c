@@ -433,7 +433,7 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		} else if (UNLIKELY(c < 0xc2U)) {
 			/* continuation char, we should never be here */
 			goto ill;
-		} else if (c < 0xe0U) {
+		} else if (c < 0xe0U && LIKELY(bp < ep)) {
 			/* width-2 character, 110x xxxx 10xx xxxx */
 			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
 			const unsigned int off = (c - 0xc2U);
@@ -442,7 +442,11 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 				goto ill;
 			}
 			cl = (cls_t)gencls2[off][nx1];
-		} else if (c < 0xf0U) {
+		} else if (c < 0xe0U) {
+			/* we'd read beyond the buffer, quick exit now */
+			res = (const char*)sp - buf;
+			break;
+		} else if (c < 0xf0U && LIKELY(bp + 1U < ep)) {
 			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
 			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
 			const uint_fast8_t nx2 = (uint_fast8_t)(*bp++ - 0x80U);
@@ -454,6 +458,10 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 				goto ill;
 			}
 			cl = (cls_t)gencls3[off -= 0x20U][nx2];
+		} else if (c < 0xf0U) {
+			/* we'd read beyond the buffer, quick exit now */
+			res = (const char*)sp - buf;
+			break;
 		} else if (UNLIKELY(c < 0xf7U)) {
 			const ptrdiff_t rngb = (const char*)sp - buf;
 
