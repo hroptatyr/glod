@@ -580,22 +580,21 @@ DEFCORU(co_snarf, {
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = (intptr_t)arg;
-	size_t npr = bsz;
-	size_t nrd;
+	ssize_t npr = bsz;
+	ssize_t nrd;
 	size_t nun;
 
 	/* enter the main snarf loop */
 	do {
 		/* first, move the remaining bytes afront */
-		if (LIKELY(0U < npr && npr < bsz)) {
-			nun += nrd - npr;
+		if (LIKELY(0 < npr && (size_t)npr < bsz)) {
+			nun -= npr;
 			memmove(buf, buf + npr, nun);
 		} else {
 			nun = 0U;
 		}
-
-		nrd = read(STDIN_FILENO, buf + nun, bsz - nun);
-	} while ((nrd + nun) && (npr = YIELD(nrd + nun)));
+	} while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) >= 0 &&
+		 (nun += nrd) && (npr = YIELD(nun)) >= 0);
 	return 0;
 }
 
