@@ -45,6 +45,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 #include "nifty.h"
 #include "fops.h"
 
@@ -119,8 +120,8 @@ struct clw_s {
 static const long unsigned int lohi[4U] = {
 	16U * (1U << (4U - 1U)),
 	16U * (1U << (8U - 1U)),
-	16U * (1U << (12U - 1U)),
-	16U * (1U << (16U - 1U)),
+	16U * (1U << (13U - 1U)),
+	16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
 };
 
 static size_t
@@ -288,11 +289,13 @@ _pr_strk_norm(const char *s, size_t z, char sep)
 				(uint_fast8_t)(strk_buf[b + 1U] - 0x80U);
 			const uint_fast8_t nx2 =
 				(uint_fast8_t)(strk_buf[b + 2U] - 0x80U);
-			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
 
-			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+			if (UNLIKELY(off < 0x20U)) {
 				;
-			} else if (gencls3[off][nx2] == CLS_ALPHA) {
+			} else if (UNLIKELY(nx2 >= 0x40U)) {
+				;
+			} else if (gencls3[off -= 0x20U][nx2] == CLS_ALPHA) {
 				const size_t m = genmof3[off];
 
 				if (!m ||
@@ -350,12 +353,14 @@ lcase:
 				(uint_fast8_t)(strk_buf[++b] - 0x80U);
 			const uint_fast8_t nx2 =
 				(uint_fast8_t)(strk_buf[++b] - 0x80U);
-			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
-			const size_t mof = genmof3[off];
+			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			size_t mof;
 
-			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+			if (UNLIKELY(off < 0x20U)) {
 				goto ill;
-			} else if (LIKELY(mof)) {
+			} else if (UNLIKELY(nx2 >= 0x40U)) {
+				goto ill;
+			} else if (LIKELY((mof = genmof3[off -= 0x20U]))) {
 				o += xwctomb(strk_buf + o, genmap3[mof][nx2]);
 			} else {
 				/* leave as is */
@@ -428,7 +433,7 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		} else if (UNLIKELY(c < 0xc2U)) {
 			/* continuation char, we should never be here */
 			goto ill;
-		} else if (c < 0xe0U) {
+		} else if (c < 0xe0U && LIKELY(bp < ep)) {
 			/* width-2 character, 110x xxxx 10xx xxxx */
 			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
 			const unsigned int off = (c - 0xc2U);
@@ -437,20 +442,41 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 				goto ill;
 			}
 			cl = (cls_t)gencls2[off][nx1];
-		} else if (c < 0xf0U) {
+		} else if (c < 0xe0U) {
+			/* we'd read beyond the buffer, quick exit now */
+			res = (const char*)sp - buf;
+			break;
+		} else if (c < 0xf0U && LIKELY(bp + 1U < ep)) {
 			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
 			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
 			const uint_fast8_t nx2 = (uint_fast8_t)(*bp++ - 0x80U);
-			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
 
-			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+			if (UNLIKELY(off < 0x20U)) {
+				goto ill;
+			} else if (UNLIKELY(nx2 >= 0x40U)) {
 				goto ill;
 			}
-			cl = (cls_t)gencls3[off][nx2];
+			cl = (cls_t)gencls3[off -= 0x20U][nx2];
+		} else if (c < 0xf0U) {
+			/* we'd read beyond the buffer, quick exit now */
+			res = (const char*)sp - buf;
+			break;
+		} else if (UNLIKELY(c < 0xf7U)) {
+			const ptrdiff_t rngb = (const char*)sp - buf;
+
+			fprintf(stderr, "\
+utf8 4-octet sequence @%td (0x%tx): not supported\n", rngb, rngb);
+			bp += 3U;
 		} else {
 		ill:;
 			const ptrdiff_t rngb = (const char*)sp - buf;
 
+			if (bp >= ep) {
+				/* just quietly return */
+				res = rngb;
+				break;
+			}
 			fprintf(stderr, "\
 illegal character sequence @%td (0x%tx):", rngb, rngb);
 			for (const unsigned char *xp = sp; xp < bp; xp++) {
@@ -469,6 +495,7 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 				st = ST_SEEN_ALNUM;
 				ap = sp;
 			default:
+				res = bp - (const uint8_t*)buf;
 				break;
 			}
 			break;
@@ -556,10 +583,6 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data,
 	 * we will return the number of PROCESSED bytes */
-	if (LIKELY(st != ST_SEEN_ALNUM)) {
-		/* pretend we proc'd it all */
-		return z;
-	}
 	return res;
 }
 
@@ -572,22 +595,22 @@ DEFCORU(co_snarf, {
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = (intptr_t)arg;
-	size_t npr = bsz;
-	size_t nrd;
+	ssize_t npr = bsz;
+	ssize_t nrd;
 	size_t nun;
 
 	/* enter the main snarf loop */
 	do {
 		/* first, move the remaining bytes afront */
-		if (LIKELY(0U < npr && npr < bsz)) {
-			nun += nrd - npr;
+		if (LIKELY(npr > 0 && (size_t)npr < bsz)) {
+			nun -= npr;
 			memmove(buf, buf + npr, nun);
-		} else {
+		} else if (npr > 0) {
+			/* we processed it all */
 			nun = 0U;
 		}
-
-		nrd = fread(buf + nun, sizeof(*buf), bsz - nun, stdin);
-	} while ((nrd + nun) && (npr = YIELD(nrd + nun)));
+	} while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) >= 0 &&
+		 (nun += nrd) && (npr = YIELD(nun)) >= 0);
 	return 0;
 }
 
@@ -679,6 +702,8 @@ classify0(unsigned int n)
 			res = -1;
 			break;
 		}
+
+		assert(npr <= nrd);
 	} while (nrd > 0);
 
 	/* make sure we've got it all written */

@@ -14,8 +14,8 @@ struct mb_s {
 static const long unsigned int lohi[4U] = {
 	16U * (1U << (4U - 1U)),
 	16U * (1U << (8U - 1U)),
-	16U * (1U << (12U - 1U)),
-	16U * (1U << (16U - 1U)),
+	16U * (1U << (13U - 1U)),
+	16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
 };
 
 static struct mb_s
