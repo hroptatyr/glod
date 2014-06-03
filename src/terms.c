@@ -678,7 +678,7 @@ classify0(unsigned int n)
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
-	npr = sizeof(buf);
+	npr = sizeof(buf) - 4U;
 	do {
 		/* technically we could let the corus flip-flop call each other
 		 * but we'd like to filter bad input right away */
