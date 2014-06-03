@@ -453,6 +453,12 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 				goto ill;
 			}
 			cl = (cls_t)gencls3[off -= 0x20U][nx2];
+		} else if (UNLIKELY(c < 0xf7U)) {
+			const ptrdiff_t rngb = (const char*)sp - buf;
+
+			fprintf(stderr, "\
+utf8 4-octet sequence @%td (0x%tx): not supported\n", rngb, rngb);
+			bp += 3U;
 		} else {
 		ill:;
 			const ptrdiff_t rngb = (const char*)sp - buf;
