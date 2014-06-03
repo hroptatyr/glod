@@ -119,8 +119,8 @@ struct clw_s {
 static const long unsigned int lohi[4U] = {
 	16U * (1U << (4U - 1U)),
 	16U * (1U << (8U - 1U)),
-	16U * (1U << (12U - 1U)),
-	16U * (1U << (16U - 1U)),
+	16U * (1U << (13U - 1U)),
+	16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
 };
 
 static size_t
@@ -288,11 +288,13 @@ _pr_strk_norm(const char *s, size_t z, char sep)
 				(uint_fast8_t)(strk_buf[b + 1U] - 0x80U);
 			const uint_fast8_t nx2 =
 				(uint_fast8_t)(strk_buf[b + 2U] - 0x80U);
-			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
 
-			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+			if (UNLIKELY(off < 0x20U)) {
 				;
-			} else if (gencls3[off][nx2] == CLS_ALPHA) {
+			} else if (UNLIKELY(nx2 >= 0x40U)) {
+				;
+			} else if (gencls3[off -= 0x20U][nx2] == CLS_ALPHA) {
 				const size_t m = genmof3[off];
 
 				if (!m ||
@@ -350,12 +352,14 @@ lcase:
 				(uint_fast8_t)(strk_buf[++b] - 0x80U);
 			const uint_fast8_t nx2 =
 				(uint_fast8_t)(strk_buf[++b] - 0x80U);
-			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
-			const size_t mof = genmof3[off];
+			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			size_t mof;
 
-			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+			if (UNLIKELY(off < 0x20U)) {
 				goto ill;
-			} else if (LIKELY(mof)) {
+			} else if (UNLIKELY(nx2 >= 0x40U)) {
+				goto ill;
+			} else if (LIKELY((mof = genmof3[off -= 0x20U]))) {
 				o += xwctomb(strk_buf + o, genmap3[mof][nx2]);
 			} else {
 				/* leave as is */
@@ -441,12 +445,14 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
 			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
 			const uint_fast8_t nx2 = (uint_fast8_t)(*bp++ - 0x80U);
-			const unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
 
-			if (UNLIKELY(nx1 >= 0x40U || nx2 >= 0x40U)) {
+			if (UNLIKELY(off < 0x20U)) {
+				goto ill;
+			} else if (UNLIKELY(nx2 >= 0x40U)) {
 				goto ill;
 			}
-			cl = (cls_t)gencls3[off][nx2];
+			cl = (cls_t)gencls3[off -= 0x20U][nx2];
 		} else {
 		ill:;
 			const ptrdiff_t rngb = (const char*)sp - buf;
