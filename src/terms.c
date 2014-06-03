@@ -597,7 +597,7 @@ DEFCORU(co_snarf, {
 			nun = 0U;
 		}
 
-		nrd = fread(buf + nun, sizeof(*buf), bsz - nun, stdin);
+		nrd = read(STDIN_FILENO, buf + nun, bsz - nun);
 	} while ((nrd + nun) && (npr = YIELD(nrd + nun)));
 	return 0;
 }
