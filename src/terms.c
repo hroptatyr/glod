@@ -480,6 +480,7 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 				st = ST_SEEN_ALNUM;
 				ap = sp;
 			default:
+				res = bp - (const uint8_t*)buf;
 				break;
 			}
 			break;
@@ -567,10 +568,6 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data,
 	 * we will return the number of PROCESSED bytes */
-	if (LIKELY(st != ST_SEEN_ALNUM)) {
-		/* pretend we proc'd it all */
-		return z;
-	}
 	return res;
 }
 
