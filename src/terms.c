@@ -38,6 +38,7 @@
 # include "config.h"
 #endif	/* HAVE_CONFIG_H */
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -45,9 +46,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <assert.h>
 #include "nifty.h"
-#include "fops.h"
 
 #include "coru/cocore.h"
 
@@ -381,7 +382,6 @@ pr_feed(void)
 	static const char feed[] = "\f\n";
 
 	_pr_strk_lit(feed, 1U, '\n');
-	pr_flsh(true);
 	return;
 }
 
@@ -646,39 +646,6 @@ DEFCORU(co_class, {
 
 
 static int
-classify1(const char *fn, unsigned int n)
-{
-	glodfn_t f;
-	int res = -1;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		goto out;
-	}
-
-	/* peruse */
-	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z, n)) {
-		if (UNLIKELY(npr == 0)) {
-			goto yield;
-		} else if (UNLIKELY(npr < 0)) {
-			goto out;
-		}
-	}
-
-	/* we printed our findings by side-effect already,
-	 * finalise the output here */
-	pr_feed();
-
-yield:
-	/* total success innit? */
-	res = 0;
-
-out:
-	(void)munmap_fn(f);
-	return res;
-}
-
-static int
 classify0(int fd, unsigned int n)
 {
 	char buf[4U * 4096U];
@@ -714,7 +681,11 @@ classify0(int fd, unsigned int n)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-	/* make sure we've got it all written */
+	/* print the separator */
+	if (fd > STDIN_FILENO) {
+		pr_feed();
+	}
+	/* make sure we've got it all written, aka flush */
 	pr_flsh(true);
 
 	UNPREP();
@@ -762,11 +733,18 @@ main(int argc, char *argv[])
 	/* process files given on the command line */
 	for (size_t i = 0U; i < argi->nargs; i++) {
 		const char *file = argi->args[i];
+		int fd;
 
-		if (classify1(file, n) < 0) {
-			error("Error: processing `%s' failed", file);
+		if (UNLIKELY((fd = open(file, O_RDONLY)) < 0)) {
+			error("Error: cannot open file `%s'", file);
+			rc = 1;
+			continue;
+		} else if (classify0(fd, n) < 0) {
+			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
+		/* clean up */
+		close(fd);
 	}
 
 out:
