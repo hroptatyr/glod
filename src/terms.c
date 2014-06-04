@@ -588,18 +588,20 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 
 DEFCORU(co_snarf, {
 		char *buf;
+		int fd;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely processed buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = (intptr_t)arg;
+	const int fd = CORU_CLOSUR(fd);
 	ssize_t npr = bsz;
 	ssize_t nrd;
 	size_t nun = 0U;
 
 	/* enter the main snarf loop */
-	while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) > 0) {
+	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
 		/* process */
@@ -677,9 +679,9 @@ out:
 }
 
 static int
-classify0(unsigned int n)
+classify0(int fd, unsigned int n)
 {
-	static char buf[4096U];
+	char buf[4U * 4096U];
 	struct cocore *snarf;
 	struct cocore *class;
 	struct cocore *self;
@@ -688,7 +690,7 @@ classify0(unsigned int n)
 	ssize_t npr;
 
 	self = PREP();
-	snarf = START_PACK(co_snarf, .next = self, .buf = buf);
+	snarf = START_PACK(co_snarf, .next = self, .buf = buf, .fd = fd);
 	class = START_PACK(co_class, .next = self, .buf = buf, .n = n);
 
 	/* assume a nicely processed buffer to indicate its size to
@@ -750,7 +752,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0(n) < 0) {
+		if (classify0(STDIN_FILENO, n) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
