@@ -609,8 +609,11 @@ DEFCORU(co_snarf, {
 			/* we processed it all */
 			nun = 0U;
 		}
-	} while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) >= 0 &&
-		 (nun += nrd) && (npr = YIELD(nun)) >= 0);
+
+		if ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) > 0) {
+			nun += nrd;
+		}
+	} while (nun && (npr = YIELD(nun)) >= 0);
 	return 0;
 }
 
