@@ -65,14 +65,13 @@
 #define NEXT1(x, o)	((intptr_t)(check_cocore(x) ? SWITCH(x, o) : NULL))
 #define NEXT(x)		NEXT1(x, NULL)
 #define YIELD(o)	((intptr_t)SWITCH(CORU_CLOSUR(next), (o)))
-#define RETURN(o)	return (void*)(intptr_t)(o)
 
 #define DEFCORU(name, closure, arg)			\
 	struct name##_s {				\
 		struct cocore *next;			\
 		struct closure;				\
 	};						\
-	static void *name(struct name##_s *ctx, arg)
+	static intptr_t name(struct name##_s *ctx, arg)
 #define CORU_CLOSUR(x)	(ctx->x)
 #define CORU_STRUCT(x)	struct x##_s
 #define PACK(x, args...)	&((CORU_STRUCT(x)){args})
@@ -597,24 +596,28 @@ DEFCORU(co_snarf, {
 	const size_t bsz = (intptr_t)arg;
 	ssize_t npr = bsz;
 	ssize_t nrd;
-	size_t nun;
+	size_t nun = 0U;
 
 	/* enter the main snarf loop */
-	do {
-		/* first, move the remaining bytes afront */
-		if (LIKELY(npr > 0 && (size_t)npr < bsz)) {
-			nun -= npr;
-			memmove(buf, buf + npr, nun);
-		} else if (npr > 0) {
-			/* we processed it all */
-			nun = 0U;
-		}
+	while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) > 0) {
+		/* we've got NRD more unprocessed bytes */
+		nun += nrd;
+		/* process */
+		npr = YIELD(nun);
+		/* now it's NPR less unprocessed bytes */
+		nun -= npr;
 
-		if ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) > 0) {
-			nun += nrd;
+		/* check if we need to move buffer contents */
+		if (nun > 0) {
+			memmove(buf, buf + npr, nun);
 		}
-	} while (nun && (npr = YIELD(nun)) >= 0);
-	return 0;
+	}
+	/* final drain */
+	if (nun) {
+		/* we don't care how much got processed */
+		YIELD(nun);
+	}
+	return nrd;
 }
 
 DEFCORU(co_class, {
@@ -633,7 +636,7 @@ DEFCORU(co_class, {
 	/* enter the main snarf loop */
 	do {
 		if ((npr = classify_buf(buf, nrd, n)) < 0) {
-			RETURN(-1);
+			return -1;
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
