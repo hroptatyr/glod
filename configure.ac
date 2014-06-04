@@ -36,9 +36,14 @@ SXE_CHECK_CFLAGS
 AC_CHECK_TOOLS([AR], [xiar ar], [false])
 AC_C_BIGENDIAN
 
-PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet])
-AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
-with_database="tcbdb"
+PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
+	have_tcbdb="yes"
+	AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
+	with_database="tcbdb"
+], [
+	have_tcbdb="no"
+])
+AM_CONDITIONAL([HAVE_TCBDB], [test "${have_tcbdb}" = "yes"])
 
 ## check for yuck helper
 AX_CHECK_YUCK
