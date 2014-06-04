@@ -107,17 +107,89 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 {
 	bloom_bitmap m[1U];
 	const char *fn = argi->filter_arg ?: dflt_bffn;
+	size_t z = 2097152U;
+	size_t c = 0U;
+	unsigned int k = 11U;
+	double p = 0.0;
 	int rc = 0;
 	int fd;
+
+	if (argi->size_arg) {
+		char *on;
+
+		if (!(z = strtoul(argi->size_arg, &on, 0))) {
+			error("Error: cannot interpret given size");
+			return 1;
+		}
+		switch (*on) {
+		case 'g':
+		case 'G':
+			z *= 1024U;
+		case 'm':
+		case 'M':
+			z *= 1024U;
+		case 'K':
+		case 'k':
+			z *= 1024U;
+		default:
+			break;
+		}
+	}
+
+	if (argi->hashes_arg) {
+		if (!(k = strtoul(argi->hashes_arg, NULL, 0))) {
+			error("Error: cannot interpret number of hashes");
+			return 1;
+		}
+	}
+
+	if (argi->capacity_arg) {
+		char *on;
+
+		if (!(c = strtoul(argi->capacity_arg, &on, 0))) {
+			error("Error: cannot interpret capacity");
+			return 1;
+		}
+
+		switch (*on) {
+		case 'g':
+		case 'G':
+			c *= 1000U;
+		case 'm':
+		case 'M':
+			c *= 1000U;
+		case 'K':
+		case 'k':
+			c *= 1000U;
+		default:
+			break;
+		}
+	}
+
+	if (argi->probability_arg) {
+		char *on;
+
+		if ((p = strtod(argi->probability_arg, &on)) <= 0.0) {
+			error("Error: probability must be positive");
+			return 1;
+		}
+
+		switch (*on) {
+		case '%':
+			p /= 100;
+		default:
+			break;
+		}
+	}
 
 	if ((fd = open(fn, O_CREAT | O_TRUNC | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
-	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
+	} else if (bitmap_from_file(fd, z, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
 		goto out;
-	} else if (bf_init(m, 17) < 0) {
+	} else if (bf_init(m, k) < 0) {
 		error("Error: file `%s' is not a valid filter file", fn);
 		rc = 1;
 	}
