@@ -387,7 +387,7 @@ pr_feed(void)
 
 static void(*pr_strk)(const char *s, size_t z, char sep) = _pr_strk_lit;
 
-static __attribute__((noinline)) ssize_t
+static ssize_t
 classify_buf(const char *const buf, size_t z, unsigned int n)
 {
 /* this is a simple state machine,
@@ -410,7 +410,7 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		ST_FILL,
 	} pf = ST_PREP;
 	static unsigned int m = 0U;
-	static size_t gramz[16U];
+	static size_t gramz[32U];
 	static size_t zaccu = 0U;
 	const uint8_t *ap = (const uint8_t*)buf;
 
