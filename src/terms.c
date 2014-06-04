@@ -600,6 +600,9 @@ DEFCORU(co_snarf, {
 	ssize_t nrd;
 	size_t nun = 0U;
 
+	/* leave some good advice about our access pattern */
+	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+
 	/* enter the main snarf loop */
 	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
