@@ -9,10 +9,11 @@ Usage: gloom init
 
 Initialise filter file.
 
-  -s, --size=Z         Generate a bloom filter file of size Z
-  -k, --hashes=K       Use K hash functions
-  -c, --capacity=C     Allow for C elements in the filter
-  -p, --probability=P  Set false positive rate to P
+  -s, --size=Z          Generate a bloom filter file of size Z
+  -k, --hashes=K        Use K hash functions
+  -c, --capacity=C      Allow for C elements in the filter
+  -p, --probability=P   Set false positive rate to P
+  -n, --dry-run         Do not initialise a filter file but return specs
 
 
 Usage: gloom add [FILE]...

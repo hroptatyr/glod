@@ -182,6 +182,32 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 		}
 	}
 
+	if (argi->dry_run_flag) {
+		bloom_filter_params param = {
+			.capacity = c,
+			.bytes = z,
+			.k_num = k,
+			.fp_probability = p,
+		};
+
+		if (c && p > 0.0) {
+			bf_size_for_capacity_prob(&param);
+			printf("suggested size %zu\n", param.bytes);
+		} else if (p > 0.0) {
+			bf_capacity_for_size_prob(&param);
+			printf("capacity %zu\n", (size_t)param.capacity);
+		} else if (c) {
+			bf_fp_probability_for_capacity_size(&param);
+			printf("false positive probability %g\n",
+			       param.fp_probability);
+		}
+		if (!argi->hashes_arg) {
+			bf_ideal_k_num(&param);
+			printf("ideal number of hashes %u\n", param.k_num);
+		}
+		return 0;
+	}
+
 	if ((fd = open(fn, O_CREAT | O_TRUNC | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
