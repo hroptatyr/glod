@@ -405,13 +405,13 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		ST_SEEN_PUNCT,
 	} st = ST_NONE;
 	/* prep/fill state */
-	enum fill_e {
+	static enum fill_e {
 		ST_PREP,
 		ST_FILL,
 	} pf = ST_PREP;
-	unsigned int m = 0U;
-	size_t gramz[n];
-	size_t zaccu = 0U;
+	static unsigned int m = 0U;
+	static size_t gramz[16U];
+	static size_t zaccu = 0U;
 	const uint8_t *ap = (const uint8_t*)buf;
 
 	auto inline cls_t classify_c(const uint8_t **x, const uint8_t *const ep)
