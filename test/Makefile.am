@@ -48,6 +48,7 @@ EXTRA_DIST += 12abrdg.txt
 EXTRA_DIST += punct-terms.txt
 EXTRA_DIST += utf8-terms.txt
 
+if HAVE_TCBDB
 tf_TESTS =
 TESTS += $(tf_TESTS)
 tf_TESTS += tf.01.tst
@@ -76,6 +77,7 @@ tf_TESTS += tf.23.tst
 tf_TESTS += tf.24.tst
 tf_TESTS += tf.25.tst
 tf_TESTS += tf.xx.tst
+endif  HAVE_TCBDB
 
 ldmatrix_TESTS =
 TESTS += $(ldmatrix_TESTS)
