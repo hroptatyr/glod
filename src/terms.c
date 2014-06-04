@@ -466,18 +466,13 @@ utf8 4-octet sequence @%td (0x%tx): not supported\n", rngb, rngb);
 			*x += 3U;
 		} else {
 		ill:
-			if (*x >= ep) {
-				return (cls_t)-1;
-			}
+			assert(*x > 0);
+			assert(*x <= ep);
 
-			const unsigned char *sp = *x - 1U;
-			const ptrdiff_t rngb = (const char*)sp - buf;
-			fprintf(stderr, "\
-illegal character sequence @%td (0x%tx):", rngb, rngb);
-			for (const unsigned char *xp = sp; xp < *x; xp++) {
-				fprintf(stderr, " %02x", *xp);
+			with (const ptrdiff_t off = (const char*)*x - buf - 1) {
+				fprintf(stderr, "\
+illegal character sequence @%td (0x%tx): %02x\n", off, off, (*x)[-1]);
 			}
-			fputc('\n', stderr);
 		}
 		return cl;
 	}
