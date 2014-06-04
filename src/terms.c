@@ -38,6 +38,7 @@
 # include "config.h"
 #endif	/* HAVE_CONFIG_H */
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -45,9 +46,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <assert.h>
 #include "nifty.h"
-#include "fops.h"
 
 #include "coru/cocore.h"
 
@@ -381,13 +382,12 @@ pr_feed(void)
 	static const char feed[] = "\f\n";
 
 	_pr_strk_lit(feed, 1U, '\n');
-	pr_flsh(true);
 	return;
 }
 
 static void(*pr_strk)(const char *s, size_t z, char sep) = _pr_strk_lit;
 
-static __attribute__((noinline)) ssize_t
+static ssize_t
 classify_buf(const char *const buf, size_t z, unsigned int n)
 {
 /* this is a simple state machine,
@@ -405,19 +405,18 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		ST_SEEN_PUNCT,
 	} st = ST_NONE;
 	/* prep/fill state */
-	enum fill_e {
+	static enum fill_e {
 		ST_PREP,
 		ST_FILL,
 	} pf = ST_PREP;
-	unsigned int m = 0U;
-	size_t gramz[n];
-	size_t zaccu = 0U;
-	ptrdiff_t res = z;
+	static unsigned int m = 0U;
+	static size_t gramz[32U];
+	static size_t zaccu = 0U;
+	const uint8_t *ap = (const uint8_t*)buf;
 
-	for (const uint8_t *bp = (const uint8_t*)buf, *ap, *fp,
-		     *const ep = (const uint8_t*)buf + z; bp < ep;) {
-		const uint8_t *const sp = bp;
-		const uint_fast8_t c = *bp++;
+	auto inline cls_t classify_c(const uint8_t **x, const uint8_t *const ep)
+	{
+		const uint_fast8_t c = *(*x)++;
 		cls_t cl = CLS_UNK;
 
 		if (UNLIKELY(c == '\f')) {
@@ -432,56 +431,63 @@ classify_buf(const char *const buf, size_t z, unsigned int n)
 		} else if (UNLIKELY(c < 0xc2U)) {
 			/* continuation char, we should never be here */
 			goto ill;
-		} else if (c < 0xe0U && LIKELY(bp < ep)) {
+		} else if (c < 0xe0U && LIKELY(*x < ep)) {
 			/* width-2 character, 110x xxxx 10xx xxxx */
-			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
+			const uint_fast8_t c1 = (uint_fast8_t)(*(*x)++ - 0x80U);
 			const unsigned int off = (c - 0xc2U);
 
-			if (UNLIKELY(nx1 >= 0x40U)) {
+			if (UNLIKELY(c1 >= 0x40U)) {
 				goto ill;
 			}
-			cl = (cls_t)gencls2[off][nx1];
+			cl = (cls_t)gencls2[off][c1];
 		} else if (c < 0xe0U) {
 			/* we'd read beyond the buffer, quick exit now */
-			res = (const char*)sp - buf;
-			break;
-		} else if (c < 0xf0U && LIKELY(bp + 1U < ep)) {
+			return (cls_t)-1;
+		} else if (c < 0xf0U && LIKELY(*x + 1U < ep)) {
 			/* width-3 character, 1110 xxxx 10xx xxxx 10xx xxxx */
-			const uint_fast8_t nx1 = (uint_fast8_t)(*bp++ - 0x80U);
-			const uint_fast8_t nx2 = (uint_fast8_t)(*bp++ - 0x80U);
-			unsigned int off = ((c & 0b1111U) << 6U) | nx1;
+			const uint_fast8_t c1 = (uint_fast8_t)(*(*x)++ - 0x80U);
+			const uint_fast8_t c2 = (uint_fast8_t)(*(*x)++ - 0x80U);
+			unsigned int off = ((c & 0b1111U) << 6U) | c1;
 
 			if (UNLIKELY(off < 0x20U)) {
 				goto ill;
-			} else if (UNLIKELY(nx2 >= 0x40U)) {
+			} else if (UNLIKELY(c2 >= 0x40U)) {
 				goto ill;
 			}
-			cl = (cls_t)gencls3[off -= 0x20U][nx2];
+			cl = (cls_t)gencls3[off -= 0x20U][c2];
 		} else if (c < 0xf0U) {
 			/* we'd read beyond the buffer, quick exit now */
-			res = (const char*)sp - buf;
-			break;
+			return (cls_t)-1;
 		} else if (UNLIKELY(c < 0xf7U)) {
-			const ptrdiff_t rngb = (const char*)sp - buf;
+			const ptrdiff_t rngb = (const char*)*x - buf - 1;
 
 			fprintf(stderr, "\
 utf8 4-octet sequence @%td (0x%tx): not supported\n", rngb, rngb);
-			bp += 3U;
+			*x += 3U;
 		} else {
-		ill:;
-			const ptrdiff_t rngb = (const char*)sp - buf;
-
-			if (bp >= ep) {
-				/* just quietly return */
-				res = rngb;
-				break;
+		ill:
+			if (*x >= ep) {
+				return (cls_t)-1;
 			}
+
+			const unsigned char *sp = *x - 1U;
+			const ptrdiff_t rngb = (const char*)sp - buf;
 			fprintf(stderr, "\
 illegal character sequence @%td (0x%tx):", rngb, rngb);
-			for (const unsigned char *xp = sp; xp < bp; xp++) {
+			for (const unsigned char *xp = sp; xp < *x; xp++) {
 				fprintf(stderr, " %02x", *xp);
 			}
 			fputc('\n', stderr);
+		}
+		return cl;
+	}
+
+	for (const uint8_t *bp = ap, *fp, *const ep = ap + z; bp < ep;) {
+		const uint8_t *const sp = bp;
+		int cl;
+
+		if (UNLIKELY((cl = classify_c(&bp, ep)) < 0)) {
+			break;
 		}
 
 		/* now enter the state machine */
@@ -494,7 +500,7 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 				st = ST_SEEN_ALNUM;
 				ap = sp;
 			default:
-				res = bp - (const uint8_t*)buf;
+				ap = sp;
 				break;
 			}
 			break;
@@ -568,13 +574,12 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 				zaccu += llen;
 			yield_last:
 				pr_strk(lstr, llen, '\n');
-				res = bp - (const uint8_t*)buf;
 				break;
 			}
 
 		default:
 			st = ST_NONE;
-			ap = NULL;
+			ap = bp;
 			fp = NULL;
 			break;
 		}
@@ -582,24 +587,26 @@ illegal character sequence @%td (0x%tx):", rngb, rngb);
 	/* if we finish in the middle of ST_SEEN_ALNUM because pp >= ep
 	 * we actually need to request more data,
 	 * we will return the number of PROCESSED bytes */
-	return res;
+	return (const char*)ap - buf;
 }
 
 
 DEFCORU(co_snarf, {
 		char *buf;
+		int fd;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely processed buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = (intptr_t)arg;
+	const int fd = CORU_CLOSUR(fd);
 	ssize_t npr = bsz;
 	ssize_t nrd;
 	size_t nun = 0U;
 
 	/* enter the main snarf loop */
-	while ((nrd = read(STDIN_FILENO, buf + nun, bsz - nun)) > 0) {
+	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
 		/* process */
@@ -644,42 +651,9 @@ DEFCORU(co_class, {
 
 
 static int
-classify1(const char *fn, unsigned int n)
+classify0(int fd, unsigned int n)
 {
-	glodfn_t f;
-	int res = -1;
-
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		goto out;
-	}
-
-	/* peruse */
-	with (ssize_t npr = classify_buf(f.fb.d, f.fb.z, n)) {
-		if (UNLIKELY(npr == 0)) {
-			goto yield;
-		} else if (UNLIKELY(npr < 0)) {
-			goto out;
-		}
-	}
-
-	/* we printed our findings by side-effect already,
-	 * finalise the output here */
-	pr_feed();
-
-yield:
-	/* total success innit? */
-	res = 0;
-
-out:
-	(void)munmap_fn(f);
-	return res;
-}
-
-static int
-classify0(unsigned int n)
-{
-	static char buf[4096U];
+	char buf[4U * 4096U];
 	struct cocore *snarf;
 	struct cocore *class;
 	struct cocore *self;
@@ -688,7 +662,7 @@ classify0(unsigned int n)
 	ssize_t npr;
 
 	self = PREP();
-	snarf = START_PACK(co_snarf, .next = self, .buf = buf);
+	snarf = START_PACK(co_snarf, .next = self, .buf = buf, .fd = fd);
 	class = START_PACK(co_class, .next = self, .buf = buf, .n = n);
 
 	/* assume a nicely processed buffer to indicate its size to
@@ -712,7 +686,11 @@ classify0(unsigned int n)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-	/* make sure we've got it all written */
+	/* print the separator */
+	if (fd > STDIN_FILENO) {
+		pr_feed();
+	}
+	/* make sure we've got it all written, aka flush */
 	pr_flsh(true);
 
 	UNPREP();
@@ -750,7 +728,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0(n) < 0) {
+		if (classify0(STDIN_FILENO, n) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -760,11 +738,18 @@ main(int argc, char *argv[])
 	/* process files given on the command line */
 	for (size_t i = 0U; i < argi->nargs; i++) {
 		const char *file = argi->args[i];
+		int fd;
 
-		if (classify1(file, n) < 0) {
-			error("Error: processing `%s' failed", file);
+		if (UNLIKELY((fd = open(file, O_RDONLY)) < 0)) {
+			error("Error: cannot open file `%s'", file);
+			rc = 1;
+			continue;
+		} else if (classify0(fd, n) < 0) {
+			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
+		/* clean up */
+		close(fd);
 	}
 
 out:
