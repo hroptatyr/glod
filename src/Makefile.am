@@ -176,6 +176,14 @@ unpgbrk_CPPFLAGS = $(AM_CPPFLAGS)
 unpgbrk_CPPFLAGS += -D_GNU_SOURCE
 BUILT_SOURCES += unpgbrk.yucc
 
+bin_PROGRAMS += gloom
+gloom_SOURCES = gloom.c
+gloom_SOURCES += gloom.yuck
+gloom_CPPFLAGS = $(AM_CPPFLAGS)
+gloom_CPPFLAGS += -D_GNU_SOURCE
+gloom_LDADD = libcoru.la
+gloom_LDADD += libbloom.la -lm
+BUILT_SOURCES += gloom.yucc
 
 noinst_PROGRAMS += glid
 glid_SOURCES = glid.c
@@ -184,15 +192,6 @@ glid_CPPFLAGS = $(AM_CPPFLAGS)
 glid_CPPFLAGS += -D_GNU_SOURCE
 glid_LDADD = libcoru.la
 BUILT_SOURCES += glid.yucc
-
-noinst_PROGRAMS += gloom
-gloom_SOURCES = gloom.c
-gloom_SOURCES += gloom.yuck
-gloom_CPPFLAGS = $(AM_CPPFLAGS)
-gloom_CPPFLAGS += -D_GNU_SOURCE
-gloom_LDADD = libcoru.la
-gloom_LDADD += libbloom.la -lm
-BUILT_SOURCES += gloom.yucc
 
 
 ## version rules
