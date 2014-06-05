@@ -330,6 +330,51 @@ out:
 	return rc;
 }
 
+static int
+cmd_info(struct yuck_cmd_info_s argi[static 1U])
+{
+	struct stat st[1U];
+	bloom_bitmap m[1U];
+	bloom_filter f[1U];
+	const char *fn = argi->filter_arg ?: *argi->args ?: dflt_bffn;
+	int rc = 0;
+	int fd;
+
+	if ((fd = open(fn, O_RDONLY)) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		return 1;
+	} else if (fstat(fd, st) < 0) {
+		error("Error: cannot stat filter file `%s'", fn);
+		rc = 1;
+		goto out;
+	} else if (st->st_size < 4096U) {
+		error("Error: filter file `%s' below minimum filter size", fn);
+		rc = 1;
+		goto out;
+	} else if (bitmap_from_file(fd, st->st_size, PERSISTENT, m) < 0) {
+		error("Error: cannot open filter file `%s'", fn);
+		rc = 1;
+		goto out;
+	} else if (bf_from_bitmap(m, f) < 0) {
+		error("Error: file `%s' is not a valid filter file", fn);
+		bitmap_close(m);
+		rc = 1;
+		goto out;
+	}
+
+	{
+		const size_t n = bf_size(f);
+		const unsigned int k = bf_k_num(f);
+
+		printf("bloom filter with %u hashes and %zu items\n", k, n);
+	}
+
+	bf_close(f);
+out:
+	close(fd);
+	return rc;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -353,6 +398,9 @@ main(int argc, char *argv[])
 		break;
 	case GLOOM_CMD_HAS:
 		rc = cmd_has((struct yuck_cmd_has_s*)argi);
+		break;
+	case GLOOM_CMD_INFO:
+		rc = cmd_info((struct yuck_cmd_info_s*)argi);
 		break;
 	default:
 		rc = 1;
