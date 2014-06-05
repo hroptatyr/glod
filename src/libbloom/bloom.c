@@ -246,6 +246,14 @@ uint64_t bf_size(bloom_filter *filter)
 }
 
 /**
+ * Returns the number of hash functions used. */
+unsigned int bf_k_num(bloom_filter *filter)
+{
+	return filter->header->k_num;
+}
+
+
+/**
  * Flushes the filter, and updates the metadata.
  * @return 0 on success, negative on failure.
  */

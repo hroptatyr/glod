@@ -9,6 +9,13 @@ Usage: gloom init
 
 Initialise filter file.
 
+  -s, --size=Z          Generate a bloom filter file of size Z
+  -k, --hashes=K        Use K hash functions
+  -c, --capacity=C      Allow for C elements in the filter
+  -p, --probability=P   Set false positive rate to P
+  -n, --dry-run         Do not initialise a filter file but print specs
+  -v, --verbose         Print filter specs
+
 
 Usage: gloom add [FILE]...
 
@@ -18,3 +25,10 @@ Add terms from FILE (or stdin) to bloom filter.
 Usage: gloom has [FILE]...
 
 Shows terms from FILE (or stdin) the bloom filter (probably) has.
+
+  -c, --count           Count hits
+
+
+Usage: gloom info
+
+Display summary of filter file.

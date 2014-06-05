@@ -71,6 +71,10 @@ extern int bf_contains(bloom_filter *filter, char* key);
 extern size_t bf_size(bloom_filter *filter);
 
 /**
+ * Returns the number of hash functions used. */
+extern unsigned int bf_k_num(bloom_filter *filter);
+
+/**
  * Flushes the filter, and updates the metadata.
  * @return 0 on success, negative on failure.
  */
