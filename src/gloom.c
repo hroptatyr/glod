@@ -310,6 +310,8 @@ cmd_has(struct yuck_cmd_has_s argi[static 1U])
 	char *line = NULL;
 	size_t llen =  0UL;
 	const char *fn = argi->filter_arg ?: dflt_bffn;
+	size_t nlines = 0U;
+	size_t nhits = 0U;
 	int rc = 0;
 	int fd;
 
@@ -335,11 +337,18 @@ cmd_has(struct yuck_cmd_has_s argi[static 1U])
 		goto out;
 	}
 
-	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
+	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0; nlines++) {
 		line[--nrd] = '\0';
 		if (bf_contains(f, line) > 0) {
-			puts(line);
+			nhits++;
+			if (!argi->count_flag) {
+				puts(line);
+			}
 		}
+	}
+	if (argi->count_flag) {
+		double rate = 100.0 * (double)nhits / (double)nlines;
+		printf("hits\t<stdin>\t%zu/%zu\t%.2f%%\n", nhits, nlines, rate);
 	}
 	free(line);
 	bf_close(f);
