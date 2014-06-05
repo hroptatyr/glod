@@ -238,6 +238,10 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 	if ((fd = open(fn, O_CREAT | O_TRUNC | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
+	} else if (ftruncate(fd, param.bytes) < 0) {
+		error("Error: cannot resize filter file `%s'", fn);
+		rc = 1;
+		goto out;
 	} else if (bitmap_from_file(fd, param.bytes, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
