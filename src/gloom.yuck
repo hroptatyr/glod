@@ -13,7 +13,8 @@ Initialise filter file.
   -k, --hashes=K        Use K hash functions
   -c, --capacity=C      Allow for C elements in the filter
   -p, --probability=P   Set false positive rate to P
-  -n, --dry-run         Do not initialise a filter file but return specs
+  -n, --dry-run         Do not initialise a filter file but print specs
+  -v, --verbose         Print filter specs
 
 
 Usage: gloom add [FILE]...

@@ -183,6 +183,10 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 	}
 
 	if (argi->dry_run_flag) {
+		argi->verbose_flag |= 1;
+	}
+
+	if (argi->verbose_flag) {
 		bloom_filter_params param = {
 			.capacity = c,
 			.bytes = z,
@@ -192,19 +196,22 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 
 		if (c && p > 0.0) {
 			bf_size_for_capacity_prob(&param);
-			printf("suggested size %zu\n", param.bytes);
+			printf("suggested size (bytes): %zu\n", param.bytes);
 		} else if (p > 0.0) {
 			bf_capacity_for_size_prob(&param);
-			printf("capacity %zu\n", (size_t)param.capacity);
+			printf("capacity (#keys): %zu\n", (size_t)param.capacity);
 		} else if (c) {
 			bf_fp_probability_for_capacity_size(&param);
-			printf("false positive probability %g\n",
+			printf("false positive probability: %g\n",
 			       param.fp_probability);
 		}
 		if (!argi->hashes_arg) {
 			bf_ideal_k_num(&param);
-			printf("ideal number of hashes %u\n", param.k_num);
+			printf("ideal number of hashes: %u\n", param.k_num);
 		}
+	}
+
+	if (argi->dry_run_flag) {
 		return 0;
 	}
 
