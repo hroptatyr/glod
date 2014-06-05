@@ -268,7 +268,7 @@ cmd_add(struct yuck_cmd_add_s argi[static 1U])
 	int rc = 0;
 	int fd;
 
-	if ((fd = open(fn, O_CREAT | O_RDWR, 0644)) < 0) {
+	if ((fd = open(fn, O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
 	} else if (fstat(fd, st) < 0) {
