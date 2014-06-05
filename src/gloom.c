@@ -107,15 +107,18 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 {
 	bloom_bitmap m[1U];
 	const char *fn = argi->filter_arg ?: *argi->args ?: dflt_bffn;
-	size_t z = 2097152U;
-	size_t c = 0U;
-	unsigned int k = 11U;
-	double p = 0.0;
+	bloom_filter_params param = {
+		.capacity = 0U,
+		.bytes = 2097152U/* so it's 2^24 bits */,
+		.k_num = 11U,
+		.fp_probability = 0.0,
+	};
 	int rc = 0;
 	int fd;
 
 	if (argi->size_arg) {
 		char *on;
+		size_t z;
 
 		if (!(z = strtoul(argi->size_arg, &on, 0))) {
 			error("Error: cannot interpret given size");
@@ -134,17 +137,24 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 		default:
 			break;
 		}
+
+		param.bytes = z;
 	}
 
 	if (argi->hashes_arg) {
+		size_t k;
+
 		if (!(k = strtoul(argi->hashes_arg, NULL, 0))) {
 			error("Error: cannot interpret number of hashes");
 			return 1;
 		}
+
+		param.k_num = k;
 	}
 
 	if (argi->capacity_arg) {
 		char *on;
+		size_t c;
 
 		if (!(c = strtoul(argi->capacity_arg, &on, 0))) {
 			error("Error: cannot interpret capacity");
@@ -164,10 +174,13 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 		default:
 			break;
 		}
+
+		param.capacity = c;
 	}
 
 	if (argi->probability_arg) {
 		char *on;
+		double p;
 
 		if ((p = strtod(argi->probability_arg, &on)) <= 0.0) {
 			error("Error: probability must be positive");
@@ -180,33 +193,36 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 		default:
 			break;
 		}
+
+		param.fp_probability = p;
 	}
 
 	if (argi->dry_run_flag) {
 		argi->verbose_flag |= 1;
 	}
 
-	if (argi->verbose_flag) {
-		bloom_filter_params param = {
-			.capacity = c,
-			.bytes = z,
-			.k_num = k,
-			.fp_probability = p,
-		};
+	if (param.capacity && param.fp_probability > 0.0) {
+		bf_size_for_capacity_prob(&param);
+	}
 
-		if (c && p > 0.0) {
-			bf_size_for_capacity_prob(&param);
+	if (param.capacity && !argi->hashes_arg) {
+		/* now we've got capacity and size (be it the default size) */
+		bf_ideal_k_num(&param);
+	}
+
+	if (argi->verbose_flag) {
+		if (param.capacity && param.fp_probability > 0.0) {
 			printf("suggested size (bytes): %zu\n", param.bytes);
-		} else if (p > 0.0) {
+		} else if (param.fp_probability > 0.0) {
 			bf_capacity_for_size_prob(&param);
-			printf("capacity (#keys): %zu\n", (size_t)param.capacity);
-		} else if (c) {
+			printf("capacity (#keys): %zu\n",
+			       (size_t)param.capacity);
+		} else if (param.capacity) {
 			bf_fp_probability_for_capacity_size(&param);
 			printf("false positive probability: %g\n",
 			       param.fp_probability);
 		}
 		if (!argi->hashes_arg) {
-			bf_ideal_k_num(&param);
 			printf("ideal number of hashes: %u\n", param.k_num);
 		}
 	}
@@ -215,14 +231,18 @@ cmd_init(struct yuck_cmd_init_s argi[static 1U])
 		return 0;
 	}
 
+	/* massage file size */
+	param.bytes += 4095ULL;
+	param.bytes &= ~4095ULL;
+
 	if ((fd = open(fn, O_CREAT | O_TRUNC | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
-	} else if (bitmap_from_file(fd, z, PERSISTENT, m) < 0) {
+	} else if (bitmap_from_file(fd, param.bytes, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
 		goto out;
-	} else if (bf_init(m, k) < 0) {
+	} else if (bf_init(m, param.k_num) < 0) {
 		error("Error: file `%s' is not a valid filter file", fn);
 		rc = 1;
 	}
