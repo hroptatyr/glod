@@ -106,7 +106,7 @@ static int
 cmd_init(struct yuck_cmd_init_s argi[static 1U])
 {
 	bloom_bitmap m[1U];
-	const char *fn = argi->filter_arg ?: dflt_bffn;
+	const char *fn = argi->filter_arg ?: *argi->args ?: dflt_bffn;
 	size_t z = 2097152U;
 	size_t c = 0U;
 	unsigned int k = 11U;
