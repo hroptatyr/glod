@@ -259,6 +259,7 @@ out:
 static int
 cmd_add(struct yuck_cmd_add_s argi[static 1U])
 {
+	struct stat st[1U];
 	bloom_bitmap m[1U];
 	bloom_filter f[1U];
 	char *line = NULL;
@@ -270,7 +271,15 @@ cmd_add(struct yuck_cmd_add_s argi[static 1U])
 	if ((fd = open(fn, O_CREAT | O_RDWR, 0644)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
-	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
+	} else if (fstat(fd, st) < 0) {
+		error("Error: cannot stat filter file `%s'", fn);
+		rc = 1;
+		goto out;
+	} else if (st->st_size < 4096U) {
+		error("Error: filter file `%s' below minimum filter size", fn);
+		rc = 1;
+		goto out;
+	} else if (bitmap_from_file(fd, st->st_size, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
 		goto out;
@@ -295,6 +304,7 @@ out:
 static int
 cmd_has(struct yuck_cmd_has_s argi[static 1U])
 {
+	struct stat st[1U];
 	bloom_bitmap m[1U];
 	bloom_filter f[1U];
 	char *line = NULL;
@@ -306,7 +316,15 @@ cmd_has(struct yuck_cmd_has_s argi[static 1U])
 	if ((fd = open(fn, O_RDONLY)) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		return 1;
-	} else if (bitmap_from_file(fd, 4194304U, PERSISTENT, m) < 0) {
+	} else if (fstat(fd, st) < 0) {
+		error("Error: cannot stat filter file `%s'", fn);
+		rc = 1;
+		goto out;
+	} else if (st->st_size < 4096U) {
+		error("Error: filter file `%s' below minimum filter size", fn);
+		rc = 1;
+		goto out;
+	} else if (bitmap_from_file(fd, st->st_size, PERSISTENT, m) < 0) {
 		error("Error: cannot open filter file `%s'", fn);
 		rc = 1;
 		goto out;
