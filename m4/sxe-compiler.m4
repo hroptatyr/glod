@@ -347,6 +347,19 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 
 	SXE_CHECK_COMPILER_FLAG([-ipo-jobs256], [
 		optiflags="${optiflags} -ipo-jobs256"])
+
+	SXE_CHECK_COMPILER_FLAG([-fast], [
+		featflags="${featflags} -fast"])
+
+	SXE_CHECK_COMPILER_FLAG([-xHost], [
+		featflags="${featflags} -xHost"])
+
+	SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
+		featflags="${featflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
+
+	SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
+		featflags="${featflags} -mtune=native -march=native"])
+
 ])dnl SXE_OPTIFLAGS
 
 AC_DEFUN([SXE_FEATFLAGS], [dnl
@@ -361,13 +374,6 @@ AC_DEFUN([SXE_FEATFLAGS], [dnl
 	## (and hence PIE off) and hope bug 16 remains fixed
 	SXE_CHECK_COMPILER_FLAG([-nopie],
 		[featflags="$featflags -nopie"])
-
-	## it's utterly helpful to get the sse2 unit up
-	SXE_CHECK_COMPILER_FLAG([-msse2], [dnl
-		## sse2 is the cure
-		featflags="$featflags -msse2"], [dnl
-		## oh bugger
-		AC_DEFINE([FPMATH_NO_SSE], [1], [no sse2 support for floats])])
 
 	## icc and gcc related
 	## check if some stuff can be staticalised
