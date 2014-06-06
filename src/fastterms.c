@@ -288,7 +288,9 @@ DEFCORU(co_class, {
 	const unsigned int n = CORU_CLOSUR(n);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
-	uint_fast64_t accu[bsz / (sizeof(__mXi) / sizeof(uint_fast64_t))];
+	uint_fast32_t accu_alnum[bsz / sizeof(__mXi)];
+	uint_fast32_t accu_ntasc[bsz / sizeof(__mXi)];
+	uint_fast32_t accu_punct[bsz / sizeof(__mXi)];
 
 	/* enter the main snarf loop */
 	do {
@@ -298,12 +300,9 @@ DEFCORU(co_class, {
 			/* load */
 			register __mXi data = _mmX_load_si((void*)(buf + i));
 
-			accu[j] = 0U;
-			accu[j] |= pisntasc(data);
-			accu[j] <<= 16U;
-			accu[j] |= pisalnum(data);
-			accu[j] <<= 16U;
-			accu[j] |= pispunct(data);
+			accu_ntasc[j] = pisntasc(data);
+			accu_alnum[j] = pisalnum(data);
+			accu_punct[j] = pispunct(data);
 		}
 		npr = nrd;
 	} while ((nrd = YIELD(npr)) > 0U);
