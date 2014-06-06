@@ -225,7 +225,7 @@ pispunct(register __mXi data)
 }
 
 static inline __attribute__((pure, const)) int
-pisascii(register __mXi data)
+pisntasc(register __mXi data)
 {
 	register __mXi x;
 
@@ -299,7 +299,7 @@ DEFCORU(co_class, {
 			register __mXi data = _mmX_load_si((void*)(buf + i));
 
 			accu[j] = 0U;
-			accu[j] |= pisascii(data);
+			accu[j] |= pisntasc(data);
 			accu[j] <<= 16U;
 			accu[j] |= pisalnum(data);
 			accu[j] <<= 16U;
