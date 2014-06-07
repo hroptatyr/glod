@@ -305,6 +305,61 @@ DEFCORU(co_class, {
 			accu_punct[j] = pispunct(data);
 		}
 		npr = nrd;
+
+		/* streak finder */
+		uint_fast64_t accu = accu_alnum[0U];
+		uint_fast64_t punc = accu_punct[0U];
+		for (size_t i = 1U, tot = 0U; i < j; i++) {
+			const size_t shft = sizeof(__mXi) - tot % sizeof(__mXi);
+			accu |= accu_alnum[i] << shft;
+			punc |= accu_punct[i] << shft;
+
+			while (accu && LIKELY(accu >> sizeof(__mXi))) {
+				const unsigned int off = _tzcnt_u32(accu);
+				unsigned int len;
+
+				/* shift by off */
+				accu >>= off;
+				punc >>= off;
+
+				/* compute streak length */
+				len = _tzcnt_u32(~accu);
+
+				/* shift by len */
+				accu >>= len;
+				punc >>= len;
+
+				/* check if streak is interupted by 1 char */
+				if (accu & 0b11U) {
+					/* check if missing bit is punct */
+					if (punc & 0b1U) {
+						/* yep, shift by 1, ... */
+						size_t add;
+
+						accu >>= 1U;
+						punc >>= 1U;
+
+						/* and get its streak length */
+						add = _tzcnt_u32(~accu);
+
+						/* update accu and punc */
+						accu >>= add;
+						punc >>= add;
+
+						/* and recalc length */
+						len += 1U + add;
+					}
+				}
+
+				/* adapt tot */
+				tot += off;
+				/* copy streak */
+				fwrite(buf + tot, 1, len, stdout);
+				putchar('\n');
+				/* adapt tot again */
+				tot += len;
+			}
+		}
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
