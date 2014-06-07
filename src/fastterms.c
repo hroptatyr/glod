@@ -110,7 +110,7 @@ error(const char *fmt, ...)
 # define _mmX_cmpgt_epi8(x, y)	_mm256_cmpgt_epi8(x, y)
 # define _mmX_cmplt_epi8(x, y)	_mm256_cmpgt_epi8(y, x)
 # define _mmX_and_si(x, y)	_mm256_and_si256(x, y)
-# define _mmX_or_si(x, y)	_mm256_or_si256(x, y)
+# define _mmX_xor_si(x, y)	_mm256_xor_si256(x, y)
 # define _mmX_movemask_epi8(x)	_mm256_movemask_epi8(x)
 #elif defined __SSE2__
 # define __mXi			__m128i
@@ -121,7 +121,7 @@ error(const char *fmt, ...)
 # define _mmX_cmpgt_epi8(x, y)	_mm_cmpgt_epi8(x, y)
 # define _mmX_cmplt_epi8(x, y)	_mm_cmplt_epi8(x, y)
 # define _mmX_and_si(x, y)	_mm_and_si128(x, y)
-# define _mmX_or_si(x, y)	_mm_or_si128(x, y)
+# define _mmX_xor_si(x, y)	_mm_xor_si128(x, y)
 # define _mmX_movemask_epi8(x)	_mm_movemask_epi8(x)
 #else
 # error need SIMD extensions of some sort
@@ -146,7 +146,7 @@ pisalnum(register __mXi data)
 	y1 = _mmX_and_si(x0, x1);
 
 	/* accumulate */
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for numbers */
 	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('0' - 1));
@@ -154,7 +154,7 @@ pisalnum(register __mXi data)
 	y1 = _mmX_and_si(x0, x1);
 
 	/* accumulate */
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 	return _mmX_movemask_epi8(y0);
 }
 
@@ -176,51 +176,51 @@ pispunct(register __mXi data)
 	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('\'' + 1));
 	y1 = _mmX_and_si(x0, x1);
 	/* accu */
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for *+, (they're consecutive) */
 	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('*' - 1));
 	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8(',' + 1));
 	y1 = _mmX_and_si(x0, x1);
 	/* accu */
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for ./ */
 	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('.'));
 	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('/'));
-	y1 = _mmX_or_si(x0, x1);
-	y0 = _mmX_or_si(y0, y1);
+	y1 = _mmX_xor_si(x0, x1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for : */
 	y1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(':'));
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for = */
 	y1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('='));
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for ? */
 	y1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('?'));
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for @ */
 	y1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('@'));
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for \ */
 	y1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('\\'));
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for ^_` (they're consecutive) */
 	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('^' - 1));
 	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('`' + 1));
 	y1 = _mmX_and_si(x0, x1);
 	/* accu */
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for | */
 	y1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('|'));
-	y0 = _mmX_or_si(y0, y1);
+	y0 = _mmX_xor_si(y0, y1);
 	return _mmX_movemask_epi8(y0);
 }
 
