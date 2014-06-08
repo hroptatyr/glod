@@ -294,70 +294,63 @@ DEFCORU(co_class, {
 
 	/* enter the main snarf loop */
 	do {
-		size_t j = 0U;
+		size_t nr = 0U;
 
-		for (size_t i = 0U; i < nrd; i += sizeof(__mXi), j++) {
+		for (size_t i = 0U; i < nrd; i += sizeof(__mXi), nr++) {
 			/* load */
 			register __mXi data = _mmX_load_si((void*)(buf + i));
 
-			accu_ntasc[j] = pisntasc(data);
-			accu_alnum[j] = pisalnum(data);
-			accu_punct[j] = pispunct(data);
+			accu_ntasc[nr] = pisntasc(data);
+			accu_alnum[nr] = pisalnum(data);
+			accu_punct[nr] = pispunct(data);
 		}
 		npr = nrd;
 
-		/* streak finder */
-		uint_fast64_t accu = accu_alnum[0U];
-		uint_fast64_t punc = accu_punct[0U];
-		for (size_t i = 1U, tot = 0U; i < j; i++) {
-			const size_t shft = sizeof(__mXi) - tot % sizeof(__mXi);
-			accu |= accu_alnum[i] << shft;
-			punc |= accu_punct[i] << shft;
 
-			while (accu && LIKELY(accu >> sizeof(__mXi))) {
+
+		/* streak finder,
+		 * We augment accu_alnum[] which contains the start and
+		 * end points already, this way we can use _tzcnt() ops
+		 * more efficiently and don't have to flick back and
+		 * forth between accu_*[] arrays and the input buffer.
+		 * First up is accu_punct[] whose augmentation strategy
+		 * is to turn alnum-bits 101 into 111 if the
+		 * corresponding punct bits read 010 */
+		for (size_t i = 0U; i < nr; i++) {
+			uint_fast32_t accu = accu_punct[i];
+
+			for (size_t j = 0U; j < sizeof(__mXi) * 8U; j++) {
+				unsigned int len;
+
+				/* fast forward to set bits */
+				len = _tzcnt_u32(accu >> j);
+
+				j += len;
+			}
+		}
+
+		/* now go through and scrape buffer portions off */
+		for (size_t i = 0U, tot = 0U; i < nr;) {
+			uint_fast32_t accu = accu_alnum[i];
+			const size_t eot = ++i * sizeof(__mXi);
+
+			while (tot < eot) {
+				/* calc starting point and length of streak */
 				const unsigned int off = _tzcnt_u32(accu);
 				unsigned int len;
 
-				/* shift by off */
+				/* skip to beginning of streak */
+				tot += off;
 				accu >>= off;
-				punc >>= off;
-
-				/* compute streak length */
+				/* calc streak length */
 				len = _tzcnt_u32(~accu);
 
-				/* shift by len */
-				accu >>= len;
-				punc >>= len;
-
-				/* check if streak is interupted by 1 char */
-				if (accu & 0b11U) {
-					/* check if missing bit is punct */
-					if (punc & 0b1U) {
-						/* yep, shift by 1, ... */
-						size_t add;
-
-						accu >>= 1U;
-						punc >>= 1U;
-
-						/* and get its streak length */
-						add = _tzcnt_u32(~accu);
-
-						/* update accu and punc */
-						accu >>= add;
-						punc >>= add;
-
-						/* and recalc length */
-						len += 1U + add;
-					}
-				}
-
-				/* adapt tot */
-				tot += off;
 				/* copy streak */
 				fwrite(buf + tot, 1, len, stdout);
 				putchar('\n');
-				/* adapt tot again */
+				/* skip behind streak */
 				tot += len;
+				accu >>= len;
 			}
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
