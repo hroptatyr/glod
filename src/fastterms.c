@@ -347,10 +347,13 @@ DEFCORU(co_class, {
 
 				/* copy streak */
 				fwrite(buf + tot, 1, len, stdout);
-				putchar('\n');
 				/* skip behind streak */
-				tot += len;
 				accu >>= len;
+				if ((tot += len) % sizeof(__mXi) ||
+				    /* might be a boundary */
+				    !(accu_alnum[i] & 0b1U)) {
+					putchar('\n');
+				}
 			}
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
