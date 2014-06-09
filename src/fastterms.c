@@ -336,14 +336,27 @@ DEFCORU(co_class, {
 
 			while (tot < eot) {
 				/* calc starting point and length of streak */
-				const unsigned int off = _tzcnt_u32(accu);
+				unsigned int off;
 				unsigned int len;
 
+				if (UNLIKELY(!accu)) {
+					tot = eot;
+					break;
+				}
+
+				/* calc offset */
+				off = _tzcnt_u32(accu);
 				/* skip to beginning of streak */
 				tot += off;
 				accu >>= off;
+
 				/* calc streak length */
-				len = _tzcnt_u32(~accu);
+				if (UNLIKELY(!~accu)) {
+					/* don't tzcnt a 0 register */
+					len = eot - tot;
+				} else {
+					len = _tzcnt_u32(~accu);
+				}
 
 				/* copy streak */
 				fwrite(buf + tot, 1, len, stdout);
