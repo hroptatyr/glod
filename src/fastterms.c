@@ -288,9 +288,9 @@ DEFCORU(co_class, {
 	const unsigned int n = CORU_CLOSUR(n);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
-	uint_fast32_t accu_alnum[bsz / sizeof(__mXi)];
-	uint_fast32_t accu_ntasc[bsz / sizeof(__mXi)];
-	uint_fast32_t accu_punct[bsz / sizeof(__mXi)];
+	uint_fast32_t accu_alnum[bsz / sizeof(__m256i)];
+	uint_fast32_t accu_ntasc[bsz / sizeof(__m256i)];
+	uint_fast32_t accu_punct[bsz / sizeof(__m256i)];
 
 	/* enter the main snarf loop */
 	do {
@@ -303,10 +303,18 @@ DEFCORU(co_class, {
 			accu_ntasc[nr] = pisntasc(data);
 			accu_alnum[nr] = pisalnum(data);
 			accu_punct[nr] = pispunct(data);
+
+#if !defined __AVX2__
+			/* just another round to use up 32bits */
+			i += sizeof(__mXi);
+			data = _mmX_load_si((void*)(buf + i));
+
+			accu_ntasc[nr] |= pisntasc(data) << sizeof(__mXi);
+			accu_alnum[nr] |= pisalnum(data) << sizeof(__mXi);
+			accu_punct[nr] |= pispunct(data) << sizeof(__mXi);
+#endif	/* !__AVX2__ */
 		}
 		npr = nrd;
-
-
 
 		/* streak finder,
 		 * We augment accu_alnum[] which contains the start and
@@ -331,8 +339,8 @@ DEFCORU(co_class, {
 
 		/* now go through and scrape buffer portions off */
 		for (size_t i = 0U, tot = 0U; i < nr;) {
-			uint_fast32_t accu = accu_alnum[i];
-			const size_t eot = ++i * sizeof(__mXi);
+			uint32_t accu = accu_alnum[i];
+			const size_t eot = ++i * sizeof(__m256i);
 
 			while (tot < eot) {
 				/* calc starting point and length of streak */
@@ -351,18 +359,18 @@ DEFCORU(co_class, {
 				accu >>= off;
 
 				/* calc streak length */
-				if (UNLIKELY(!~accu)) {
-					/* don't tzcnt a 0 register */
-					len = eot - tot;
-				} else {
+				if (LIKELY(~accu)) {
 					len = _tzcnt_u32(~accu);
+				} else {
+					/* clamp length */
+					len = eot - tot;
 				}
+				/* skip behind streak */
+				accu >>= len;
 
 				/* copy streak */
 				fwrite(buf + tot, 1, len, stdout);
-				/* skip behind streak */
-				accu >>= len;
-				if ((tot += len) % sizeof(__mXi) ||
+				if ((tot += len) % sizeof(__m256i) ||
 				    /* might be a boundary */
 				    !(accu_alnum[i] & 0b1U)) {
 					putchar('\n');
