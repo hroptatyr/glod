@@ -295,6 +295,57 @@ augm(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
 	return;
 }
 
+static char strk_buf[4U * 4096U];
+static size_t strk_j;
+static size_t strk_i;
+
+static void
+pr_flsh(bool drainp)
+{
+	ssize_t nwr;
+	size_t tot = 0U;
+	const size_t i = !drainp ? strk_j : strk_i;
+
+	do {
+		nwr = write(STDOUT_FILENO, strk_buf + tot, i - tot);
+	} while (nwr > 0 && (tot += nwr) < i);
+
+	if (i < strk_i) {
+		/* copy the leftovers back to the beginning of the buffer */
+		memcpy(strk_buf, strk_buf + i, strk_i - i);
+		strk_i -= i;
+	} else {
+		strk_i = 0U;
+	}
+	return;
+}
+
+static void
+pr_strk(const char *s, size_t z, char sep)
+{
+	if (UNLIKELY(strk_i + z + 1U >= sizeof(strk_buf))) {
+		/* flush, if there's n-grams in the making (j > 0U)
+		 * flush only up to the last full n-gram */
+		pr_flsh(strk_j == 0U);
+	}
+
+	memcpy(strk_buf + strk_i, s, z);
+	strk_i += z;
+	if (sep) {
+		strk_buf[strk_i++] = sep;
+	}
+	return;
+}
+
+static void
+pr_feed(void)
+{
+	static const char feed[] = "\f\n";
+
+	pr_strk(feed, 1U, '\n');
+	return;
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -422,11 +473,14 @@ DEFCORU(co_class, {
 				accu >>= len;
 
 				/* copy streak */
-				fwrite(buf + tot, 1, len, stdout);
-				if ((tot += len) % sizeof(__m256i) ||
-				    /* might be a boundary */
-				    !(accu_alnum[i] & 0b1U)) {
-					putchar('\n');
+				with (char fin = '\0') {
+					if ((tot + len) % sizeof(__m256i) ||
+					    /* might be a boundary */
+					    !(accu_alnum[i] & 0b1U)) {
+						fin = '\n';
+					}
+					pr_strk(buf + tot, len, fin);
+					tot += len;
 				}
 			}
 		}
@@ -474,6 +528,13 @@ classify0(int fd, unsigned int n)
 
 		assert(npr <= nrd);
 	} while (nrd > 0);
+
+	/* print the separator */
+	if (fd > STDIN_FILENO) {
+		pr_feed();
+	}
+	/* make sure we've got it all written, aka flush */
+	pr_flsh(true);
 
 	UNPREP();
 	return res;
