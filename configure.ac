@@ -52,6 +52,11 @@ AX_CHECK_YUCK
 AC_CHECK_HEADERS([pty.h])
 AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
 
+## check for intrinsics
+AC_CHECK_HEADERS([immintrin.h])
+AC_CHECK_TYPES([__m256i], [], [], [[#include <immintrin.h>]])
+AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes"])
+
 
 ## libtool goddess^Wgoodness
 ## has to be down here as we're turning -Werror'ing off
