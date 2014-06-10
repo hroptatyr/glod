@@ -55,7 +55,21 @@ AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
 ## check for intrinsics
 AC_CHECK_HEADERS([immintrin.h])
 AC_CHECK_TYPES([__m256i], [], [], [[#include <immintrin.h>]])
-AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes"])
+AC_MSG_CHECKING([for _tzcnt_u32])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <immintrin.h>]], [_tzcnt_u32(0U);])], [
+	ac_cv_func__tzcnt_u32="yes"
+], [
+	ac_cv_func__tzcnt_u32="no"
+	AC_MSG_RESULT([${ac_cv_func__tzcnt_u32}])
+	AC_MSG_CHECKING([for non-compliant __tzcnt_u32])
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <immintrin.h>]], [__tzcnt_u32(0U);])], [
+		ac_cv_func__tzcnt_u32="yes"
+		AC_DEFINE([_tzcnt_u32], [__tzcnt_u32], [just an alias])
+		ac_cv_func___tzcnt_u32="yes"], [
+		ac_cv_func___tzcnt_u32="no"])
+	])
+AC_MSG_RESULT([${ac_cv_func__tzcnt_u32}])
+AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
 
 
 ## libtool goddess^Wgoodness
