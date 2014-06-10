@@ -48,6 +48,11 @@ EXTRA_DIST += 12abrdg.txt
 EXTRA_DIST += punct-terms.txt
 EXTRA_DIST += utf8-terms.txt
 
+fastterms_TESTS =
+TESTS += $(fastterms_TESTS)
+fastterms_TESTS += fastterms.01.tst
+fastterms_TESTS += fastterms.02.tst
+
 if HAVE_TCBDB
 tf_TESTS =
 TESTS += $(tf_TESTS)
