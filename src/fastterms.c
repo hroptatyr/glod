@@ -284,6 +284,17 @@ aug1(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
 	return;
 }
 
+static void
+augm(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
+{
+/* augment AUG with data from AUX,
+ * for now we allow any non-ascii character */
+	for (size_t i = 0U; i < nr; i++) {
+		aug[i] |= aux[i];
+	}
+	return;
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -371,7 +382,10 @@ DEFCORU(co_class, {
 		 * end points already, this way we can use _tzcnt() ops
 		 * more efficiently and don't have to flick back and
 		 * forth between accu_*[] arrays and the input buffer.
-		 * First up is accu_punct[] whose augmentation strategy
+		 * First up is accu_ntasc[], augment any streak of ntasc
+		 * characters immediately followed or preceded by alnums */
+		augm(accu_alnum, nr, accu_ntasc);
+		/* Next up is accu_punct[] whose augmentation strategy
 		 * is to turn alnum-bits 101 into 111 if the
 		 * corresponding punct bits read 010 */
 		aug1(accu_alnum, nr, accu_punct);
