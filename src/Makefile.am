@@ -193,6 +193,7 @@ glid_CPPFLAGS += -D_GNU_SOURCE
 glid_LDADD = libcoru.la
 BUILT_SOURCES += glid.yucc
 
+if HAVE_INTRIN
 noinst_PROGRAMS += fastterms
 fastterms_SOURCES = fastterms.c
 fastterms_SOURCES += fastterms.yuck
@@ -201,6 +202,7 @@ fastterms_CFLAGS += -msse2
 fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
 BUILT_SOURCES += fastterms.yucc
+endif  HAVE_INTRIN
 
 
 ## version rules
