@@ -234,6 +234,56 @@ pisntasc(register __mXi data)
 	return _mmX_movemask_epi8(x);
 }
 
+static void
+aug1(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
+{
+/* augment AUG with data from AUX. */
+	for (size_t i = 0U; i < nr; i++) {
+		uint32_t accu = aux[i];
+		size_t tot = 0U;
+
+		while (accu) {
+			unsigned int off;
+			uint32_t alnu;
+
+			/* calc starting point */
+			off = _tzcnt_u32(accu);
+			/* skip to beginning of streak */
+			accu >>= off;
+			tot += off;
+
+			/* make sure it's one punct only */
+			if (accu & 0b10U ||
+			    UNLIKELY(i == 0U && tot == 0U)) {
+				/* at least 2 puncts */
+				accu >>= 2U;
+				tot += 2U;
+				continue;
+			}
+			/* check alnum then */
+			if (LIKELY(tot && tot < sizeof(__m256i))) {
+				alnu = aug[i] >> (tot - 1U);
+			} else if (!tot) {
+				alnu = aug[i - 1U] >> (sizeof(__m256i) - 1U) |
+					aug[i] << 1U;
+			} else if (i + 1U < nr) {
+				alnu = aug[i] >> (tot - 1U) |
+					aug[i + 1U] << 2U;
+			} else {
+				continue;
+			}
+			if ((alnu & 0b111U) == 0b101U) {
+				/* augment alnum */
+				aug[i] |= 1U << tot;
+			}
+			/* advance */
+			accu >>= 1U;
+			tot++;
+		}
+	}
+	return;
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -324,50 +374,7 @@ DEFCORU(co_class, {
 		 * First up is accu_punct[] whose augmentation strategy
 		 * is to turn alnum-bits 101 into 111 if the
 		 * corresponding punct bits read 010 */
-		for (size_t i = 0U; i < nr; i++) {
-			uint32_t accu = accu_punct[i];
-			size_t tot = 0U;
-
-			while (accu) {
-				unsigned int off;
-				uint32_t alnu;
-
-				/* calc starting point */
-				off = _tzcnt_u32(accu);
-				/* skip to beginning of streak */
-				accu >>= off;
-				tot += off;
-
-				/* make sure it's one punct only */
-				if (accu & 0b10U ||
-				    UNLIKELY(i == 0U && tot == 0U)) {
-					/* at least 2 puncts */
-					accu >>= 2U;
-					tot += 2U;
-					continue;
-				}
-				/* check alnum then */
-				if (LIKELY(tot && tot < sizeof(__m256i))) {
-					alnu = accu_alnum[i] >> (tot - 1U);
-				} else if (!tot) {
-					alnu = accu_alnum[i - 1U]
-						>> sizeof(__m256i) |
-						accu_alnum[i] << 1U;
-				} else if (i + 1U < nr) {
-					alnu = accu_alnum[i] >> (tot - 1U) |
-						accu_alnum[i + 1U] << 2U;
-				} else {
-					continue;
-				}
-				if ((alnu & 0b111U) == 0b101U) {
-					/* augment alnum */
-					accu_alnum[i] |= 1U << tot;
-				}
-				/* advance */
-				accu >>= 1U;
-				tot++;
-			}
-		}
+		aug1(accu_alnum, nr, accu_punct);
 
 		/* now go through and scrape buffer portions off */
 		for (size_t i = 0U, tot = 0U; i < nr;) {
