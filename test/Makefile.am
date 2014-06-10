@@ -48,12 +48,13 @@ EXTRA_DIST += 12abrdg.txt
 EXTRA_DIST += punct-terms.txt
 EXTRA_DIST += utf8-terms.txt
 
-if HAVE_INTRIN
 fastterms_TESTS =
+if HAVE_INTRIN
 TESTS += $(fastterms_TESTS)
+endif  HAVE_INTRIN
+EXTRA_DIST += $(fastterms_TESTS)
 fastterms_TESTS += fastterms.01.tst
 fastterms_TESTS += fastterms.02.tst
-endif  HAVE_INTRIN
 
 if HAVE_TCBDB
 tf_TESTS =

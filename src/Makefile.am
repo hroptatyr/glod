@@ -201,8 +201,8 @@ fastterms_CFLAGS = $(AM_CFLAGS)
 fastterms_CFLAGS += -msse2
 fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
-BUILT_SOURCES += fastterms.yucc
 endif  HAVE_INTRIN
+BUILT_SOURCES += fastterms.yucc
 
 
 ## version rules
