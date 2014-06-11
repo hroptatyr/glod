@@ -234,6 +234,67 @@ pisntasc(register __mXi data)
 	return _mmX_movemask_epi8(x);
 }
 
+
+/* agumentation heuristics */
+typedef struct {
+	size_t off;
+	size_t len;
+} extent_t;
+
+static extent_t
+find_strk(const uint32_t d[static 1U], size_t nbits, size_t start)
+{
+#define __M256m		(0xffffffffU)
+#define __BITS		(32U)
+	extent_t res = {start};
+	uint32_t accu;
+	unsigned int off;
+	unsigned int len;
+
+	if (UNLIKELY(start >= nbits)) {
+		goto out;
+	}
+
+	/* offset finding, bigger picture */
+	if (!(accu = d[start / __BITS] >> (start % __BITS))) {
+		for (start += __BITS - (start % __BITS);
+		     start < nbits && !(accu = d[start / __BITS]);
+		     start += __BITS);
+		/* now either start >= nbits or accu is not all-0 */
+		if (UNLIKELY(start >= nbits)) {
+			res.off = start;
+			goto out;
+		}
+	}
+
+	/* find the offset within accu now */
+	off = _tzcnt_u32(accu);
+	res.off = start + off;
+	accu >>= off;
+
+	/* length finding, within accu first */
+	len = _tzcnt_u32(~accu);
+	/* length finding, bigger picture */
+	if (UNLIKELY((res.off + len) / __BITS > res.off / __BITS)) {
+		for (start = ((res.off / __BITS) + 1U) * __BITS;
+		     start < nbits && !~(accu = d[start / __BITS]);
+		     start += __BITS);
+		/* preset res.len */
+		res.len = start - res.off;
+		/* now either start >= nbits or accu is not all-1 */
+		if (UNLIKELY(start >= nbits)) {
+			goto out;
+		}
+		/* get the number within accu again */
+		len = _tzcnt_u32(~accu);
+	}
+	/* just add up our findings then */
+	res.len += len;
+
+out:
+	return res;
+}
+
 static void
 aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 {
@@ -348,51 +409,27 @@ pr_feed(void)
 }
 
 static ssize_t
-strk(const char *buf, size_t z, const uint_fast32_t aug[static z], size_t nr)
+strk(const char *buf, size_t z, const uint32_t aug[static z], size_t nr)
 {
-	for (size_t i = 0U, tot = 0U; i < nr;) {
-		uint32_t accu = aug[i];
-		const size_t eot = ++i * sizeof(__m256i);
+	const size_t nbits = nr * sizeof(__m256i);
+	size_t res = 0U;
 
-		while (tot < eot) {
-			/* calc starting point and length of streak */
-			unsigned int off;
-			unsigned int len;
-
-			if (UNLIKELY(!accu)) {
-				tot = eot;
-				break;
-			}
-
-			/* calc offset */
-			off = _tzcnt_u32(accu);
-			/* skip to beginning of streak */
-			tot += off;
-			accu >>= off;
-
-			/* calc streak length */
-			if (LIKELY(~accu)) {
-				len = _tzcnt_u32(~accu);
-			} else {
-				/* clamp length */
-				len = eot - tot;
-			}
-			/* skip behind streak */
-			accu >>= len;
-
-			/* copy streak */
-			with (char fin = '\0') {
-				if ((tot + len) % sizeof(__m256i) ||
-				    /* might be a boundary */
-				    !(aug[i] & 0b1U)) {
-					fin = '\n';
-				}
-				pr_strk(buf + tot, len, fin);
-				tot += len;
-			}
-		}
+	if (UNLIKELY(z == 0U)) {
+		return 0U;
 	}
-	return z;
+	do {
+		extent_t next = find_strk(aug, nbits, res);
+
+		if (!(next.len)) {
+			break;
+		} else if (next.off + next.len >= z) {
+			break;
+		}
+		/* otherwise we're good to go */
+		res = next.off + next.len;
+		pr_strk(buf + next.off, next.len, '\n');
+	} while (1);
+	return res;
 }
 
 
