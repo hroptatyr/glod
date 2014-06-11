@@ -449,15 +449,13 @@ strk(const char *buf, size_t z, const uint32_t aug[static z], size_t nr)
 	const size_t nbits = nr * sizeof(__m256i);
 	size_t res = 0U;
 
-	if (UNLIKELY(z == 0U)) {
-		return 0U;
-	}
 	do {
 		extent_t next = find_strk(aug, nbits, res);
 
-		if (!(next.len)) {
-			break;
-		} else if (next.off + next.len >= z) {
+		if (next.off + next.len >= z) {
+			if (UNLIKELY(!res)) {
+				res = z;
+			}
 			break;
 		}
 		/* otherwise we're good to go */
