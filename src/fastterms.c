@@ -97,6 +97,12 @@ error(const char *fmt, ...)
 	return;
 }
 
+inline __attribute__((const, pure)) unsigned int
+_bextr_u32(unsigned int w, unsigned off, unsigned int len)
+{
+	return w >> off & ((1U << len) - 1U);
+}
+
 
 /* bitstreams, the idea is that the incoming buffer is transformed
  * into bitmasks, bit I represents a hit according to the classifier
@@ -234,67 +240,158 @@ pisntasc(register __mXi data)
 	return _mmX_movemask_epi8(x);
 }
 
-static void
-aug1(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
+
+/* agumentation heuristics */
+typedef struct {
+	size_t off;
+	size_t len;
+} extent_t;
+
+static extent_t
+find_strk(const uint32_t d[static 1U], size_t nbits, size_t start)
 {
-/* augment AUG with data from AUX. */
-	for (size_t i = 0U; i < nr; i++) {
-		uint32_t accu = aux[i];
-		size_t tot = 0U;
+#define __M256m		(0xffffffffU)
+#define __BITS		(32U)
+	extent_t res = {start};
+	uint32_t accu;
+	unsigned int off;
+	unsigned int len;
 
-		while (accu) {
-			unsigned int off;
-			uint32_t alnu;
+	if (UNLIKELY(start >= nbits)) {
+		goto out;
+	}
 
-			/* calc starting point */
-			off = _tzcnt_u32(accu);
-			/* skip to beginning of streak */
-			accu >>= off;
-			tot += off;
-
-			/* make sure it's one punct only */
-			if (accu & 0b10U ||
-			    UNLIKELY(i == 0U && tot == 0U)) {
-				/* at least 2 puncts */
-				accu >>= 2U;
-				tot += 2U;
-				continue;
-			}
-			/* check alnum then */
-			if (LIKELY(tot && tot < sizeof(__m256i))) {
-				alnu = aug[i] >> (tot - 1U);
-			} else if (!tot) {
-				alnu = aug[i - 1U] >> (sizeof(__m256i) - 1U) |
-					aug[i] << 1U;
-			} else if (i + 1U < nr) {
-				alnu = aug[i] >> (tot - 1U) |
-					aug[i + 1U] << 2U;
-			} else {
-				continue;
-			}
-			if ((alnu & 0b111U) == 0b101U) {
-				/* augment alnum */
-				aug[i] |= 1U << tot;
-			}
-			/* advance */
-			accu >>= 1U;
-			tot++;
+	/* offset finding, bigger picture */
+	if (!(accu = d[start / __BITS] >> (start % __BITS))) {
+		for (start += __BITS - (start % __BITS);
+		     start < nbits && !(accu = d[start / __BITS]);
+		     start += __BITS);
+		/* now either start >= nbits or accu is not all-0 */
+		if (UNLIKELY(start >= nbits)) {
+			res.off = start;
+			goto out;
 		}
+	}
+
+	/* find the offset within accu now */
+	off = _tzcnt_u32(accu);
+	res.off = start + off;
+	accu >>= off;
+
+	/* length finding, within accu first */
+	len = _tzcnt_u32(~accu);
+	/* length finding, bigger picture */
+	if (UNLIKELY((res.off + len) / __BITS > res.off / __BITS)) {
+		for (start = ((res.off / __BITS) + 1U) * __BITS;
+		     start < nbits && !~(accu = d[start / __BITS]);
+		     start += __BITS);
+		/* preset res.len */
+		res.len = start - res.off;
+		/* now either start >= nbits or accu is not all-1 */
+		if (UNLIKELY(start >= nbits)) {
+			goto out;
+		}
+		/* get the number within accu again */
+		len = _tzcnt_u32(~accu);
+	}
+	/* just add up our findings then */
+	res.len += len;
+
+out:
+	return res;
+}
+
+static __attribute__((const, pure)) unsigned int
+extr_strk(const uint32_t d[static 1U], size_t nbits, size_t off)
+{
+	if (UNLIKELY(off >= nbits)) {
+		return 0U;
+	}
+	return _bextr_u32(d[off / __BITS], off % __BITS, 1U);
+}
+
+static void
+augm_strk(uint32_t *restrict d, size_t nbits, extent_t x)
+{
+	size_t i = x.off / __BITS;
+	size_t left;
+
+	if (UNLIKELY(x.off > nbits)) {
+		return;
+	} else if (UNLIKELY(x.off + x.len > nbits)) {
+		x.len = nbits - x.off;
+	}
+
+	d[i] |= (((1U << x.len) - 1U) << (x.off % __BITS)) & __M256m;
+	if (UNLIKELY((left = (x.off % __BITS) + x.len) > __BITS)) {
+		/* fill complete u32 */
+		while ((left -= __BITS) > __BITS) {
+			d[++i] = -1U;
+		}
+		/* fill the tail end of the streak */
+		d[++i] |= ((1U << left) - 1U);
 	}
 	return;
 }
 
 static void
-augm(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
+aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
+{
+/* augment AUG with data from AUX. */
+	const size_t nbits = nr * sizeof(__m256i);
+	size_t start = 0U;
+
+	do {
+		extent_t next = find_strk(aux, nbits, start);
+
+		if (!(next.len)) {
+			break;
+		} else if (next.off + next.len >= nbits) {
+			break;
+		}
+		/* otherwise we're good to go */
+		start = next.off + next.len;
+
+		/* check bit before and after streak */
+		if (extr_strk(aug, nbits, next.off - 1U) &&
+		    extr_strk(aug, nbits, start)) {
+			/* yep augment him */
+			augm_strk(aug, nbits, next);
+		}
+	} while (1);
+	return;
+}
+
+static void
+augm(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 {
 /* augment AUG with data from AUX,
  * for now we allow any non-ascii character */
-	for (size_t i = 0U; i < nr; i++) {
-		aug[i] |= aux[i];
-	}
+	const size_t nbits = nr * sizeof(__m256i);
+	size_t start = 0U;
+
+	do {
+		extent_t next = find_strk(aux, nbits, start);
+
+		if (!(next.len)) {
+			break;
+		} else if (next.off + next.len >= nbits) {
+			break;
+		}
+		/* otherwise we're good to go */
+		start = next.off + next.len;
+
+		/* check bit before or after streak */
+		if (extr_strk(aug, nbits, next.off - 1U) ||
+		    extr_strk(aug, nbits, start)) {
+			/* yep augment him */
+			augm_strk(aug, nbits, next);
+		}
+	} while (1);
 	return;
 }
 
+
 static char strk_buf[4U * 4096U];
 static size_t strk_j;
 static size_t strk_i;
@@ -344,6 +441,28 @@ pr_feed(void)
 
 	pr_strk(feed, 1U, '\n');
 	return;
+}
+
+static ssize_t
+strk(const char *buf, size_t z, const uint32_t aug[static z], size_t nr)
+{
+	const size_t nbits = nr * sizeof(__m256i);
+	size_t res = 0U;
+
+	do {
+		extent_t next = find_strk(aug, nbits, res);
+
+		if (next.off + next.len >= z) {
+			if (UNLIKELY(!res)) {
+				res = z;
+			}
+			break;
+		}
+		/* otherwise we're good to go */
+		res = next.off + next.len;
+		pr_strk(buf + next.off, next.len, '\n');
+	} while (1);
+	return res;
 }
 
 
@@ -400,9 +519,9 @@ DEFCORU(co_class, {
 	const unsigned int n = CORU_CLOSUR(n);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
-	uint_fast32_t accu_alnum[bsz / sizeof(__m256i)];
-	uint_fast32_t accu_ntasc[bsz / sizeof(__m256i)];
-	uint_fast32_t accu_punct[bsz / sizeof(__m256i)];
+	uint32_t accu_alnum[bsz / sizeof(__m256i)];
+	uint32_t accu_ntasc[bsz / sizeof(__m256i)];
+	uint32_t accu_punct[bsz / sizeof(__m256i)];
 
 	/* enter the main snarf loop */
 	do {
@@ -426,7 +545,6 @@ DEFCORU(co_class, {
 			accu_punct[nr] |= pispunct(data) << sizeof(__mXi);
 #endif	/* !__AVX2__ */
 		}
-		npr = nrd;
 
 		/* streak finder,
 		 * We augment accu_alnum[] which contains the start and
@@ -442,48 +560,7 @@ DEFCORU(co_class, {
 		aug1(accu_alnum, nr, accu_punct);
 
 		/* now go through and scrape buffer portions off */
-		for (size_t i = 0U, tot = 0U; i < nr;) {
-			uint32_t accu = accu_alnum[i];
-			const size_t eot = ++i * sizeof(__m256i);
-
-			while (tot < eot) {
-				/* calc starting point and length of streak */
-				unsigned int off;
-				unsigned int len;
-
-				if (UNLIKELY(!accu)) {
-					tot = eot;
-					break;
-				}
-
-				/* calc offset */
-				off = _tzcnt_u32(accu);
-				/* skip to beginning of streak */
-				tot += off;
-				accu >>= off;
-
-				/* calc streak length */
-				if (LIKELY(~accu)) {
-					len = _tzcnt_u32(~accu);
-				} else {
-					/* clamp length */
-					len = eot - tot;
-				}
-				/* skip behind streak */
-				accu >>= len;
-
-				/* copy streak */
-				with (char fin = '\0') {
-					if ((tot + len) % sizeof(__m256i) ||
-					    /* might be a boundary */
-					    !(accu_alnum[i] & 0b1U)) {
-						fin = '\n';
-					}
-					pr_strk(buf + tot, len, fin);
-					tot += len;
-				}
-			}
-		}
+		npr = strk(buf, nrd, accu_alnum, nr);
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
