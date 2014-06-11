@@ -36,15 +36,6 @@ SXE_CHECK_CFLAGS
 AC_CHECK_TOOLS([AR], [xiar ar], [false])
 AC_C_BIGENDIAN
 
-PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
-	have_tcbdb="yes"
-	AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
-	with_database="tcbdb"
-], [
-	have_tcbdb="no"
-])
-AM_CONDITIONAL([HAVE_TCBDB], [test "${have_tcbdb}" = "yes"])
-
 ## check for yuck helper
 AX_CHECK_YUCK
 
@@ -70,6 +61,20 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <immintrin.h>]], [_tzcnt_u32(0U);])],
 	])
 AC_MSG_RESULT([${ac_cv_func__tzcnt_u32}])
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
+
+
+PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
+	have_tcbdb="yes"
+	AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
+	with_database="tcbdb"
+], [
+	have_tcbdb="no"
+])
+AC_ARG_ENABLE([tokyocabinet], [dnl
+AS_HELP_STRING([--disable-tokyocabinet], [
+Disable binaries that make use of the tokyocabinet key/value store.])],
+	[enable_tokyocabinet="${enableval}"], [enable_tokyocabinet="yes"])
+AM_CONDITIONAL([HAVE_TCBDB], [test "${have_tcbdb}" = "yes" -a "${enable_tokyocabinet}" = "yes"])
 
 
 ## libtool goddess^Wgoodness
