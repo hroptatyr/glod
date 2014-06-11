@@ -235,7 +235,7 @@ pisntasc(register __mXi data)
 }
 
 static void
-aug1(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
+aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 {
 /* augment AUG with data from AUX. */
 	for (size_t i = 0U; i < nr; i++) {
@@ -285,7 +285,7 @@ aug1(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
 }
 
 static void
-augm(uint_fast32_t *restrict aug, size_t nr, const uint_fast32_t aux[static nr])
+augm(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 {
 /* augment AUG with data from AUX,
  * for now we allow any non-ascii character */
@@ -449,9 +449,9 @@ DEFCORU(co_class, {
 	const unsigned int n = CORU_CLOSUR(n);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
-	uint_fast32_t accu_alnum[bsz / sizeof(__m256i)];
-	uint_fast32_t accu_ntasc[bsz / sizeof(__m256i)];
-	uint_fast32_t accu_punct[bsz / sizeof(__m256i)];
+	uint32_t accu_alnum[bsz / sizeof(__m256i)];
+	uint32_t accu_ntasc[bsz / sizeof(__m256i)];
+	uint32_t accu_punct[bsz / sizeof(__m256i)];
 
 	/* enter the main snarf loop */
 	do {
