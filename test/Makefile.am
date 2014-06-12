@@ -55,6 +55,8 @@ endif  HAVE_INTRIN
 EXTRA_DIST += $(fastterms_TESTS)
 fastterms_TESTS += fastterms.01.tst
 fastterms_TESTS += fastterms.02.tst
+fastterms_TESTS += fastterms.03.tst
+EXTRA_DIST += ft_bug_01.txt
 
 if HAVE_TCBDB
 tf_TESTS =
