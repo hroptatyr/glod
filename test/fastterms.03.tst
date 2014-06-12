@@ -16,8 +16,7 @@ XXXXXX
 Austria
 HICP
 Processed
-food
-excluding
+food excluding
 alcohol
 and
 tobacco
