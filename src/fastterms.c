@@ -351,7 +351,7 @@ aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 
 		if (!(next.len)) {
 			break;
-		} else if (next.off + next.len >= nbits) {
+		} else if (next.off + next.len > nbits) {
 			break;
 		}
 		/* otherwise we're good to go */
@@ -380,7 +380,7 @@ augm(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 
 		if (!(next.len)) {
 			break;
-		} else if (next.off + next.len >= nbits) {
+		} else if (next.off + next.len > nbits) {
 			break;
 		}
 		/* otherwise we're good to go */
