@@ -302,9 +302,14 @@ out:
 }
 
 static __attribute__((const, pure)) unsigned int
-extr_strk(const uint32_t d[static 1U], size_t nbits, size_t off)
+extr_strk(const uint32_t d[static 1U], size_t nbits, ssize_t off)
 {
-	if (UNLIKELY(off >= nbits)) {
+	/* gravitate towards a set end, but a cleared beginning
+	 * this is so that streaks if in doubt will be marked as
+	 * unprocessed later on */
+	if (UNLIKELY(off >= (ssize_t)nbits)) {
+		return 1U;
+	} else if (off < 0) {
 		return 0U;
 	}
 	return _bextr_u32(d[off / __BITS], off % __BITS, 1U);
@@ -353,7 +358,7 @@ aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 		start = next.off + next.len;
 
 		/* check bit before and after streak */
-		if (extr_strk(aug, nbits, next.off - 1U) &&
+		if (extr_strk(aug, nbits, next.off - 1) &&
 		    extr_strk(aug, nbits, start)) {
 			/* yep augment him */
 			augm_strk(aug, nbits, next);
@@ -382,7 +387,7 @@ augm(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 		start = next.off + next.len;
 
 		/* check bit before or after streak */
-		if (extr_strk(aug, nbits, next.off - 1U) ||
+		if (extr_strk(aug, nbits, next.off - 1) ||
 		    extr_strk(aug, nbits, start)) {
 			/* yep augment him */
 			augm_strk(aug, nbits, next);
