@@ -130,6 +130,12 @@ EXTRA_DIST += utf8.alrt utf8.txt
 EXTRA_DIST += latin1.alrt latin1.txt
 EXTRA_DIST += ascii.alrt ascii.txt
 
+enum_TESTS =
+TESTS += $(enum_TESTS)
+enum_TESTS += enum.01.tst
+enum_TESTS += enum.02.tst
+EXTRA_DIST += utf8.txt
+
 
 ## our friendly helpers
 check_PROGRAMS += clitoris
