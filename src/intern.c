@@ -44,17 +44,6 @@
 #include "intern.h"
 #include "nifty.h"
 
-/**
- * length+offset integers, at least 32 bits wide, always even.
- * They can fit short strings up to a length of 256 bytes and two
- * byte-wise equal strings will produce the same obint.
- *
- * OOOOOOOOOOOOOOOOOOOOOOOO LLLLLLLL
- * ^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^
- *        offset / 4U        length
- **/
-typedef uint_fast32_t obbeef_t;
-
 /* a hash is the bucket locator and a chksum for collision detection */
 typedef struct {
 	size_t idx;
@@ -63,7 +52,7 @@ typedef struct {
 
 /* the beef table */
 static struct {
-	obint_t oi;
+	obint_t ob;
 	uint_fast32_t ck;
 } *sstk;
 /* alloc size, 2-power */
@@ -71,15 +60,11 @@ static size_t zstk;
 /* number of elements */
 static size_t nstk;
 
-/* the big string obarray, and its alloc size (2-power) */
+/* the big string obarray */
 static char *restrict obs;
+/* alloc size, 2-power */
 static size_t obz;
-/* the acutal obints, and their alloc size (2-power) */
-static obbeef_t *obo;
-static size_t obk;
-/* next ob index */
-static size_t obi;
-/* next ob number */
+/* next ob */
 static size_t obn;
 
 static hash_t
@@ -114,60 +99,30 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 	return buf;
 }
 
-static obbeef_t
-make_obbeef(const char *str, size_t len)
+static obint_t
+make_obint(const char *str, size_t len)
 {
 /* put STR (of length LEN) into string obarray, don't check for dups */
 #define OBAR_MINZ	(1024U)
 	/* make sure we pad with \0 bytes to the next 4-byte multiple */
 	size_t pad = ((len / 4U) + 1U) * 4U;
-	obbeef_t res;
+	obint_t res;
 
-	if (UNLIKELY(obi + pad >= obz)) {
+	if (UNLIKELY(obn + pad >= obz)) {
 		size_t nuz = (obz * 2U) ?: OBAR_MINZ;
 
 		obs = recalloc(obs, obz, nuz, sizeof(*obs));
 		obz = nuz;
 	}
 	/* paste the string in question */
-	memcpy(obs + (res = obi), str, len);
+	memcpy(obs + (res = obn), str, len);
 	/* assemble the result */
 	res >>= 2U;
 	res <<= 8U;
 	res |= len;
 	/* inc the obn pointer */
-	obi += pad;
+	obn += pad;
 	return res;
-}
-
-static obint_t
-make_obint(obbeef_t ob)
-{
-/* put OB into beef obarray, don't check for dups */
-#define OIAR_MINZ	(OBAR_MINZ / 16U)
-	if (UNLIKELY(obn >= obk)) {
-		size_t nuz = (obk * 2U) ?: OIAR_MINZ;
-
-		obo = recalloc(obo, obk, nuz, sizeof(*obo));
-		obk = nuz;
-	}
-	/* paste the beef object */
-	obo[obn++] = ob;
-	return obn;
-}
-
-static inline size_t
-obbeef_off(obbeef_t ob)
-{
-	/* mask out the length bit */
-	return (ob >> 8U) << 2U;
-}
-
-static inline __attribute__((unused)) size_t
-obbeef_len(obbeef_t ob)
-{
-	/* mask out the offset bit */
-	return ob & 0b11111111U;
 }
 
 
@@ -187,15 +142,14 @@ intern(const char *str, size_t len)
 
 			if (LIKELY(sstk[off].ck == hx.chk)) {
 				/* found him */
-				return sstk[off].oi;
-			} else if (sstk[off].oi == 0U) {
+				return sstk[off].ob;
+			} else if (sstk[off].ob == 0U) {
 				/* found empty slot */
-				obint_t ob = make_obbeef(str, len);
-				obint_t oi = make_obint(ob);
-				sstk[off].oi = oi;
+				obint_t ob = make_obint(str, len);
+				sstk[off].ob = ob;
 				sstk[off].ck = hx.chk;
 				nstk++;
-				return oi;
+				return ob;
 			}
 		}
 		/* quite a lot of collisions, resize then */
@@ -208,21 +162,18 @@ intern(const char *str, size_t len)
 }
 
 void
-unintern(obint_t ob)
+unintern(obint_t UNUSED(ob))
 {
-	if (LIKELY(ob > 0 && ob <= obn)) {
-		obo[ob - 1U] = 0U;
-	}
 	return;
 }
 
 const char*
 obint_name(obint_t ob)
 {
-	if (UNLIKELY(ob == 0UL || ob > obn)) {
+	if (UNLIKELY(ob == 0UL)) {
 		return NULL;
 	}
-	return obs + obbeef_off(obo[ob - 1U]);
+	return obs + obint_off(ob);
 }
 
 void
@@ -237,57 +188,10 @@ clear_interns(void)
 	if (LIKELY(obs != NULL)) {
 		free(obs);
 	}
-	if (LIKELY(obo != NULL)) {
-		free(obo);
-	}
 	obs = NULL;
-	obo = NULL;
 	obz = 0U;
 	obn = 0U;
-	obk = 0U;
-	obi = 0U;
 	return;
 }
-
-
-#if defined STANDALONE
-#include <stdio.h>
-
-static int
-intern0(void)
-{
-	char *line = NULL;
-	size_t llen = 0UL;
-
-	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
-		line[--nrd] = '\0';
-		printf("%lu\n", intern(line, nrd));
-	}
-	free(line);
-	return 0;
-}
-#endif	/* STANDALONE */
-
-
-#if defined STANDALONE
-# include "intern.yucc"
-
-int
-main(int argc, char *argv[])
-{
-	yuck_t argi[1U];
-	int rc = 0;
-
-	if (yuck_parse(argi, argc, argv)) {
-		rc = 1;
-		goto out;
-	}
-
-	rc = intern0();
-out:
-	yuck_free(argi);
-	return rc;
-}
-#endif	/* STANDALONE */
 
 /* intern.c ends here */
