@@ -204,6 +204,13 @@ fastterms_LDADD = libcoru.la
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
 
+noinst_PROGRAMS += intern
+intern_SOURCES = intern.c
+intern_SOURCES += intern.yuck
+intern_CPPFLAGS = $(AM_CPPFLAGS)
+intern_CPPFLAGS += -DSTANDALONE
+BUILT_SOURCES += intern.yucc
+
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
