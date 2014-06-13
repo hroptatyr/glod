@@ -472,7 +472,7 @@ pr_feed(void)
 
 
 /* routines to help the co_class() fibre */
-static size_t
+static inline size_t
 clittify(
 	accu_t *restrict alnum, accu_t *restrict ntasc, accu_t *restrict punct,
 	const char *buf, size_t nrd)
