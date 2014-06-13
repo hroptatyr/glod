@@ -450,6 +450,38 @@ pr_feed(void)
 	return;
 }
 
+
+/* routines to help the co_class() fibre */
+static size_t
+clittify(
+	uint32_t *restrict alnum,
+	uint32_t *restrict ntasc,
+	uint32_t *restrict punct,
+	const char *buf, size_t nrd)
+{
+	size_t nr = 0U;
+
+	for (size_t i = 0U; i < nrd; i += sizeof(__mXi), nr++) {
+		/* load */
+		register __mXi data = _mmX_load_si((const void*)(buf + i));
+
+		ntasc[nr] = pisntasc(data);
+		alnum[nr] = pisalnum(data);
+		punct[nr] = pispunct(data);
+
+#if !defined __AVX2__
+		/* just another round to use up them 32b buffers */
+		i += sizeof(__mXi);
+		data = _mmX_load_si((const void*)(buf + i));
+
+		ntasc[nr] |= pisntasc(data) << sizeof(__mXi);
+		alnum[nr] |= pisalnum(data) << sizeof(__mXi);
+		punct[nr] |= pispunct(data) << sizeof(__mXi);
+#endif	/* !__AVX2__ */
+	}
+	return nr;
+}
+
 static ssize_t
 strk(const char *buf, size_t z, const uint32_t aug[static z], size_t nr)
 {
@@ -532,26 +564,10 @@ DEFCORU(co_class, {
 
 	/* enter the main snarf loop */
 	do {
-		size_t nr = 0U;
+		size_t nr;
 
-		for (size_t i = 0U; i < nrd; i += sizeof(__mXi), nr++) {
-			/* load */
-			register __mXi data = _mmX_load_si((void*)(buf + i));
-
-			accu_ntasc[nr] = pisntasc(data);
-			accu_alnum[nr] = pisalnum(data);
-			accu_punct[nr] = pispunct(data);
-
-#if !defined __AVX2__
-			/* just another round to use up 32bits */
-			i += sizeof(__mXi);
-			data = _mmX_load_si((void*)(buf + i));
-
-			accu_ntasc[nr] |= pisntasc(data) << sizeof(__mXi);
-			accu_alnum[nr] |= pisalnum(data) << sizeof(__mXi);
-			accu_punct[nr] |= pispunct(data) << sizeof(__mXi);
-#endif	/* !__AVX2__ */
-		}
+		/* classify characters in buf and populate bitfields */
+		nr = clittify(accu_alnum, accu_ntasc, accu_punct, buf, nrd);
 
 		/* streak finder,
 		 * We augment accu_alnum[] which contains the start and
