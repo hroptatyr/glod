@@ -278,6 +278,7 @@ find_strk(const accu_t d[static 1U], size_t nbits, size_t start)
 	unsigned int len;
 
 	if (UNLIKELY(start >= nbits)) {
+		res.off = nbits;
 		goto out;
 	}
 
@@ -288,7 +289,7 @@ find_strk(const accu_t d[static 1U], size_t nbits, size_t start)
 		     start += __BITS);
 		/* now either start >= nbits or accu is not all-0 */
 		if (UNLIKELY(start >= nbits)) {
-			res.off = start;
+			res.off = nbits;
 			goto out;
 		}
 	}
