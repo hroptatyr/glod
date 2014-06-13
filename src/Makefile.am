@@ -185,6 +185,13 @@ gloom_LDADD = libcoru.la
 gloom_LDADD += libbloom.la -lm
 BUILT_SOURCES += gloom.yucc
 
+bin_PROGRAMS += enum
+enum_SOURCES = enum.c
+enum_SOURCES += enum.yuck
+enum_CPPFLAGS = $(AM_CPPFLAGS)
+enum_CPPFLAGS += -DSTANDALONE
+BUILT_SOURCES += enum.yucc
+
 noinst_PROGRAMS += glid
 glid_SOURCES = glid.c
 glid_SOURCES += glid.yuck
@@ -203,13 +210,6 @@ fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
-
-noinst_PROGRAMS += enum
-enum_SOURCES = enum.c
-enum_SOURCES += enum.yuck
-enum_CPPFLAGS = $(AM_CPPFLAGS)
-enum_CPPFLAGS += -DSTANDALONE
-BUILT_SOURCES += enum.yucc
 
 
 ## version rules
