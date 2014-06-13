@@ -79,6 +79,13 @@
 #define PACK(x, args...)	&((CORU_STRUCT(x)){args})
 #define START_PACK(x, args...)	START(x, PACK(x, args))
 
+#if !defined __x86_64
+# error this code is only for 64b archs
+#endif	/* !__x86_64 */
+
+#define __BITS		(32U)
+typedef uint32_t accu_t;
+
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -97,11 +104,19 @@ error(const char *fmt, ...)
 	return;
 }
 
-inline __attribute__((const, pure)) unsigned int
-_bextr_u32(unsigned int w, unsigned off, unsigned int len)
+#if !defined __AVX2__
+inline __attribute__((const, pure)) uint32_t
+_bextr_u32(uint32_t w, unsigned off, unsigned int len)
 {
-	return w >> off & ((1U << len) - 1U);
+	return (w >> off) & ((1U << len) - 1U);
 }
+
+inline __attribute__((const, pure)) uint64_t
+_bextr_u64(uint64_t w, unsigned off, unsigned int len)
+{
+	return (w >> off) & ((1U << len) - 1U);
+}
+#endif	/* !__AVX2__ */
 
 
 /* bitstreams, the idea is that the incoming buffer is transformed
@@ -132,6 +147,13 @@ _bextr_u32(unsigned int w, unsigned off, unsigned int len)
 #else
 # error need SIMD extensions of some sort
 #endif
+#if __BITS == 32U
+# define _tzcnt	_tzcnt_u32
+# define _bextr _bextr_u32
+#elif __BITS == 64U
+# define _tzcnt	_tzcnt_u64
+# define _bextr _bextr_u64
+#endif	/* __BITS */
 
 static inline __attribute__((pure, const)) int
 pisalnum(register __mXi data)
@@ -248,16 +270,15 @@ typedef struct {
 } extent_t;
 
 static extent_t
-find_strk(const uint32_t d[static 1U], size_t nbits, size_t start)
+find_strk(const accu_t d[static 1U], size_t nbits, size_t start)
 {
-#define __M256m		(0xffffffffU)
-#define __BITS		(32U)
 	extent_t res = {start};
-	uint32_t accu;
+	accu_t accu;
 	unsigned int off;
 	unsigned int len;
 
 	if (UNLIKELY(start >= nbits)) {
+		res.off = nbits;
 		goto out;
 	}
 
@@ -268,18 +289,18 @@ find_strk(const uint32_t d[static 1U], size_t nbits, size_t start)
 		     start += __BITS);
 		/* now either start >= nbits or accu is not all-0 */
 		if (UNLIKELY(start >= nbits)) {
-			res.off = start;
+			res.off = nbits;
 			goto out;
 		}
 	}
 
 	/* find the offset within accu now */
-	off = _tzcnt_u32(accu);
+	off = _tzcnt(accu);
 	res.off = start + off;
 	accu >>= off;
 
 	/* length finding, within accu first */
-	len = _tzcnt_u32(~accu);
+	len = _tzcnt(~accu);
 	/* length finding, bigger picture */
 	if (UNLIKELY((res.off + len) / __BITS > res.off / __BITS)) {
 		for (start = ((res.off / __BITS) + 1U) * __BITS;
@@ -292,7 +313,7 @@ find_strk(const uint32_t d[static 1U], size_t nbits, size_t start)
 			goto out;
 		}
 		/* get the number within accu again */
-		len = _tzcnt_u32(~accu);
+		len = _tzcnt(~accu);
 	}
 	/* just add up our findings then */
 	res.len += len;
@@ -302,7 +323,7 @@ out:
 }
 
 static __attribute__((const, pure)) unsigned int
-extr_strk(const uint32_t d[static 1U], size_t nbits, ssize_t off)
+extr_strk(const accu_t d[static 1U], size_t nbits, ssize_t off)
 {
 	/* gravitate towards a set end, but a cleared beginning
 	 * this is so that streaks if in doubt will be marked as
@@ -312,13 +333,13 @@ extr_strk(const uint32_t d[static 1U], size_t nbits, ssize_t off)
 	} else if (off < 0) {
 		return 0U;
 	}
-	return _bextr_u32(d[off / __BITS], off % __BITS, 1U);
+	return _bextr(d[off / __BITS], off % __BITS, 1U);
 }
 
 static void
-augm_strk(uint32_t *restrict d, size_t nbits, extent_t x)
+augm_strk(accu_t *restrict d, size_t nbits, extent_t x)
 {
-	size_t i = x.off / __BITS;
+	size_t i;
 	size_t left;
 
 	if (UNLIKELY(x.off > nbits)) {
@@ -327,7 +348,8 @@ augm_strk(uint32_t *restrict d, size_t nbits, extent_t x)
 		x.len = nbits - x.off;
 	}
 
-	d[i] |= (((1U << x.len) - 1U) << (x.off % __BITS)) & __M256m;
+	i = x.off / __BITS;
+	d[i] |= (((1U << x.len) - 1U) << (x.off % __BITS));
 	if (UNLIKELY((left = (x.off % __BITS) + x.len) > __BITS)) {
 		/* fill complete u32 */
 		while ((left -= __BITS) > __BITS) {
@@ -340,10 +362,10 @@ augm_strk(uint32_t *restrict d, size_t nbits, extent_t x)
 }
 
 static void
-aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
+aug1(accu_t *restrict aug, size_t nr, const accu_t aux[static nr])
 {
 /* augment AUG with data from AUX. */
-	const size_t nbits = nr * sizeof(__m256i);
+	const size_t nbits = nr * __BITS;
 	size_t start = 0U;
 
 	do {
@@ -368,11 +390,11 @@ aug1(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
 }
 
 static void
-augm(uint32_t *restrict aug, size_t nr, const uint32_t aux[static nr])
+augm(accu_t *restrict aug, size_t nr, const accu_t aux[static nr])
 {
 /* augment AUG with data from AUX,
  * for now we allow any non-ascii character */
-	const size_t nbits = nr * sizeof(__m256i);
+	const size_t nbits = nr * __BITS;
 	size_t start = 0U;
 
 	do {
@@ -448,16 +470,63 @@ pr_feed(void)
 	return;
 }
 
-static ssize_t
-strk(const char *buf, size_t z, const uint32_t aug[static z], size_t nr)
+
+/* routines to help the co_class() fibre */
+static inline size_t
+clittify(
+	accu_t *restrict alnum, accu_t *restrict ntasc, accu_t *restrict punct,
+	const char *buf, size_t nrd)
 {
-	const size_t nbits = nr * sizeof(__m256i);
+	size_t nr = 0U;
+
+	for (size_t i = 0U; i < nrd; i += sizeof(__mXi), nr++) {
+		/* load */
+		register __mXi data = _mmX_load_si((const void*)(buf + i));
+
+		ntasc[nr] = (accu_t)pisntasc(data);
+		alnum[nr] = (accu_t)pisalnum(data);
+		punct[nr] = (accu_t)pispunct(data);
+
+#if !defined __AVX2__ || __BITS == 64
+		/* just another round to use up them 64b buffers */
+		i += sizeof(__mXi);
+		data = _mmX_load_si((const void*)(buf + i));
+
+		ntasc[nr] |= (accu_t)pisntasc(data) << sizeof(__mXi);
+		alnum[nr] |= (accu_t)pisalnum(data) << sizeof(__mXi);
+		punct[nr] |= (accu_t)pispunct(data) << sizeof(__mXi);
+#endif	/* __AVX2__ && 64 || !__AVX2__ && 32 */
+#if !defined __AVX2__ && __BITS == 64U
+		/* one more round for safety */
+		i += sizeof(__mXi);
+		data = _mmX_load_si((const void*)(buf + i));
+
+		ntasc[nr] |= (accu_t)pisntasc(data) << (2 * sizeof(__mXi));
+		alnum[nr] |= (accu_t)pisalnum(data) << (2 * sizeof(__mXi));
+		punct[nr] |= (accu_t)pispunct(data) << (2 * sizeof(__mXi));
+
+		/* and again */
+		i += sizeof(__mXi);
+		data = _mmX_load_si((const void*)(buf + i));
+
+		ntasc[nr] |= (accu_t)pisntasc(data) << (3 * sizeof(__mXi));
+		alnum[nr] |= (accu_t)pisalnum(data) << (3 * sizeof(__mXi));
+		punct[nr] |= (accu_t)pispunct(data) << (3 * sizeof(__mXi));
+#endif	/* !__AVX2__ */
+	}
+	return nr;
+}
+
+static ssize_t
+strk(const char *buf, size_t z, const accu_t aug[static z], size_t nr)
+{
+	const size_t nbits = nr * __BITS;
 	size_t res = 0U;
 
 	do {
 		extent_t next = find_strk(aug, nbits, res);
 
-		if (next.off + next.len >= z) {
+		if (UNLIKELY(next.off + next.len >= z)) {
 			if (UNLIKELY(!res)) {
 				res = z;
 			}
@@ -524,32 +593,16 @@ DEFCORU(co_class, {
 	const unsigned int n = CORU_CLOSUR(n);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
-	uint32_t accu_alnum[bsz / sizeof(__m256i)];
-	uint32_t accu_ntasc[bsz / sizeof(__m256i)];
-	uint32_t accu_punct[bsz / sizeof(__m256i)];
+	accu_t accu_alnum[bsz / __BITS];
+	accu_t accu_ntasc[bsz / __BITS];
+	accu_t accu_punct[bsz / __BITS];
 
 	/* enter the main snarf loop */
 	do {
-		size_t nr = 0U;
+		size_t nr;
 
-		for (size_t i = 0U; i < nrd; i += sizeof(__mXi), nr++) {
-			/* load */
-			register __mXi data = _mmX_load_si((void*)(buf + i));
-
-			accu_ntasc[nr] = pisntasc(data);
-			accu_alnum[nr] = pisalnum(data);
-			accu_punct[nr] = pispunct(data);
-
-#if !defined __AVX2__
-			/* just another round to use up 32bits */
-			i += sizeof(__mXi);
-			data = _mmX_load_si((void*)(buf + i));
-
-			accu_ntasc[nr] |= pisntasc(data) << sizeof(__mXi);
-			accu_alnum[nr] |= pisalnum(data) << sizeof(__mXi);
-			accu_punct[nr] |= pispunct(data) << sizeof(__mXi);
-#endif	/* !__AVX2__ */
-		}
+		/* classify characters in buf and populate bitfields */
+		nr = clittify(accu_alnum, accu_ntasc, accu_punct, buf, nrd);
 
 		/* streak finder,
 		 * We augment accu_alnum[] which contains the start and
