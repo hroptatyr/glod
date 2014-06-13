@@ -97,11 +97,13 @@ error(const char *fmt, ...)
 	return;
 }
 
+#if !defined __AVX2__
 inline __attribute__((const, pure)) unsigned int
 _bextr_u32(unsigned int w, unsigned off, unsigned int len)
 {
 	return w >> off & ((1U << len) - 1U);
 }
+#endif	/* !__AVX2__ */
 
 
 /* bitstreams, the idea is that the incoming buffer is transformed
