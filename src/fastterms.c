@@ -487,7 +487,7 @@ clittify(
 		alnum[nr] = (accu_t)pisalnum(data);
 		punct[nr] = (accu_t)pispunct(data);
 
-#if !defined __AVX2__ && __BITS == 32U
+#if !defined __AVX2__ || __BITS == 64
 		/* just another round to use up them 64b buffers */
 		i += sizeof(__mXi);
 		data = _mmX_load_si((const void*)(buf + i));
@@ -495,8 +495,8 @@ clittify(
 		ntasc[nr] |= (accu_t)pisntasc(data) << sizeof(__mXi);
 		alnum[nr] |= (accu_t)pisalnum(data) << sizeof(__mXi);
 		punct[nr] |= (accu_t)pispunct(data) << sizeof(__mXi);
-
-#elif !defined __AVX2__ && __BITS == 64U
+#endif	/* __AVX2__ && 64 || !__AVX2__ && 32 */
+#if !defined __AVX2__ && __BITS == 64U
 		/* one more round for safety */
 		i += sizeof(__mXi);
 		data = _mmX_load_si((const void*)(buf + i));
