@@ -181,6 +181,22 @@ enum0(void)
 }
 
 static int
+hash0(void)
+{
+	char *line = NULL;
+	size_t llen = 0UL;
+
+	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
+		line[--nrd] = '\0';
+		with (const hash_t hx = hash_str(line, nrd)) {
+			printf("%08x+%08x\n", hx.idx, hx.chk);
+		}
+	}
+	free(line);
+	return 0;
+}
+
+static int
 load(const char *fn)
 {
 	return 0;
@@ -223,6 +239,13 @@ main(int argc, char *argv[])
 	}
 
 	if (0);
+
+	/* maybe it's just hashes they requested */
+	else if (argi->hashes_flag) {
+		if (hash0() < 0) {
+			rc = 1;
+		}
+	}
 
 	/* load the state */
 	else if (argi->stateful_flag && load(fn) < 0) {
