@@ -59,13 +59,18 @@ typedef struct {
 
 /* for materialisation to file */
 struct hdr_s {
+	char magic[4U];
+	char flags[4U];
+	uint32_t zstk;
+	uint32_t nstk;
+	char pad[16U + 32U];
 };
 
 /* the beef table */
 static struct {
 	obint_t ob;
 	uint32_t ck;
-} sstk[256U * 24U];
+} *sstk;
 /* alloc size, 2-power */
 static size_t zstk;
 /* number of elements */
@@ -127,12 +132,13 @@ enum_str(const char *str, size_t len)
 	 * offset bits by 1 and use lower 8bit, check chk in off-1 table
 	 * ... */
 	if (!zstk) {
-		zstk = sizeof(sstk);
+		zstk = 24U * SSTK_MINZ;
+		sstk = calloc(zstk, sizeof(*sstk));
 	}
 
 	/* just try the bits one by one */
-	for (size_t i = 0U; i < zstk / 256U; i++, k >>= 1U) {
-		const size_t off = i * 256U + k & 0xfffU;
+	for (size_t i = 0U; i < zstk / SSTK_MINZ; i++, k >>= 1U) {
+		const size_t off = i * SSTK_MINZ + k & 0xffU;
 
 		if (sstk[off].ck == hx.chk) {
 			/* found him (or super-collision) */
@@ -199,23 +205,81 @@ hash0(void)
 static int
 load(const char *fn)
 {
-	return 0;
+	int fd;
+	int rc = 0;
+	ssize_t tot = 0U;
+	struct hdr_s hdr;
+	size_t bbsz;
+
+	if ((fd = open(fn, O_RDONLY)) < 0) {
+		if (errno == ENOENT) {
+			/* file not found isn't fatal */
+			return 0;
+		}
+		return -1;
+	}
+
+	/* read header first */
+	if (read(fd, &hdr, sizeof(hdr)) < (ssize_t)sizeof(hdr)) {
+		rc = -1;
+		goto clo;
+	}
+
+	/* basic header check */
+	if (memcmp(hdr.magic, "EstF", sizeof(hdr.magic))) {
+		rc = -1;
+		goto clo;
+	}
+
+	/* get us zstk bytes then */
+	zstk = hdr.zstk;
+	nstk = hdr.nstk;
+	sstk = malloc(bbsz = (zstk * sizeof(*sstk)));
+
+	/* read data then */
+	for (ssize_t nrd;
+	     (nrd = read(fd, (char*)sstk + tot, bbsz - tot)) > 0; tot += nrd);
+	if (tot < (ssize_t)bbsz) {
+		rc = -1;
+	}
+
+clo:
+	close(fd);
+	return rc;
 }
 
 static int
 save(const char *fn)
 {
 	int fd;
-	int rc = 0;
+	ssize_t tot = 0U;
+	struct hdr_s hdr = {"EstF", "><\0\0", nstk, zstk};
+	const uint8_t *base = (const void*)sstk;
+	const size_t bbsz = zstk * sizeof(*sstk);
 
 	if ((fd = open(fn, O_RDWR | O_CREAT | O_TRUNC, 0644)) < 0) {
 		return -1;
 	}
-	for (ssize_t nwr, tot = 0U;
-	     (nwr = write(fd, (char*)sstk + tot, zstk - tot)) > 0; tot += nwr);
 
+	/* write header first */
+	if (write(fd, &hdr, sizeof(hdr)) < (ssize_t)sizeof(hdr)) {
+		goto clo;
+	}
+	/* time for data */
+	for (ssize_t nwr;
+	     (nwr = write(fd, base + tot, bbsz - tot)) > 0; tot += nwr);
+	if (tot < (ssize_t)bbsz) {
+		goto clo;
+	}
+
+	/* proceed as ESUCCES */
 	close(fd);
-	return rc;
+	return 0;
+
+clo:
+	close(fd);
+	unlink(fn);
+	return -1;
 }
 
 
