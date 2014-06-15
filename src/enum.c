@@ -65,7 +65,7 @@ struct hdr_s {
 static struct {
 	obint_t ob;
 	uint32_t ck;
-} *sstk;
+} sstk[256U * 24U];
 /* alloc size, 2-power */
 static size_t zstk;
 /* number of elements */
@@ -90,13 +90,6 @@ error(const char *fmt, ...)
 	}
 	fputc('\n', stderr);
 	return;
-}
-
-static inline size_t
-get_off(size_t idx, size_t mod)
-{
-	/* no need to negate MOD as it's a 2-power */
-	return -idx % mod;
 }
 
 static void*
@@ -126,39 +119,46 @@ enum_str(const char *str, size_t len)
 		/* don't bother */
 		return 0U;
 	}
-	for (const hash_t hx = hash_str(str, len);;) {
-		/* just try what we've got */
-		for (size_t mod = SSTK_MINZ; mod <= zstk; mod *= 2U) {
-			size_t off = get_off(hx.idx, mod);
+	const hash_t hx = hash_str(str, len);
+	uint32_t k = hx.idx;
 
-			if (LIKELY(sstk[off].ck == hx.chk)) {
-				/* found him */
-				return sstk[off].ob;
-			} else if (sstk[off].ob == 0U) {
-				/* found empty slot */
-				obint_t ob = ++obn;
-				sstk[off].ob = ob;
-				sstk[off].ck = hx.chk;
-				nstk++;
-				return ob;
-			}
-		}
-		/* quite a lot of collisions, resize then */
-		with (size_t nu = (zstk * 2U) ?: SSTK_MINZ) {
-			sstk = recalloc(sstk, zstk, nu, sizeof(*sstk));
-			zstk = nu;
+	/* our resolution strategy is:
+	 * use first 8bits, check chk, if collision
+	 * offset bits by 1 and use lower 8bit, check chk in off-1 table
+	 * ... */
+	if (!zstk) {
+		zstk = sizeof(sstk);
+	}
+
+	/* just try the bits one by one */
+	for (size_t i = 0U; i < zstk / 256U; i++, k >>= 1U) {
+		const size_t off = i * 256U + k & 0xfffU;
+
+		if (sstk[off].ck == hx.chk) {
+			/* found him (or super-collision) */
+			return sstk[off].ob;
+		} else if (!sstk[off].ob) {
+			/* found empty slot */
+			obint_t ob = ++obn;
+			sstk[off].ob = ob;
+			sstk[off].ck = hx.chk;
+			nstk++;
+			return ob;
 		}
 	}
-	/* not reached */
+	fprintf(stderr, "hashtable exhausted: %s %08x+%08x\n", str, hx.idx, hx.chk);
+	return 0U;
 }
 
 static void
 clear_enums(void)
 {
+#if 0
 	if (LIKELY(sstk != NULL)) {
 		free(sstk);
 	}
 	sstk = NULL;
+#endif
 	zstk = 0U;
 	nstk = 0U;
 	obn = 0U;
