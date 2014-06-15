@@ -138,7 +138,7 @@ enum_str(const char *str, size_t len)
 
 	/* just try the bits one by one */
 	for (size_t i = 0U; i < zstk / SSTK_MINZ; i++, k >>= 1U) {
-		const size_t off = i * SSTK_MINZ + k & 0xffU;
+		const size_t off = i * SSTK_MINZ + (k & 0xffU);
 
 		if (sstk[off].ck == hx.chk) {
 			/* found him (or super-collision) */
