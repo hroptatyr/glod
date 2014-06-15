@@ -253,7 +253,7 @@ save(const char *fn)
 {
 	int fd;
 	ssize_t tot = 0U;
-	struct hdr_s hdr = {"EstF", "><\0\0", nstk, zstk};
+	struct hdr_s hdr = {"EstF", "><\0\0", .nstk = nstk, .zstk = zstk};
 	const uint8_t *base = (const void*)sstk;
 	const size_t bbsz = zstk * sizeof(*sstk);
 
