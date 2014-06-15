@@ -188,6 +188,7 @@ BUILT_SOURCES += gloom.yucc
 bin_PROGRAMS += enum
 enum_SOURCES = enum.c
 enum_SOURCES += enum.yuck
+enum_SOURCES += libbloom/spooky.c libbloom/spooky.h
 enum_CPPFLAGS = $(AM_CPPFLAGS)
 enum_CPPFLAGS += -DSTANDALONE
 BUILT_SOURCES += enum.yucc

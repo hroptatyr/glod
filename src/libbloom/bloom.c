@@ -60,7 +60,7 @@ bf_compute_hashes(uint64_t *restrict hashes, unsigned int k_num, char *key)
 	// Compute the second hash
 	uint64_t *hash1 = out + 0;
 	uint64_t *hash2 = out + 1;
-	SpookyHash128(key, len, hash1, hash2);
+	spooky_hash128(key, len, hash1, hash2);
 
 	// Copy these out
 	hashes[2] = out[0];   // Use the upper 64bits of Spooky

@@ -134,6 +134,8 @@ enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst
 enum_TESTS += enum.02.tst
+enum_TESTS += enum.03.tst
+enum_TESTS += enum.04.tst
 EXTRA_DIST += utf8.txt
 
 

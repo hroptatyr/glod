@@ -1,3 +1,7 @@
 Usage: enum
 
 Enumerate terms from stdin.
+
+  -H, --hashes          Output hashes instead of enumerations.
+  -s, --stateful        Load state from state file and save state afterwards.
+  -f, --file=NAME       Take state from NAME, default: .enum.st
