@@ -46,14 +46,18 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
+#include "libbloom/spooky.h"
 #include "nifty.h"
 
 typedef uint32_t obint_t;
 
 /* a hash is the bucket locator and a chksum for collision detection */
-typedef struct {
-	size_t idx;
-	uint_fast32_t chk;
+typedef union {
+	uint64_t u;
+	struct {
+		uint32_t idx;
+		uint32_t chk;
+	};
 } hash_t;
 
 /* for materialisation to file */
@@ -91,22 +95,6 @@ error(const char *fmt, ...)
 	return;
 }
 
-
-static hash_t
-murmur(const uint8_t *str, size_t len)
-{
-/* tokyocabinet's hasher */
-	size_t idx = 19780211U;
-	uint_fast32_t hash = 751U;
-	const uint8_t *rp = str + len;
-
-	while (len--) {
-		idx = idx * 37U + *str++;
-		hash = (hash * 31U) ^ *--rp;
-	}
-	return (hash_t){idx, hash};
-}
-
 static inline size_t
 get_off(size_t idx, size_t mod)
 {
@@ -134,7 +122,7 @@ enum_str(const char *str, size_t len)
 		/* don't bother */
 		return 0U;
 	}
-	for (const hash_t hx = murmur((const uint8_t*)str, len);;) {
+	for (const hash_t hx = {spooky_hash64(str, len, 0xcafebabe)};;) {
 		/* just try what we've got */
 		for (size_t mod = SSTK_MINZ; mod <= zstk; mod *= 2U) {
 			size_t off = get_off(hx.idx, mod);
