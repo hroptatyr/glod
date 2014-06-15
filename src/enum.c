@@ -52,12 +52,9 @@
 typedef uint32_t obint_t;
 
 /* a hash is the bucket locator and a chksum for collision detection */
-typedef union {
-	uint64_t u;
-	struct {
-		uint32_t idx;
-		uint32_t chk;
-	};
+typedef struct {
+	uint32_t idx;
+	uint32_t chk;
 } hash_t;
 
 /* for materialisation to file */
@@ -113,6 +110,13 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 }
 
 
+static hash_t
+hash_str(const char *str, size_t len)
+{
+	uint64_t h64 = spooky_hash64(str, len, 0xcafebabeU);
+	return *(hash_t*)&h64;
+}
+
 static obint_t
 enum_str(const char *str, size_t len)
 {
@@ -122,7 +126,7 @@ enum_str(const char *str, size_t len)
 		/* don't bother */
 		return 0U;
 	}
-	for (const hash_t hx = {spooky_hash64(str, len, 0xcafebabe)};;) {
+	for (const hash_t hx = hash_str(str, len);;) {
 		/* just try what we've got */
 		for (size_t mod = SSTK_MINZ; mod <= zstk; mod *= 2U) {
 			size_t off = get_off(hx.idx, mod);
