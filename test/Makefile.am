@@ -136,6 +136,7 @@ enum_TESTS += enum.01.tst
 enum_TESTS += enum.02.tst
 enum_TESTS += enum.03.tst
 enum_TESTS += enum.04.tst
+enum_TESTS += enum.05.tst
 EXTRA_DIST += utf8.txt
 
 
