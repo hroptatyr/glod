@@ -174,7 +174,7 @@ enum0(void)
 
 	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
 		line[--nrd] = '\0';
-		printf("%lu\n", enum_str(line, nrd));
+		printf("%u\n", enum_str(line, nrd));
 	}
 	free(line);
 	return 0;
