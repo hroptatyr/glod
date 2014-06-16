@@ -43,6 +43,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -79,6 +80,9 @@ static size_t nstk;
 /* next ob number */
 static size_t obn;
 
+static bool savep;
+static bool xtndp = true;
+
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -107,6 +111,24 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 	return buf;
 }
 
+static __attribute__((format(printf, 1, 2))) void
+quiet(const char *UNUSED(fmt), ...)
+{
+	return;
+}
+
+static __attribute__((format(printf, 1, 2))) void
+debug(const char *fmt, ...)
+{
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	return;
+}
+
+static void(*verbf)(const char *fmt, ...) = quiet;
+
 
 static hash_t
 hash_str(const char *str, size_t len)
@@ -118,53 +140,89 @@ hash_str(const char *str, size_t len)
 static obint_t
 enum_str(const char *str, size_t len)
 {
-#define SSTK_MINZ	(256U)
-#define OBINT_MAX_LEN	(256U)
-	if (UNLIKELY(len == 0U || len >= OBINT_MAX_LEN)) {
-		/* don't bother */
-		return 0U;
-	}
+#define SSTK_NSLOT	(256U)
+#define SSTK_STACK	(4U * SSTK_NSLOT)
 	const hash_t hx = hash_str(str, len);
 	uint32_t k = hx.idx;
 
-	/* our resolution strategy is:
-	 * use first 8bits, check chk, if collision
-	 * offset bits by 1 and use lower 8bit, check chk in off-1 table
-	 * ... */
-	if (!zstk) {
-		zstk = 24U * SSTK_MINZ;
+	/* we take 9 probes per 32bit value, hx.idx shifted by 3bits each
+	 * then try the next stack
+	 * the first stack is 256 entries wide, the next stack is 1024
+	 * bytes wide, but only hosts 768 entries because the probe is
+	 * constructed so that the lowest 8bits are always 0. */
+
+	if (UNLIKELY(!zstk)) {
+		zstk = SSTK_STACK;
 		sstk = calloc(zstk, sizeof(*sstk));
 	}
 
-	/* just try the bits one by one */
-	for (size_t i = 0U; i < zstk / SSTK_MINZ; i++, k >>= 1U) {
-		const size_t off = i * SSTK_MINZ + (k & 0xffU);
+	/* here's the initial probe then */
+	for (size_t j = 0U; j < 9U; j++, k >>= 3U) {
+		const size_t off = k & 0xffU;
 
 		if (sstk[off].ck == hx.chk) {
 			/* found him (or super-collision) */
 			return sstk[off].ob;
 		} else if (!sstk[off].ob) {
-			/* found empty slot */
-			obint_t ob = ++obn;
-			sstk[off].ob = ob;
-			sstk[off].ck = hx.chk;
-			nstk++;
-			return ob;
+			if (xtndp) {
+				/* found empty slot */
+				obint_t ob = ++obn;
+				sstk[off].ob = ob;
+				sstk[off].ck = hx.chk;
+				nstk++;
+				savep = true;
+				return ob;
+			}
+			return 0U;
 		}
 	}
-	fprintf(stderr, "hashtable exhausted: %s %08x+%08x\n", str, hx.idx, hx.chk);
+
+	for (size_t i = SSTK_NSLOT, m = 0x3ffU;; i <<= 2U, m <<= 2U, m |= 3U) {
+		/* reset k */
+		k = hx.idx;
+
+		if (UNLIKELY(i >= zstk)) {
+			verbf("hashtable exhausted -> %zu", i);
+			sstk = recalloc(sstk, zstk, i << 2U, sizeof(*sstk));
+			zstk = i << 2U;
+
+			if (UNLIKELY(sstk == NULL)) {
+				zstk = 0UL, nstk = 0UL;
+				break;
+			}
+		}
+
+		/* here we probe within the top entries of the stack */
+		for (size_t j = 0U; j < 9U; j++, k >>= 3U) {
+			const size_t off = (i | k) & m;
+
+			if (sstk[off].ck == hx.chk) {
+				/* found him (or super-collision) */
+				return sstk[off].ob;
+			} else if (!sstk[off].ob) {
+				if (xtndp) {
+					/* found empty slot */
+					obint_t ob = ++obn;
+					sstk[off].ob = ob;
+					sstk[off].ck = hx.chk;
+					nstk++;
+					savep = true;
+					return ob;
+				}
+				return 0U;
+			}
+		}
+	}
 	return 0U;
 }
 
 static void
 clear_enums(void)
 {
-#if 0
 	if (LIKELY(sstk != NULL)) {
 		free(sstk);
 	}
 	sstk = NULL;
-#endif
 	zstk = 0U;
 	nstk = 0U;
 	obn = 0U;
@@ -273,6 +331,7 @@ save(const char *fn)
 	}
 
 	/* proceed as ESUCCES */
+	verbf("fill degree %zu/%zu\n", nstk, zstk);
 	close(fd);
 	return 0;
 
@@ -302,6 +361,14 @@ main(int argc, char *argv[])
 		fn = argi->file_arg;
 	}
 
+	if (argi->no_extend_flag) {
+		xtndp = false;
+	}
+
+	if (argi->verbose_flag) {
+		verbf = debug;
+	}
+
 	if (0);
 
 	/* maybe it's just hashes they requested */
@@ -323,7 +390,8 @@ main(int argc, char *argv[])
 	}
 
 	/* save the state */
-	else if (argi->stateful_flag && save(fn) < 0) {
+	else if (argi->stateful_flag && !argi->dry_run_flag && savep &&
+		 save(fn) < 0) {
 		rc = 1;
 	}
 
