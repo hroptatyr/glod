@@ -43,6 +43,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -78,6 +79,9 @@ static size_t nstk;
 
 /* next ob number */
 static size_t obn;
+
+static bool savep;
+static bool xtndp = true;
 
 
 static void
@@ -160,12 +164,16 @@ enum_str(const char *str, size_t len)
 			/* found him (or super-collision) */
 			return sstk[off].ob;
 		} else if (!sstk[off].ob) {
-			/* found empty slot */
-			obint_t ob = ++obn;
-			sstk[off].ob = ob;
-			sstk[off].ck = hx.chk;
-			nstk++;
-			return ob;
+			if (xtndp) {
+				/* found empty slot */
+				obint_t ob = ++obn;
+				sstk[off].ob = ob;
+				sstk[off].ck = hx.chk;
+				nstk++;
+				savep = true;
+				return ob;
+			}
+			return 0U;
 		}
 	}
 
@@ -192,12 +200,16 @@ enum_str(const char *str, size_t len)
 				/* found him (or super-collision) */
 				return sstk[off].ob;
 			} else if (!sstk[off].ob) {
-				/* found empty slot */
-				obint_t ob = ++obn;
-				sstk[off].ob = ob;
-				sstk[off].ck = hx.chk;
-				nstk++;
-				return ob;
+				if (xtndp) {
+					/* found empty slot */
+					obint_t ob = ++obn;
+					sstk[off].ob = ob;
+					sstk[off].ck = hx.chk;
+					nstk++;
+					savep = true;
+					return ob;
+				}
+				return 0U;
 			}
 		}
 	}
@@ -349,6 +361,10 @@ main(int argc, char *argv[])
 		fn = argi->file_arg;
 	}
 
+	if (argi->no_extend_flag) {
+		xtndp = false;
+	}
+
 	if (argi->verbose_flag) {
 		verbf = debug;
 	}
@@ -374,7 +390,8 @@ main(int argc, char *argv[])
 	}
 
 	/* save the state */
-	else if (argi->stateful_flag && save(fn) < 0) {
+	else if (argi->stateful_flag && !argi->dry_run_flag && savep &&
+		 save(fn) < 0) {
 		rc = 1;
 	}
 
