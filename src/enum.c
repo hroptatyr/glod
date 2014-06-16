@@ -121,18 +121,44 @@ enum_str(const char *str, size_t len)
 #define SSTK_NSLOT	(256U)
 #define SSTK_STACK	(4U * SSTK_NSLOT)
 	const hash_t hx = hash_str(str, len);
+	uint32_t k = hx.idx;
 
-	/* we take 9 probes per 32bit value,
-	 * then try the next stack */
-	for (size_t i = 0U;; i += SSTK_NSLOT) {
-		uint32_t k = hx.idx;
+	/* we take 9 probes per 32bit value, hx.idx shifted by 3bits each
+	 * then try the next stack
+	 * the first stack is 256 entries wide, the next stack is 1024
+	 * bytes wide, but only hosts 768 entries because the probe is
+	 * constructed so that the lowest 8bits are always 0. */
 
-		if (i >= zstk) {
-			size_t nu = zstk * 2U ?: SSTK_STACK;
-			fprintf(stderr, "hashtable exhausted -> %zu\n",
-				nu / SSTK_STACK);
-			sstk = recalloc(sstk, zstk, nu, sizeof(*sstk));
-			zstk = nu;
+	if (UNLIKELY(!zstk)) {
+		zstk = SSTK_STACK;
+		sstk = calloc(zstk, sizeof(*sstk));
+	}
+
+	/* here's the initial probe then */
+	for (size_t j = 0U; j < 9U; j++, k >>= 3U) {
+		const size_t off = k & 0xffU;
+
+		if (sstk[off].ck == hx.chk) {
+			/* found him (or super-collision) */
+			return sstk[off].ob;
+		} else if (!sstk[off].ob) {
+			/* found empty slot */
+			obint_t ob = ++obn;
+			sstk[off].ob = ob;
+			sstk[off].ck = hx.chk;
+			nstk++;
+			return ob;
+		}
+	}
+
+	for (size_t i = SSTK_NSLOT, m = 0x3ffU;; i <<= 2U, m <<= 2U, m |= 3U) {
+		/* reset k */
+		k = hx.idx;
+
+		if (UNLIKELY(i >= zstk)) {
+			fprintf(stderr, "hashtable exhausted -> %zu\n", i);
+			sstk = recalloc(sstk, zstk, i << 2U, sizeof(*sstk));
+			zstk = i << 2U;
 
 			if (UNLIKELY(sstk == NULL)) {
 				zstk = 0UL, nstk = 0UL;
@@ -140,9 +166,9 @@ enum_str(const char *str, size_t len)
 			}
 		}
 
+		/* here we probe within the top entries of the stack */
 		for (size_t j = 0U; j < 9U; j++, k >>= 3U) {
-			const uint8_t kx = (uint8_t)k;
-			const size_t off = i ^ kx;
+			const size_t off = (i | k) & m;
 
 			if (sstk[off].ck == hx.chk) {
 				/* found him (or super-collision) */
