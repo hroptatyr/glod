@@ -118,53 +118,55 @@ hash_str(const char *str, size_t len)
 static obint_t
 enum_str(const char *str, size_t len)
 {
-#define SSTK_MINZ	(256U)
-#define OBINT_MAX_LEN	(256U)
-	if (UNLIKELY(len == 0U || len >= OBINT_MAX_LEN)) {
-		/* don't bother */
-		return 0U;
-	}
+#define SSTK_NSLOT	(256U)
+#define SSTK_STACK	(4U * SSTK_NSLOT)
 	const hash_t hx = hash_str(str, len);
-	uint32_t k = hx.idx;
 
-	/* our resolution strategy is:
-	 * use first 8bits, check chk, if collision
-	 * offset bits by 1 and use lower 8bit, check chk in off-1 table
-	 * ... */
-	if (!zstk) {
-		zstk = 24U * SSTK_MINZ;
-		sstk = calloc(zstk, sizeof(*sstk));
-	}
+	/* we take 9 probes per 32bit value,
+	 * then try the next stack */
+	for (size_t i = 0U;; i += SSTK_NSLOT) {
+		uint32_t k = hx.idx;
 
-	/* just try the bits one by one */
-	for (size_t i = 0U; i < zstk / SSTK_MINZ; i++, k >>= 1U) {
-		const size_t off = i * SSTK_MINZ + (k & 0xffU);
+		if (i >= zstk) {
+			size_t nu = zstk * 2U ?: SSTK_STACK;
+			fprintf(stderr, "hashtable exhausted -> %zu\n",
+				nu / SSTK_STACK);
+			sstk = recalloc(sstk, zstk, nu, sizeof(*sstk));
+			zstk = nu;
 
-		if (sstk[off].ck == hx.chk) {
-			/* found him (or super-collision) */
-			return sstk[off].ob;
-		} else if (!sstk[off].ob) {
-			/* found empty slot */
-			obint_t ob = ++obn;
-			sstk[off].ob = ob;
-			sstk[off].ck = hx.chk;
-			nstk++;
-			return ob;
+			if (UNLIKELY(sstk == NULL)) {
+				zstk = 0UL, nstk = 0UL;
+				break;
+			}
+		}
+
+		for (size_t j = 0U; j < 9U; j++, k >>= 3U) {
+			const uint8_t kx = (uint8_t)k;
+			const size_t off = i ^ kx;
+
+			if (sstk[off].ck == hx.chk) {
+				/* found him (or super-collision) */
+				return sstk[off].ob;
+			} else if (!sstk[off].ob) {
+				/* found empty slot */
+				obint_t ob = ++obn;
+				sstk[off].ob = ob;
+				sstk[off].ck = hx.chk;
+				nstk++;
+				return ob;
+			}
 		}
 	}
-	fprintf(stderr, "hashtable exhausted: %s %08x+%08x\n", str, hx.idx, hx.chk);
 	return 0U;
 }
 
 static void
 clear_enums(void)
 {
-#if 0
 	if (LIKELY(sstk != NULL)) {
 		free(sstk);
 	}
 	sstk = NULL;
-#endif
 	zstk = 0U;
 	nstk = 0U;
 	obn = 0U;
@@ -273,6 +275,7 @@ save(const char *fn)
 	}
 
 	/* proceed as ESUCCES */
+	fprintf(stderr, "fill degree %zu/%zu\n", nstk, zstk);
 	close(fd);
 	return 0;
 
