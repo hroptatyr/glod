@@ -107,6 +107,24 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 	return buf;
 }
 
+static __attribute__((format(printf, 1, 2))) void
+quiet(const char *UNUSED(fmt), ...)
+{
+	return;
+}
+
+static __attribute__((format(printf, 1, 2))) void
+debug(const char *fmt, ...)
+{
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	return;
+}
+
+static void(*verbf)(const char *fmt, ...) = quiet;
+
 
 static hash_t
 hash_str(const char *str, size_t len)
@@ -156,7 +174,7 @@ enum_str(const char *str, size_t len)
 		k = hx.idx;
 
 		if (UNLIKELY(i >= zstk)) {
-			fprintf(stderr, "hashtable exhausted -> %zu\n", i);
+			verbf("hashtable exhausted -> %zu", i);
 			sstk = recalloc(sstk, zstk, i << 2U, sizeof(*sstk));
 			zstk = i << 2U;
 
@@ -301,7 +319,7 @@ save(const char *fn)
 	}
 
 	/* proceed as ESUCCES */
-	fprintf(stderr, "fill degree %zu/%zu\n", nstk, zstk);
+	verbf("fill degree %zu/%zu\n", nstk, zstk);
 	close(fd);
 	return 0;
 
@@ -329,6 +347,10 @@ main(int argc, char *argv[])
 
 	if (argi->file_arg) {
 		fn = argi->file_arg;
+	}
+
+	if (argi->verbose_flag) {
+		verbf = debug;
 	}
 
 	if (0);
