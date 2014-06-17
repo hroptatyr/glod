@@ -171,7 +171,9 @@ find_m(gleps_t g)
 				z += 2U;
 			}
 		default:
-			if (z < res) {
+			if (z < 3U) {
+				;
+			} else if (z < res) {
 				res = z;
 			}
 			break;
@@ -521,7 +523,10 @@ glep_cc(gleps_t g)
 		const glep_pat_t pat = g->pats[i];
 		const size_t z = strlen(pat.s);
 
-		if (res->m > z) {
+		if (z <= 2U) {
+			/* do nothing */
+			;
+		} else if (res->m > z) {
 			/* handle patters that are apparently too short */
 			add_smallpat(pat, z);
 		} else {
@@ -540,7 +545,10 @@ glep_cc(gleps_t g)
 		const glep_pat_t pat = g->pats[i];
 		const size_t z = strlen(pat.s);
 
-		if (res->m > z) {
+		if (z <= 2U) {
+			/* do nothing */
+			;
+		} else if (res->m > z) {
 			/* handle patterns that are apparently too short */
 			add_smallprf(pat, z, i);
 		} else {

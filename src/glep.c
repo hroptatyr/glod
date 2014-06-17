@@ -120,10 +120,7 @@ snarf_pat(word_t w)
 		w.s++;
 		w.z--;
 	}
-	if (w.z < 3U) {
-		warn("pattern too small");
-		return res;
-	} else if (w.s[w.z - 1U] == '*' && w.s[w.z - 2U] != '\\') {
+	if (w.s[w.z - 1U] == '*' && w.s[w.z - 2U] != '\\') {
 		/* right boundary is a * */
 		res.fl.right = 1U;
 		w.z--;
