@@ -137,6 +137,9 @@ enum_TESTS += enum.02.tst
 enum_TESTS += enum.03.tst
 enum_TESTS += enum.04.tst
 enum_TESTS += enum.05.tst
+enum_TESTS += enum.06.tst
+enum_TESTS += enum.07.tst
+enum_TESTS += enum.08.tst
 EXTRA_DIST += utf8.txt
 
 
@@ -148,6 +151,11 @@ clitoris_LDFLAGS = $(AM_LDFLAGS) -static
 clitoris_LDADD = -lutil
 BUILT_SOURCES += clitoris.yucc
 
+check_PROGRAMS += hxdiff
+hxdiff_CPPFLAGS = $(AM_CPPFLAGS)
+hxdiff_LDFLAGS = $(AM_LDFLAGS) -static
+BUILT_SOURCES += hxdiff.yucc
+
 ## yuck rule
 SUFFIXES += .yuck
 SUFFIXES += .yucc
@@ -157,5 +165,7 @@ SUFFIXES += .yucc
 
 clean-local:
 	-rm -rf *.tmpd
+
+.NOTPARALLEL:
 
 ## Makefile.am ends here
