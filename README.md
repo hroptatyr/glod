@@ -40,6 +40,7 @@ Matching files and patterns are printed to stdout (separated by tabs):
     shelf	testfile2
     pound	testfile2
 
+
 terms
 -----
 A fast text file tokeniser.
@@ -78,6 +79,29 @@ preclustering.
 System-wide or local i18n settings are explicitly ignored!  This might
 lead to complications when mixing glod tools with other preprocessing
 tools.
+
+
+enum
+----
+
+Enumerate terms from stdin.  This tool reads strings, one per line, and
+assigns them an integer.  Much like an SQL SERIAL.  Consider
+
+    $ cat testfile
+    this
+    is
+    this
+    test
+    $
+
+and now enumerating the lines
+
+    $ enum < testfile
+    1
+    2
+    1
+    3
+    $
 
 
   [1]: http://code.google.com/p/preto/
