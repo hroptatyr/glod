@@ -148,6 +148,11 @@ clitoris_LDFLAGS = $(AM_LDFLAGS) -static
 clitoris_LDADD = -lutil
 BUILT_SOURCES += clitoris.yucc
 
+check_PROGRAMS += hxdiff
+hxdiff_CPPFLAGS = $(AM_CPPFLAGS)
+hxdiff_LDFLAGS = $(AM_LDFLAGS) -static
+BUILT_SOURCES += hxdiff.yucc
+
 ## yuck rule
 SUFFIXES += .yuck
 SUFFIXES += .yucc
