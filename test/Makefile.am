@@ -163,4 +163,6 @@ SUFFIXES += .yucc
 clean-local:
 	-rm -rf *.tmpd
 
+.NOTPARALLEL:
+
 ## Makefile.am ends here
