@@ -50,34 +50,7 @@
 #include <assert.h>
 #include <immintrin.h>
 #include "nifty.h"
-
-#include "coru/cocore.h"
-
-#define PREP()		initialise_cocore_thread()
-#define UNPREP()	terminate_cocore_thread()
-#define START(x, ctx)							\
-	({								\
-		struct cocore *next = (ctx)->next;			\
-		create_cocore(						\
-			next, (cocore_action_t)(x),			\
-			(ctx), sizeof(*(ctx)),				\
-			next, 0U, false, 0);				\
-	})
-#define SWITCH(x, o)	switch_cocore((x), (void*)(intptr_t)(o))
-#define NEXT1(x, o)	((intptr_t)(check_cocore(x) ? SWITCH(x, o) : NULL))
-#define NEXT(x)		NEXT1(x, NULL)
-#define YIELD(o)	((intptr_t)SWITCH(CORU_CLOSUR(next), (o)))
-
-#define DEFCORU(name, closure, arg)			\
-	struct name##_s {				\
-		struct cocore *next;			\
-		struct closure;				\
-	};						\
-	static intptr_t name(struct name##_s *ctx, arg)
-#define CORU_CLOSUR(x)	(ctx->x)
-#define CORU_STRUCT(x)	struct x##_s
-#define PACK(x, args...)	&((CORU_STRUCT(x)){args})
-#define START_PACK(x, args...)	START(x, PACK(x, args))
+#include "coru.h"
 
 #if !defined __x86_64
 # error this code is only for 64b archs

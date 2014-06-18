@@ -49,37 +49,11 @@
 #include "corpus.h"
 #include "doc.h"
 #include "nifty.h"
-
-#include "coru/cocore.h"
+#include "coru.h"
 
 #if defined __INTEL_COMPILER
 # define auto	static
 #endif	/* __INTEL_COMPILER */
-
-#define PREP()		initialise_cocore_thread()
-#define UNPREP()	terminate_cocore_thread()
-#define START(x, ctx)							\
-	({								\
-		struct cocore *next = (ctx)->next;			\
-		create_cocore(						\
-			next, (cocore_action_t)(x),			\
-			(ctx), sizeof(*(ctx)),				\
-			next, 0U, false, 0);				\
-	})
-#define NEXT1(x, o)	(check_cocore(x) ? switch_cocore((x), (o)) : NULL)
-#define NEXT(x)		NEXT1(x, NULL)
-#define YIELD(x)	switch_cocore(CORU_CLOSUR(next), (void*)(intptr_t)(x))
-
-#define DEFCORU(name, closure, arg)			\
-	struct name##_s {				\
-		struct cocore *next;			\
-		struct closure;				\
-	};						\
-	static void *name(struct name##_s *ctx, arg)
-#define CORU_CLOSUR(x)	(ctx->x)
-#define CORU_STRUCT(x)	struct x##_s
-#define PACK(x, args...)	&((CORU_STRUCT(x)){args})
-#define START_PACK(x, args...)	START(x, PACK(x, args))
 
 
 static void
