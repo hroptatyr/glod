@@ -39,10 +39,12 @@
 #endif	/* HAVE_CONFIG_H */
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "glep.h"
 #include "boobs.h"
 #include "intern.h"
 #include "nifty.h"
+#include "coru.h"
 
 /* lib stuff */
 typedef size_t idx_t;
@@ -86,6 +88,7 @@ static const char stdin_fn[] = "<stdin>";
 static int invert_match_p;
 static int show_pats_p;
 
+
 static void
 __attribute__((format(printf, 1, 2)))
 error(const char *fmt, ...)
@@ -100,6 +103,112 @@ error(const char *fmt, ...)
 	}
 	fputc('\n', stderr);
 	return;
+}
+
+
+DEFCORU(co_snarf, {
+		char *buf;
+		size_t bsz;
+		int fd;
+	}, void *UNUSED(arg))
+{
+	/* upon the first call we expect a completely processed buffer
+	 * just to determine the buffer's size */
+	char *const buf = CORU_CLOSUR(buf);
+	const size_t bsz = CORU_CLOSUR(bsz);
+	const int fd = CORU_CLOSUR(fd);
+	ssize_t npr;
+	ssize_t nrd;
+	size_t nun = 0U;
+
+	/* leave some good advice about our access pattern */
+	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+
+	/* enter the main snarf loop */
+	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
+		/* we've got NRD more unprocessed bytes */
+		nun += nrd;
+		/* process */
+		npr = YIELD(nun);
+		/* now it's NPR less unprocessed bytes */
+		nun -= npr;
+
+		/* check if we need to move buffer contents */
+		if (nun > 0) {
+			memmove(buf, buf + npr, nun);
+		}
+	}
+	/* final drain */
+	if (nun) {
+		/* we don't care how much got processed */
+		YIELD(nun);
+	}
+	return nrd;
+}
+
+DEFCORU(co_match, {
+		char *buf;
+		size_t bsz;
+	}, void *arg)
+{
+	/* upon the first call we expect a completely filled buffer
+	 * just to determine the buffer's size */
+	char *const buf = CORU_CLOSUR(buf);
+	const size_t bsz = CORU_CLOSUR(bsz);
+	size_t nrd = (intptr_t)arg;
+	ssize_t npr;
+
+	/* enter the main match loop */
+	do {
+		/* now go through and scrape buffer portions off */
+		npr = (nrd / 16U) * 16U;
+	} while ((nrd = YIELD(npr)) > 0U);
+	return 0;
+}
+
+
+static int
+match0(int fd)
+{
+	char buf[4U * 4096U];
+	struct cocore *snarf;
+	struct cocore *match;
+	struct cocore *self;
+	int res = 0;
+	ssize_t nrd;
+	ssize_t npr;
+
+	self = PREP();
+	snarf = START_PACK(
+		co_snarf, .next = self,
+		.buf = buf, .bsz = sizeof(buf), .fd = fd);
+	match = START_PACK(
+		co_match, .next = self,
+		.buf = buf, .bsz = sizeof(buf));
+
+	/* assume a nicely processed buffer to indicate its size to
+	 * the reader coroutine */
+	npr = 0;
+	do {
+		/* technically we could let the corus flip-flop call each other
+		 * but we'd like to filter bad input right away */
+		if (UNLIKELY((nrd = NEXT1(snarf, npr)) < 0)) {
+			error("Error: reading from stdin failed");
+			res = -1;
+			break;
+		}
+
+		if (UNLIKELY((npr = NEXT1(match, nrd)) < 0)) {
+			error("Error: processing stdin failed");
+			res = -1;
+			break;
+		}
+
+		assert(npr <= nrd);
+	} while (nrd > 0);
+
+	UNPREP();
+	return res;
 }
 
 static gleps_t
@@ -151,14 +260,43 @@ main(int argc, char *argv[])
 	for (size_t i = 0U; i < pf->npats; i++) {
 		const char *p = pf->pats[i].s;
 
-		if (strlen(p) <= 2U) {
+		if (strlen(p) == 1U) {
 			puts(pf->pats[i].s);
 		}
 	}
 
+	/* get the coroutines going */
+	initialise_cocore();
+
+	/* process stdin? */
+	if (!argi->nargs) {
+		if (match0(STDIN_FILENO) < 0) {
+			error("Error: processing stdin failed");
+			rc = 1;
+		}
+		goto fr_gl;
+	}
+
+	/* process files given on the command line */
+	for (size_t i = 0U; i < argi->nargs; i++) {
+		const char *file = argi->args[i];
+		int fd;
+
+		if (UNLIKELY((fd = open(file, O_RDONLY)) < 0)) {
+			error("Error: cannot open file `%s'", file);
+			rc = 1;
+			continue;
+		} else if (match0(fd) < 0) {
+			error("Error: cannot process `%s'", file);
+			rc = 1;
+		}
+		/* clean up */
+		close(fd);
+	}
+
+fr_gl:
 	/* resource hand over */
 	glep_fr(pf);
-fr_gl:
 	glod_fr_gleps(pf);
 out:
 	yuck_free(argi);
