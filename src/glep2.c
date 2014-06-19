@@ -301,6 +301,9 @@ match0(int fd)
 		co_match, .next = self,
 		.buf = buf, .bsz = sizeof(buf));
 
+	/* rinse */
+	memset(c1, 0, np1 * sizeof(*c1));
+
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
 	npr = 0;
@@ -325,7 +328,6 @@ match0(int fd)
 	for (size_t i = 0U; i < np1; i++) {
 		printf("%zu\t%lu\n", i, c1[i]);
 	}
-	memset(c1, 0, np1 * sizeof(*c1));
 
 	UNPREP();
 	return res;
