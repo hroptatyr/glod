@@ -154,7 +154,7 @@ isolw(const uint64_t sur, const uint64_t isol)
 }
 
 static void
-isolwify(const accu_t *pat, const accu_t *puncs, size_t n, size_t az)
+isolwify(const accu_t *puncs, const accu_t *pat, size_t n, size_t az)
 {
 	for (size_t j = 0U; j < np1; j++, pat += az) {
 		for (size_t i = 0U; i < n; i++) {
@@ -270,7 +270,7 @@ DEFCORU(co_match, {
 		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
 
 		/* apply isolation-weight measure */
-		isolwify(pat, puncs, nr, az);
+		isolwify(puncs, pat, nr, az);
 
 		/* popcnt */
 		;
