@@ -229,6 +229,10 @@ DEFCORU(co_snarf, {
 	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
+		/* round up to multiples of __BITS */
+		if (nun % __BITS) {
+			memset(buf + nun, 0, __BITS - (nun % __BITS));
+		}
 		/* process */
 		npr = YIELD(nun);
 		/* now it's NPR less unprocessed bytes */
