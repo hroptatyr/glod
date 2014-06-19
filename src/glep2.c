@@ -40,7 +40,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <immintrin.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <errno.h>
+#include "fops.h"
 #include "glep.h"
 #include "boobs.h"
 #include "intern.h"
@@ -80,42 +83,14 @@ static const char stdin_fn[] = "<stdin>";
 
 #define warn(x...)
 
-#if defined __AVX2__
-# define __mXi			__m256i
-# define _mmX_load_si(x)	_mm256_load_si256(x)
-# define _mmX_loadu_si(x)	_mm256_loadu_si256(x)
-# define _mmX_set1_epi8(x)	_mm256_set1_epi8(x)
-# define _mmX_setzero_si()	_mm256_setzero_si256()
-# define _mmX_cmpeq_epi8(x, y)	_mm256_cmpeq_epi8(x, y)
-# define _mmX_cmpgt_epi8(x, y)	_mm256_cmpgt_epi8(x, y)
-# define _mmX_cmplt_epi8(x, y)	_mm256_cmpgt_epi8(y, x)
-# define _mmX_add_si(x, y)	_mm256_add_epi8(x, y)
-# define _mmX_and_si(x, y)	_mm256_and_si256(x, y)
-# define _mmX_xor_si(x, y)	_mm256_xor_si256(x, y)
-# define _mmX_movemask_epi8(x)	_mm256_movemask_epi8(x)
-#elif defined __SSE2__
-# define __mXi			__m128i
-# define _mmX_load_si(x)	_mm_load_si128(x)
-# define _mmX_loadu_si(x)	_mm_loadu_si128(x)
-# define _mmX_set1_epi8(x)	_mm_set1_epi8(x)
-# define _mmX_setzero_si()	_mm_setzero_si128()
-# define _mmX_cmpeq_epi8(x, y)	_mm_cmpeq_epi8(x, y)
-# define _mmX_cmpgt_epi8(x, y)	_mm_cmpgt_epi8(x, y)
-# define _mmX_cmplt_epi8(x, y)	_mm_cmplt_epi8(x, y)
-# define _mmX_add_si(x, y)	_mm_add_epi8(x, y)
-# define _mmX_and_si(x, y)	_mm_and_si128(x, y)
-# define _mmX_xor_si(x, y)	_mm_xor_si128(x, y)
-# define _mmX_movemask_epi8(x)	_mm_movemask_epi8(x)
-#else
-# error need SIMD extensions of some sort
-#endif
+#if !defined __x86_64
+# error this code is only for 64b archs
+#endif	/* !__x86_64 */
+
+#define __BITS		(32U)
+typedef uint32_t accu_t;
 
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <errno.h>
-#include "fops.h"
-
 static int invert_match_p;
 static int show_pats_p;
 
@@ -136,65 +111,13 @@ error(const char *fmt, ...)
 	return;
 }
 
-static inline __attribute__((pure, const)) int
-pispuncs(register __mXi data)
-{
-/* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`' */
-	register __mXi x0;
-	register __mXi x1;
-	register __mXi y0;
-	register __mXi y1;
-
-	/* check for <=SPC, !, " */
-	y0 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('"' + 1));
-
-	/* check for '() */
-	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\'' - 1));
-	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8(')' + 1));
-	y1 = _mmX_and_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
-
-	/* check for , and . */
-	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(','));
-	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('.'));
-	y1 = _mmX_xor_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
-
-	/* check for :; */
-	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(':'));
-	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(';'));
-	y1 = _mmX_xor_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
-
-	/* check for ?` */
-	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('?'));
-	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('`'));
-	y1 = _mmX_xor_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
-
-	return _mmX_movemask_epi8(y0);
-}
-
-static inline __attribute__((pure, const)) __mXi
-ptolower(register __mXi data)
-{
-/* lower's standard ascii */
-	register __mXi x0;
-	register __mXi x1;
-	register __mXi y0;
-	register __mXi y1;
-
-	/* check for ALPHA */
-	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('A' - 1));
-	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('Z' + 1));
-	y0 = _mmX_and_si(x0, x1);
-	y1 = _mmX_set1_epi8(32U);
-	y0 = _mmX_and_si(y0, y1);
-
-	return _mmX_add_si(data, y0);
-}
-
 
+#define SSEZ	128
+#include "glep-guts.c"
+
+#define SSEZ	256
+#include "glep-guts.c"
+
 static uint8_t *p1;
 static uint_fast32_t *c1;
 static size_t np1;
@@ -234,33 +157,15 @@ isolw(const unsigned int sur, const unsigned int isol)
 		(isol & isol_msk3);
 }
 
-static unsigned int
-p1cnt(register __mXi data, unsigned int punc)
+static void
+isolwify(const accu_t *pat, const accu_t *puncs, size_t n, size_t az)
 {
-	for (size_t i = 0U; i < np1; i++) {
-		register __mXi pat = _mmX_set1_epi8(p1[i]);
-		register __mXi x = _mmX_cmpeq_epi8(data, pat);
-		int r = _mmX_movemask_epi8(x);
-
-		c1[i] += _popcnt32(isolw(punc, r));
+	for (size_t j = 0U; j < np1; j++, pat += az) {
+		for (size_t i = 0U; i < n; i++) {
+			c1[j] += _popcnt32(isolw(puncs[i], pat[i]));
+		}
 	}
-	return 0U;
-}
-
-static unsigned int
-pcnt(const uint8_t *buf, size_t bsz)
-{
-	for (size_t i = 0U; i < bsz; i += sizeof(__mXi) - 1U) {
-		/* load */
-		register __mXi data = _mmX_loadu_si((const void*)(buf + i));
-		int p;
-
-		data = ptolower(data);
-		p = pispuncs(data);
-
-		p1cnt(data, p);
-	}
-	return 0U;
+	return;
 }
 
 
@@ -313,15 +218,35 @@ DEFCORU(co_match, {
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = CORU_CLOSUR(bsz);
+	const size_t az = bsz / __BITS;
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
+	accu_t puncs[az];
+	accu_t pat[np1 * az];
+	static void(*accuify)();
+
+	/* check cpu features */
+	if (_may_i_use_cpu_feature(_FEATURE_AVX2)) {
+		accuify = _accuify256;
+	} else {
+		accuify = _accuify128;
+	}
 
 	/* enter the main match loop */
 	do {
-		pcnt((const void*)buf, nrd);
+		size_t nr = nrd / __BITS;
+
+		/* put bit patterns into puncs and pat */
+		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
+
+		/* apply isolation-weight measure */
+		isolwify(pat, puncs, nr, az);
+
+		/* popcnt */
+		;
 
 		/* now go through and scrape buffer portions off */
-		npr = (nrd / 16U) * 16U;
+		npr = nr * __BITS;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
