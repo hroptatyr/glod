@@ -86,6 +86,7 @@ libcoru_la_SOURCES += coru/switch.c coru/switch.h
 libcoru_la_SOURCES += coru/platform.h
 libcoru_la_SOURCES += coru/valgrind.h
 libcoru_la_SOURCES += coru/memcheck.h
+libcoru_la_SOURCES += coru.h
 EXTRA_libcoru_la_SOURCES += coru/switch-arm.c
 EXTRA_libcoru_la_SOURCES += coru/switch-ppc_osx.c
 EXTRA_libcoru_la_SOURCES += coru/switch-x86.c
@@ -211,6 +212,13 @@ fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
+
+noinst_PROGRAMS += glep2
+glep2_SOURCES = glep2.c
+glep2_SOURCES += glep.yuck
+EXTRA_glep2_SOURCES = glep-guts.c
+glep2_LDADD = libglod.la
+glep2_LDADD += libcoru.la
 
 
 ## version rules

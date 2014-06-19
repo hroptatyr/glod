@@ -130,6 +130,12 @@ EXTRA_DIST += utf8.alrt utf8.txt
 EXTRA_DIST += latin1.alrt latin1.txt
 EXTRA_DIST += ascii.alrt ascii.txt
 
+glep_TESTS += glep.09.tst
+glep_TESTS += glep.10.tst
+EXTRA_DIST += tilm.alrt
+EXTRA_DIST += til2.alrt
+EXTRA_DIST += tilm.txt
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst

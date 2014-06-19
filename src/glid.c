@@ -48,35 +48,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include "nifty.h"
-
-#include "coru/cocore.h"
-
-#define PREP()		initialise_cocore_thread()
-#define UNPREP()	terminate_cocore_thread()
-#define START(x, ctx)							\
-	({								\
-		struct cocore *next = (ctx)->next;			\
-		create_cocore(						\
-			next, (cocore_action_t)(x),			\
-			(ctx), sizeof(*(ctx)),				\
-			next, 0U, false, 0);				\
-	})
-#define SWITCH(x, o)	switch_cocore((x), (void*)(intptr_t)(o))
-#define NEXT1(x, o)	((intptr_t)(check_cocore(x) ? SWITCH(x, o) : NULL))
-#define NEXT(x)		NEXT1(x, NULL)
-#define YIELD(o)	((intptr_t)SWITCH(CORU_CLOSUR(next), (o)))
-#define RETURN(o)	return (void*)(intptr_t)(o)
-
-#define DEFCORU(name, closure, arg)			\
-	struct name##_s {				\
-		struct cocore *next;			\
-		struct closure;				\
-	};						\
-	static void *name(struct name##_s *ctx, arg)
-#define CORU_CLOSUR(x)	(ctx->x)
-#define CORU_STRUCT(x)	struct x##_s
-#define PACK(x, args...)	&((CORU_STRUCT(x)){args})
-#define START_PACK(x, args...)	START(x, PACK(x, args))
+#include "coru.h"
 
 typedef struct {
 	char g[2U];

@@ -171,7 +171,9 @@ find_m(gleps_t g)
 				z += 2U;
 			}
 		default:
-			if (z < res) {
+			if (z < 3U) {
+				;
+			} else if (z < res) {
 				res = z;
 			}
 			break;
@@ -521,7 +523,10 @@ glep_cc(gleps_t g)
 		const glep_pat_t pat = g->pats[i];
 		const size_t z = strlen(pat.s);
 
-		if (res->m > z) {
+		if (z <= 2U) {
+			/* do nothing */
+			;
+		} else if (res->m > z) {
 			/* handle patters that are apparently too short */
 			add_smallpat(pat, z);
 		} else {
@@ -540,7 +545,10 @@ glep_cc(gleps_t g)
 		const glep_pat_t pat = g->pats[i];
 		const size_t z = strlen(pat.s);
 
-		if (res->m > z) {
+		if (z <= 2U) {
+			/* do nothing */
+			;
+		} else if (res->m > z) {
 			/* handle patterns that are apparently too short */
 			add_smallprf(pat, z, i);
 		} else {
@@ -589,19 +597,26 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 			/* we're looking at *foo*, trivial match */
 			return true;
 		}
-		if (!pat.fl.right) {
-			/* we're looking at *foo or foo,
+		if (!pat.fl.right && UNLIKELY(pat.fl.left)) {
+			/* we're looking at *foo,
 			 * so check the right side for word boundaries */
 			if (UNLIKELY(sp + z >= ep)) {
 				return true;
 			} else if (!xalnump(sp[z])) {
 				return true;
 			}
-		} else if (!pat.fl.left) {
+		} else if (!pat.fl.left && UNLIKELY(pat.fl.right)) {
 			/* we're looking at foo*, so check the left side */
 			if (UNLIKELY(sp == (const unsigned char*)buf)) {
 				return true;
 			} else if (!xalnump(sp[-1])) {
+				return true;
+			}
+		} else {
+			/* we're looking at foo, so check both boundaries */
+			if ((UNLIKELY(sp == (const unsigned char*)buf) ||
+			     !xalnump(sp[-1])) &&
+			    (UNLIKELY(sp + z >= ep) || !xalnump(sp[z]))) {
 				return true;
 			}
 		}
