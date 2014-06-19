@@ -40,7 +40,7 @@
 #endif
 
 
-static inline __attribute__((pure, const)) int
+static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
 /* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`' */
@@ -98,7 +98,7 @@ SSEI(ptolower)(register __mXi data)
 	return _mmX_add_epi8(data, y0);
 }
 
-static inline __attribute__((pure, const)) int
+static inline __attribute__((pure, const)) unsigned int
 SSEI(pmatch)(register __mXi data, const uint8_t c)
 {
 	register __mXi p = _mmX_set1_epi8(c);
