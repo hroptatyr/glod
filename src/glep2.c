@@ -164,6 +164,48 @@ isolwify(const accu_t *pat, const accu_t *puncs, size_t n, size_t az)
 	return;
 }
 
+#if defined __INTEL_COMPILER
+# pragma warning (disable:869)
+static void
+__attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	/* stub */
+}
+# pragma warning (default:869)
+
+static void
+#if defined __INTEL_COMPILER
+__attribute__((cpu_specific(core_4th_gen_avx)))
+#else
+__attribute__((target("avx2")))
+#endif
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	return _accuify256(puncs, pat, buf, bsz, az, p1a, p1z);
+}
+#endif	/* __INTEL_COMPILER */
+
+static void
+#if defined __INTEL_COMPILER
+__attribute__((cpu_specific(core_2_duo_ssse3)))
+#else
+__attribute__((target("ssse3")))
+#endif
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	return _accuify128(puncs, pat, buf, bsz, az, p1a, p1z);
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -219,14 +261,6 @@ DEFCORU(co_match, {
 	ssize_t npr;
 	accu_t puncs[az];
 	accu_t pat[np1 * az];
-	static void(*accuify)();
-
-	/* check cpu features */
-	if (_may_i_use_cpu_feature(_FEATURE_AVX2)) {
-		accuify = _accuify256;
-	} else {
-		accuify = _accuify128;
-	}
 
 	/* enter the main match loop */
 	do {
