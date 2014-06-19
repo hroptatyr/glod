@@ -87,12 +87,8 @@ static const char stdin_fn[] = "<stdin>";
 # error this code is only for 64b archs
 #endif	/* !__x86_64 */
 
-#define __BITS		(32U)
-typedef uint32_t accu_t;
-
-
-static int invert_match_p;
-static int show_pats_p;
+#define __BITS		(64U)
+typedef uint64_t accu_t;
 
 
 static void
@@ -126,8 +122,8 @@ static uint8_t *p2;
 static uint_fast32_t *c2;
 static size_t np2;
 
-static __attribute__((const, pure)) unsigned int
-isolw(const unsigned int sur, const unsigned int isol)
+static __attribute__((const, pure)) uint64_t
+isolw(const uint64_t sur, const uint64_t isol)
 {
 /* isolation weight, defined as
  * a =  ...101
@@ -141,13 +137,13 @@ isolw(const unsigned int sur, const unsigned int isol)
  * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01000U  etc.
  *
  * we build the complete table for 4 bits and shift a and b by 3. */
-	unsigned int isol_msk1 = 0b00010010010010010010010010010010U;
-	unsigned int isol_msk2 = 0b00100100100100100100100100100100U;
-	unsigned int isol_msk3 = 0b01001001001001001001001001001000U;
+	uint64_t isol_msk1 = 0b0010010010010010010010010010010010010010010010010010010010010010ULL;
+	uint64_t isol_msk2 = 0b0100100100100100100100100100100100100100100100100100100100100100ULL;
+	uint64_t isol_msk3 = 0b0001001001001001001001001001001001001001001001001001001001001000ULL;
 
-	unsigned int sur_msk1 = 0b00101101101101101101101101101101U;
-	unsigned int sur_msk2 = 0b01011011011011011011011011011010U;
-	unsigned int sur_msk3 = 0b10110110110110110110110110110100U;
+	uint64_t sur_msk1 = 0b0101101101101101101101101101101101101101101101101101101101101101ULL;
+	uint64_t sur_msk2 = 0b1011011011011011011011011011011011011011011011011011011011011010ULL;
+	uint64_t sur_msk3 = 0b0010110110110110110110110110110110110110110110110110110110110100ULL;
 
 	return ((sur & sur_msk1) >> 1U) & ((sur & sur_msk1) << 1U) &
 		(isol & isol_msk1) |
@@ -162,7 +158,7 @@ isolwify(const accu_t *pat, const accu_t *puncs, size_t n, size_t az)
 {
 	for (size_t j = 0U; j < np1; j++, pat += az) {
 		for (size_t i = 0U; i < n; i++) {
-			c1[j] += _popcnt32(isolw(puncs[i], pat[i]));
+			c1[j] += _popcnt64(isolw(puncs[i], pat[i]));
 		}
 	}
 	return;
