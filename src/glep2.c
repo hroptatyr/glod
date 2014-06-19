@@ -157,9 +157,47 @@ static void
 isolwify(const accu_t *puncs, const accu_t *pat, size_t n, size_t az)
 {
 	for (size_t j = 0U; j < np1; j++, pat += az) {
+#if __BITS == 64
 		for (size_t i = 0U; i < n; i++) {
 			c1[j] += _popcnt64(isolw(puncs[i], pat[i]));
 		}
+		/* now the only problem that can arise is that bit 63 in
+		 * a pattern accu is set, since the surrounding mask is
+		 * 64bits and 64 == 1 mod 3, we're 1 bit short
+		 * count those occasions here separately */
+		for (size_t i = 0U; i < n; i++) {
+			if ((int64_t)pat[i] < 0 &&
+			    (int64_t)(puncs[i] << 1U) < 0 &&
+			    (i + 1U >= n || puncs[i + 1U] & 0b1U)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+			if (pat[i] & 0b1U &&
+			    (puncs[i] >> 1U) & 0b1U &&
+			    (i == 0U || (int64_t)puncs[i - 1U] < 0)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+		}
+#elif __BITS == 32U
+		for (size_t i = 0U; i < n; i++) {
+			c1[j] += _popcnt32(isolw(puncs[i], pat[i]));
+		}
+		for (size_t i = 0U; i < n; i++) {
+			if ((int32_t)pat[i] < 0 &&
+			    (int32_t)(puncs[i] << 1U) < 0 &&
+			    (i + 1U >= n || puncs[i + 1U] & 0b1U)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+			if (pat[i] & 0b1U &&
+			    (puncs[i] >> 1U) & 0b1U &&
+			    (i == 0U || (int32_t)puncs[i - 1U] < 0)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+		}
+#endif
 	}
 	return;
 }
