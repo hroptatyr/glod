@@ -239,7 +239,7 @@ int bf_contains(bloom_filter *filter, char* key)
 /**
  * Returns the size of the bloom filter in item count
  */
-uint64_t bf_size(bloom_filter *filter)
+size_t bf_size(bloom_filter *filter)
 {
 	// Read it from the file header directly
 	return filter->header->count;
