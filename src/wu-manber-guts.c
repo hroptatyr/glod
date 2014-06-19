@@ -597,19 +597,26 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 			/* we're looking at *foo*, trivial match */
 			return true;
 		}
-		if (!pat.fl.right) {
-			/* we're looking at *foo or foo,
+		if (!pat.fl.right && UNLIKELY(pat.fl.left)) {
+			/* we're looking at *foo,
 			 * so check the right side for word boundaries */
 			if (UNLIKELY(sp + z >= ep)) {
 				return true;
 			} else if (!xalnump(sp[z])) {
 				return true;
 			}
-		} else if (!pat.fl.left) {
+		} else if (!pat.fl.left && UNLIKELY(pat.fl.right)) {
 			/* we're looking at foo*, so check the left side */
 			if (UNLIKELY(sp == (const unsigned char*)buf)) {
 				return true;
 			} else if (!xalnump(sp[-1])) {
+				return true;
+			}
+		} else {
+			/* we're looking at foo, so check both boundaries */
+			if ((UNLIKELY(sp == (const unsigned char*)buf) ||
+			     !xalnump(sp[-1])) &&
+			    (UNLIKELY(sp + z >= ep) || !xalnump(sp[z]))) {
 				return true;
 			}
 		}
