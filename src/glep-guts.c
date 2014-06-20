@@ -2,6 +2,7 @@
 # include <immintrin.h>
 #elif defined __GNUC__
 # include <x86intrin.h>
+# include <immintrin.h>
 #endif
 
 #if defined SSEZ
