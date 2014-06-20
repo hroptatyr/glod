@@ -157,8 +157,12 @@ isolw(const uint64_t sur, const uint64_t isol)
 }
 
 static void
-isolwify(const accu_t *puncs, const accu_t *pat, size_t n, size_t az)
+isolwify(const accu_t *puncs, const accu_t *pat, size_t nbits, size_t az)
 {
+	/* our callers shall guarantee that nbits > 0 */
+	const size_t n = (nbits - 1U) / __BITS + 1U;
+
+	assert(nbits > 0);
 	for (size_t j = 0U; j < np1; j++, pat += az) {
 #if __BITS == 64
 		for (size_t i = 0U; i < n; i++) {
@@ -263,19 +267,17 @@ DEFCORU(co_match, {
 
 	/* enter the main match loop */
 	do {
-		size_t nr = nrd / __BITS;
-
 		/* put bit patterns into puncs and pat */
 		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
 
 		/* apply isolation-weight measure */
-		isolwify(puncs, pat, nr, az);
+		isolwify(puncs, pat, nrd, az);
 
 		/* popcnt */
 		;
 
 		/* now go through and scrape buffer portions off */
-		npr = nr * __BITS;
+		npr = (nrd / __BITS) * __BITS;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
