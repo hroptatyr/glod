@@ -270,7 +270,7 @@ DEFCORU(co_match, {
 	}
 	/* enter the main match loop */
 	do {
-		size_t bz = nrd / __BITS;
+		size_t bz = (nrd / __BITS) ?: 1U;
 
 		/* put bit patterns into puncs and pat */
 		accuify(puncs, pat, (const void*)buf, bz, az, p1, np1);
@@ -282,7 +282,9 @@ DEFCORU(co_match, {
 		;
 
 		/* now go through and scrape buffer portions off */
-		npr = bz * __BITS;
+		if ((npr = bz * __BITS) > (ssize_t)nrd) {
+			npr = nrd;
+		}
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
