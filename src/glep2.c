@@ -80,6 +80,7 @@ struct wpat_s {
 #endif	/* __INTEL_COMPILER */
 
 static const char stdin_fn[] = "<stdin>";
+static int show_pats_p;
 
 #define warn(x...)
 
@@ -119,9 +120,13 @@ error(const char *fmt, ...)
 
 static uint8_t *p1;
 static size_t np1;
+/* map from p1[i] -> pats[j], the i,j part */
+static size_t *mp1;
 
 static uint8_t *p2;
 static size_t np2;
+/* map from p2[i] -> pats[j], the i,j part */
+static size_t *mp2;
 
 
 DEFCORU(co_snarf, {
@@ -198,7 +203,7 @@ DEFCORU(co_match, {
 
 
 static int
-match0(int fd)
+match0(gleps_t pf, int fd, const char *fn)
 {
 	char buf[4U * 4096U];
 	uint_fast32_t c1[np1];
@@ -244,8 +249,24 @@ match0(int fd)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-	for (size_t i = 0U; i < np1; i++) {
-		printf("%zu\t%lu\n", i, c1[i]);
+	if (show_pats_p) {
+		for (size_t i = 0U; i < np1; i++) {
+			glep_pat_t p = pf->pats[mp1[i]];
+
+			fputs(p.s, stdout);
+			putchar('\t');
+			printf("%lu\t", c1[i]);
+			puts(fn);
+		}
+	} else {
+		for (size_t i = 0U; i < np1; i++) {
+			glep_pat_t p = pf->pats[mp1[i]];
+
+			fputs(p.y, stdout);
+			putchar('\t');
+			printf("%lu\t", c1[i]);
+			puts(fn);
+		}
 	}
 
 	UNPREP();
@@ -297,6 +318,10 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
+	if (argi->show_patterns_flag) {
+		show_pats_p = 1;
+	}
+
 	/* oki, rearrange patterns into 1grams, 2grams, 3,4grams, etc. */
 	for (size_t i = 0U; i < pf->npats; i++) {
 		const char *p = pf->pats[i].s;
@@ -308,7 +333,9 @@ main(int argc, char *argv[])
 				/* resize */
 				const size_t nu = np1 + 64U;
 				p1 = realloc(p1, nu * sizeof(*p1));
+				mp1 = realloc(mp1, nu * sizeof(*mp1));
 			}
+			mp1[np1] = i;
 			if (UNLIKELY(*p >= 'A' && *p <= 'Z')) {
 				p1[np1++] = (uint8_t)(*p + 32U);
 			} else {
@@ -321,6 +348,7 @@ main(int argc, char *argv[])
 				const size_t nu = np2 + 128U;
 				p2 = realloc(p2, nu * sizeof(*p2));
 			}
+			mp2[np2] = i;
 			if (UNLIKELY(p[0U] >= 'A' && p[0U] <= 'Z')) {
 				p2[np2++] = (uint8_t)(p[0U] + 32U);
 			} else {
@@ -342,7 +370,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (match0(STDIN_FILENO) < 0) {
+		if (match0(pf, STDIN_FILENO, stdin_fn) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -358,7 +386,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (match0(fd) < 0) {
+		} else if (match0(pf, fd, file) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
