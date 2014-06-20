@@ -109,12 +109,11 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 static void
 SSEI(_accuify)(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bz, const size_t az,
+	const void *buf, size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
 	const __mXi *b = buf;
-	/* express BZ in terms of __mXi multiples */
-	const size_t eoi = bz * (__BITS / sizeof(*b));
+	const size_t eoi = bsz / sizeof(*b);
 
 	for (size_t i = 0U, k = 0U; i < eoi; k++) {
 		register __mXi data1;
@@ -188,7 +187,7 @@ static inline void
 __attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
 accuify(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bz, const size_t az,
+	const void *buf, const size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
 	/* stub */
@@ -203,10 +202,10 @@ __attribute__((target("avx2")))
 #endif
 accuify(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bz, const size_t az,
+	const void *buf, const size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
-	(void)_accuify256(puncs, pat, buf, bz, az, p1a, p1z);
+	(void)_accuify256(puncs, pat, buf, bsz, az, p1a, p1z);
 	return;
 }
 #endif	/* __INTEL_COMPILER */
@@ -219,10 +218,10 @@ __attribute__((target("ssse3")))
 #endif
 accuify(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bz, const size_t az,
+	const void *buf, const size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
-	(void)_accuify128(puncs, pat, buf, bz, az, p1a, p1z);
+	(void)_accuify128(puncs, pat, buf, bsz, az, p1a, p1z);
 	return;
 }
 

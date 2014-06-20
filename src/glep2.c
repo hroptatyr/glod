@@ -228,10 +228,6 @@ DEFCORU(co_snarf, {
 	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
-		/* round up to multiples of __BITS */
-		if (nun % __BITS) {
-			memset(buf + nun, 0, __BITS - (nun % __BITS));
-		}
 		/* process */
 		npr = YIELD(nun);
 		/* now it's NPR less unprocessed bytes */
@@ -265,26 +261,21 @@ DEFCORU(co_match, {
 	accu_t puncs[az];
 	accu_t pat[np1 * az];
 
-	if (UNLIKELY(nrd == 0U)) {
-		return 0;
-	}
 	/* enter the main match loop */
 	do {
-		size_t bz = (nrd / __BITS) ?: 1U;
+		size_t nr = nrd / __BITS;
 
 		/* put bit patterns into puncs and pat */
-		accuify(puncs, pat, (const void*)buf, bz, az, p1, np1);
+		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
 
 		/* apply isolation-weight measure */
-		isolwify(puncs, pat, bz, az);
+		isolwify(puncs, pat, nr, az);
 
 		/* popcnt */
 		;
 
 		/* now go through and scrape buffer portions off */
-		if ((npr = bz * __BITS) > (ssize_t)nrd) {
-			npr = nrd;
-		}
+		npr = nr * __BITS;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
