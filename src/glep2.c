@@ -80,6 +80,7 @@ struct wpat_s {
 #endif	/* __INTEL_COMPILER */
 
 static const char stdin_fn[] = "<stdin>";
+static int show_pats_p;
 
 #define warn(x...)
 
@@ -87,12 +88,8 @@ static const char stdin_fn[] = "<stdin>";
 # error this code is only for 64b archs
 #endif	/* !__x86_64 */
 
-#define __BITS		(32U)
-typedef uint32_t accu_t;
-
-
-static int invert_match_p;
-static int show_pats_p;
+#define __BITS		(64U)
+typedef uint64_t accu_t;
 
 
 static void
@@ -118,55 +115,18 @@ error(const char *fmt, ...)
 #define SSEZ	256
 #include "glep-guts.c"
 
+#undef SSEZ
+#include "glep-guts.c"
+
 static uint8_t *p1;
-static uint_fast32_t *c1;
 static size_t np1;
+/* map from p1[i] -> pats[j], the i,j part */
+static size_t *mp1;
 
 static uint8_t *p2;
-static uint_fast32_t *c2;
 static size_t np2;
-
-static __attribute__((const, pure)) unsigned int
-isolw(const unsigned int sur, const unsigned int isol)
-{
-/* isolation weight, defined as
- * a =  ...101
- * b =  ...010
- * c <- ...010
- * meaning that if bits in b are "surrounded" by bits in a, then they're 1
- *
- * complete table would be:
- * 0101U  1010U  1011U  10100U  10101U  10110U  10111U  10100U
- * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01010U
- * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01000U  etc.
- *
- * we build the complete table for 4 bits and shift a and b by 3. */
-	unsigned int isol_msk1 = 0b00010010010010010010010010010010U;
-	unsigned int isol_msk2 = 0b00100100100100100100100100100100U;
-	unsigned int isol_msk3 = 0b01001001001001001001001001001000U;
-
-	unsigned int sur_msk1 = 0b00101101101101101101101101101101U;
-	unsigned int sur_msk2 = 0b01011011011011011011011011011010U;
-	unsigned int sur_msk3 = 0b10110110110110110110110110110100U;
-
-	return ((sur & sur_msk1) >> 1U) & ((sur & sur_msk1) << 1U) &
-		(isol & isol_msk1) |
-		((sur & sur_msk2) >> 1U) & ((sur & sur_msk2) << 1U) &
-		(isol & isol_msk2) |
-		((sur & sur_msk3) >> 1U) & ((sur & sur_msk3) << 1U) &
-		(isol & isol_msk3);
-}
-
-static void
-isolwify(const accu_t *pat, const accu_t *puncs, size_t n, size_t az)
-{
-	for (size_t j = 0U; j < np1; j++, pat += az) {
-		for (size_t i = 0U; i < n; i++) {
-			c1[j] += _popcnt32(isolw(puncs[i], pat[i]));
-		}
-	}
-	return;
-}
+/* map from p2[i] -> pats[j], the i,j part */
+static size_t *mp2;
 
 
 DEFCORU(co_snarf, {
@@ -201,61 +161,53 @@ DEFCORU(co_snarf, {
 			memmove(buf, buf + npr, nun);
 		}
 	}
-	/* final drain */
-	if (nun) {
-		/* we don't care how much got processed */
-		YIELD(nun);
-	}
+	/* final drain not necessary,
+	 * the co_matcher will process overhanging bits but
+	 * simply not tell us about it */
 	return nrd;
 }
 
 DEFCORU(co_match, {
 		char *buf;
 		size_t bsz;
+		/* counter */
+		uint_fast32_t *c1;
+		size_t nc1;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = CORU_CLOSUR(bsz);
+	uint_fast32_t *const c1 = CORU_CLOSUR(c1);
+	const size_t nc1 = CORU_CLOSUR(nc1);
 	const size_t az = bsz / __BITS;
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 	accu_t puncs[az];
 	accu_t pat[np1 * az];
-	static void(*accuify)();
-
-	/* check cpu features */
-	if (_may_i_use_cpu_feature(_FEATURE_AVX2)) {
-		accuify = _accuify256;
-	} else {
-		accuify = _accuify128;
-	}
 
 	/* enter the main match loop */
 	do {
-		size_t nr = nrd / __BITS;
-
 		/* put bit patterns into puncs and pat */
 		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
 
 		/* apply isolation-weight measure */
-		isolwify(pat, puncs, nr, az);
-
-		/* popcnt */
-		;
+		isolwify(c1, nc1, puncs, pat, nrd, az);
 
 		/* now go through and scrape buffer portions off */
-		npr = nr * __BITS;
+		npr = (nrd / __BITS) * __BITS;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
 
 
 static int
-match0(int fd)
+match0(gleps_t pf, int fd, const char *fn)
 {
 	char buf[4U * 4096U];
+	uint_fast32_t c1[np1];
+	uint_fast32_t c2[np2];
 	struct cocore *snarf;
 	struct cocore *match;
 	struct cocore *self;
@@ -269,7 +221,12 @@ match0(int fd)
 		.buf = buf, .bsz = sizeof(buf), .fd = fd);
 	match = START_PACK(
 		co_match, .next = self,
-		.buf = buf, .bsz = sizeof(buf));
+		.buf = buf, .bsz = sizeof(buf),
+		.c1 = c1, .nc1 = np1);
+
+	/* rinse */
+	memset(c1, 0, sizeof(c1));
+	memset(c2, 0, sizeof(c2));
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -292,10 +249,25 @@ match0(int fd)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-	for (size_t i = 0U; i < np1; i++) {
-		printf("%zu\t%lu\n", i, c1[i]);
+	if (show_pats_p) {
+		for (size_t i = 0U; i < np1; i++) {
+			glep_pat_t p = pf->pats[mp1[i]];
+
+			fputs(p.s, stdout);
+			putchar('\t');
+			printf("%lu\t", c1[i]);
+			puts(fn);
+		}
+	} else {
+		for (size_t i = 0U; i < np1; i++) {
+			glep_pat_t p = pf->pats[mp1[i]];
+
+			fputs(p.y, stdout);
+			putchar('\t');
+			printf("%lu\t", c1[i]);
+			puts(fn);
+		}
 	}
-	memset(c1, 0, np1 * sizeof(*c1));
 
 	UNPREP();
 	return res;
@@ -346,6 +318,10 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
+	if (argi->show_patterns_flag) {
+		show_pats_p = 1;
+	}
+
 	/* oki, rearrange patterns into 1grams, 2grams, 3,4grams, etc. */
 	for (size_t i = 0U; i < pf->npats; i++) {
 		const char *p = pf->pats[i].s;
@@ -357,8 +333,9 @@ main(int argc, char *argv[])
 				/* resize */
 				const size_t nu = np1 + 64U;
 				p1 = realloc(p1, nu * sizeof(*p1));
-				c1 = realloc(c1, nu * sizeof(*c1));
+				mp1 = realloc(mp1, nu * sizeof(*mp1));
 			}
+			mp1[np1] = i;
 			if (UNLIKELY(*p >= 'A' && *p <= 'Z')) {
 				p1[np1++] = (uint8_t)(*p + 32U);
 			} else {
@@ -370,8 +347,8 @@ main(int argc, char *argv[])
 				/* resize */
 				const size_t nu = np2 + 128U;
 				p2 = realloc(p2, nu * sizeof(*p2));
-				c2 = realloc(c2, nu * sizeof(*c2));
 			}
+			mp2[np2] = i;
 			if (UNLIKELY(p[0U] >= 'A' && p[0U] <= 'Z')) {
 				p2[np2++] = (uint8_t)(p[0U] + 32U);
 			} else {
@@ -393,7 +370,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (match0(STDIN_FILENO) < 0) {
+		if (match0(pf, STDIN_FILENO, stdin_fn) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -409,7 +386,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (match0(fd) < 0) {
+		} else if (match0(pf, fd, file) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
@@ -421,11 +398,9 @@ fr_gl:
 	/* resource hand over */
 	if (p1 != NULL) {
 		free(p1);
-		free(c1);
 	}
 	if (p2 != NULL) {
 		free(p2);
-		free(c2);
 	}
 	glep_fr(pf);
 	glod_fr_gleps(pf);

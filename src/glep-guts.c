@@ -1,9 +1,10 @@
-#include <immintrin.h>
-
-#if !defined SSEZ
-# error need an SSE level
+#if defined __INTEL_COMPILER
+# include <immintrin.h>
+#elif defined __GNUC__
+# include <x86intrin.h>
 #endif
 
+#if defined SSEZ
 #define QU(a)		a
 #define PS(a, b)	a ## b
 #define XP(a, b)	PS(a, b)
@@ -38,9 +39,11 @@
 #else
 # error SSE level not supported
 #endif
+#endif	/* SSEZ */
 
-
-static inline __attribute__((pure, const)) int
+
+#if defined SSEI
+static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
 /* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`' */
@@ -98,7 +101,7 @@ SSEI(ptolower)(register __mXi data)
 	return _mmX_add_epi8(data, y0);
 }
 
-static inline __attribute__((pure, const)) int
+static inline __attribute__((pure, const)) unsigned int
 SSEI(pmatch)(register __mXi data, const uint8_t c)
 {
 	register __mXi p = _mmX_set1_epi8(c);
@@ -114,9 +117,10 @@ SSEI(_accuify)(
 	const uint8_t *p1a, size_t p1z)
 {
 	const __mXi *b = buf;
-	const size_t eoi = bsz / sizeof(*b);
+	const size_t eoi = (bsz - 1U) / sizeof(*b);
 
-	for (size_t i = 0U, k = 0U; i < eoi; k++) {
+	assert(bsz > 0);
+	for (size_t i = 0U, k = 0U; i <= eoi; k++) {
 		register __mXi data1;
 #if SSEZ < 256 || __BITS == 64
 		register __mXi data2;
@@ -171,10 +175,169 @@ SSEI(_accuify)(
 		}
 #endif	/* SSEZ < 256 && __BITS == 64 */
 	}
+	/* the last puncs/pat cell probably needs masking */
+	if ((bsz % __BITS)) {
+		const size_t k = bsz / __BITS;
+		accu_t msk = ((accu_t)1U << (bsz % __BITS)) - 1U;
+
+		/* patterns need 0-masking, i.e. set bits under the mask
+		 * have to be cleared */
+		for (size_t j = 0U; j < p1z; j++) {
+			pat[j * az + k] &= msk;
+		}
+
+		/* puncs need 1-masking, i.e. treat the portion outside
+		 * the mask as though there were \0 bytes in the buffer
+		 * and seeing as a \nul is a puncs according to pispuncs()
+		 * we have to set the bits not under the mask */
+		puncs[k] |= ~msk;
+	}
 	return;
 }
 #endif	/* __BITS */
+#endif  /* SSEI */
 
+
+#if !defined SSEZ
+/* stuff that is to be eval'd once */
+#if !defined INCLUDED_glep_guts_c_
+#define INCLUDED_glep_guts_c_
+
+#if defined __INTEL_COMPILER
+# pragma warning (disable:869)
+static inline void
+__attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, const size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	/* stub */
+}
+# pragma warning (default:869)
+
+static inline void
+#if defined __INTEL_COMPILER
+__attribute__((cpu_specific(core_4th_gen_avx)))
+#else
+__attribute__((target("avx2")))
+#endif
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, const size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	(void)_accuify256(puncs, pat, buf, bsz, az, p1a, p1z);
+	return;
+}
+#endif	/* __INTEL_COMPILER */
+
+static inline void
+#if defined __INTEL_COMPILER
+__attribute__((cpu_specific(core_2_duo_ssse3)))
+#else
+__attribute__((target("ssse3")))
+#endif
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, const size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	(void)_accuify128(puncs, pat, buf, bsz, az, p1a, p1z);
+	return;
+}
+
+
+static __attribute__((const, pure)) uint64_t
+isolw(const uint64_t sur, const uint64_t isol)
+{
+/* isolation weight, defined as
+ * a =  ...101
+ * b =  ...010
+ * c <- ...010
+ * meaning that if bits in b are "surrounded" by bits in a, then they're 1
+ *
+ * complete table would be:
+ * 0101U  1010U  1011U  10100U  10101U  10110U  10111U  10100U
+ * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01010U
+ * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01000U  etc.
+ *
+ * we build the complete table for 4 bits and shift a and b by 3. */
+	uint64_t isol_msk1 = 0b0010010010010010010010010010010010010010010010010010010010010010ULL;
+	uint64_t isol_msk2 = 0b0100100100100100100100100100100100100100100100100100100100100100ULL;
+	uint64_t isol_msk3 = 0b0001001001001001001001001001001001001001001001001001001001001000ULL;
+
+	uint64_t sur_msk1 = 0b0101101101101101101101101101101101101101101101101101101101101101ULL;
+	uint64_t sur_msk2 = 0b1011011011011011011011011011011011011011011011011011011011011010ULL;
+	uint64_t sur_msk3 = 0b0010110110110110110110110110110110110110110110110110110110110100ULL;
+
+	return ((sur & sur_msk1) >> 1U) & ((sur & sur_msk1) << 1U) &
+		(isol & isol_msk1) |
+		((sur & sur_msk2) >> 1U) & ((sur & sur_msk2) << 1U) &
+		(isol & isol_msk2) |
+		((sur & sur_msk3) >> 1U) & ((sur & sur_msk3) << 1U) &
+		(isol & isol_msk3);
+}
+
+static void
+isolwify(
+	uint_fast32_t *restrict c1, const size_t nc1,
+	const accu_t *puncs, const accu_t *pat, size_t nbits, size_t az)
+{
+	/* our callers shall guarantee that nbits > 0 */
+	const size_t n = (nbits - 1U) / __BITS + 1U;
+
+	assert(nbits > 0);
+	for (size_t j = 0U; j < nc1; j++, pat += az) {
+#if __BITS == 64
+		for (size_t i = 0U; i < n; i++) {
+			c1[j] += _popcnt64(isolw(puncs[i], pat[i]));
+		}
+		/* now the only problem that can arise is that bit 63 in
+		 * a pattern accu is set, since the surrounding mask is
+		 * 64bits and 64 == 1 mod 3, we're 1 bit short
+		 * count those occasions here separately */
+		for (size_t i = 0U; i < n; i++) {
+			if ((int64_t)pat[i] < 0 &&
+			    (int64_t)(puncs[i] << 1U) < 0 &&
+			    (i + 1U >= n || puncs[i + 1U] & 0b1U)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+			if (pat[i] & 0b1U &&
+			    (puncs[i] >> 1U) & 0b1U &&
+			    (i == 0U || (int64_t)puncs[i - 1U] < 0)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+		}
+#elif __BITS == 32U
+		for (size_t i = 0U; i < n; i++) {
+			c1[j] += _popcnt32(isolw(puncs[i], pat[i]));
+		}
+		for (size_t i = 0U; i < n; i++) {
+			if ((int32_t)pat[i] < 0 &&
+			    (int32_t)(puncs[i] << 1U) < 0 &&
+			    (i + 1U >= n || puncs[i + 1U] & 0b1U)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+			if (pat[i] & 0b1U &&
+			    (puncs[i] >> 1U) & 0b1U &&
+			    (i == 0U || (int32_t)puncs[i - 1U] < 0)) {
+				    /* correct manually */
+				    c1[j]++;
+			}
+		}
+#endif
+	}
+	return;
+}
+
+#endif	/* INCLUDED_glep_guts_c_ */
+#endif	/* !SSEZ */
+
+
 /* prepare for the next inclusion */
 #undef __mXi
 #undef _mmX_load_si
