@@ -112,7 +112,10 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 
 #if defined __BITS
 static void
-SSEI(_accuify)(accu_t *restrict puncs, const void *buf, size_t bsz)
+SSEI(_accuify)(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, size_t bsz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
 {
 	const __mXi *b = buf;
 	const size_t eoi = (bsz - 1U) / sizeof(*b);
@@ -140,58 +143,6 @@ SSEI(_accuify)(accu_t *restrict puncs, const void *buf, size_t bsz)
 		puncs[k] |= (accu_t)SSEI(pispuncs)(data2) << sizeof(__mXi);
 #endif
 
-#if SSEZ < 256 && __BITS == 64
-		/* load */
-		data1 = _mmX_load_si(b + i++);
-		data2 = _mmX_load_si(b + i++);
-		/* lower */
-		data1 = SSEI(ptolower)(data1);
-		data2 = SSEI(ptolower)(data2);
-		/* lodge */
-		puncs[k] |= (accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
-		puncs[k] |= (accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
-#endif	/* SSEZ < 256 && __BITS == 64 */
-	}
-	/* the last puncs/pat cell probably needs masking */
-	if ((bsz % __BITS)) {
-		const size_t k = bsz / __BITS;
-		accu_t msk = ((accu_t)1U << (bsz % __BITS)) - 1U;
-
-		/* puncs need 1-masking, i.e. treat the portion outside
-		 * the mask as though there were \0 bytes in the buffer
-		 * and seeing as a \nul is a puncs according to pispuncs()
-		 * we have to set the bits not under the mask */
-		puncs[k] |= ~msk;
-	}
-	return;
-}
-
-static void
-SSEI(_accuify1_)(
-	accu_t *restrict pat, const void *buf, size_t bsz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
-{
-	const __mXi *b = buf;
-	const size_t eoi = (bsz - 1U) / sizeof(*b);
-
-	assert(bsz > 0);
-	for (size_t i = 0U, k = 0U; i <= eoi; k++) {
-		register __mXi data1;
-#if SSEZ < 256 || __BITS == 64
-		register __mXi data2;
-#endif
-
-		/* load */
-		data1 = _mmX_load_si(b + i++);
-#if SSEZ < 256 || __BITS == 64
-		data2 = _mmX_load_si(b + i++);
-#endif
-		/* lower */
-		data1 = SSEI(ptolower)(data1);
-#if SSEZ < 256 || __BITS == 64
-		data2 = SSEI(ptolower)(data2);
-#endif
-
 		for (size_t j = 0U; j < p1z; j++) {
 			const uint8_t p = p1a[j];
 
@@ -210,6 +161,9 @@ SSEI(_accuify1_)(
 		data1 = SSEI(ptolower)(data1);
 		data2 = SSEI(ptolower)(data2);
 		/* lodge */
+		puncs[k] |= (accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
+		puncs[k] |= (accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
+
 		for (size_t j = 0U; j < p1z; j++) {
 			const uint8_t p = p1a[j];
 
@@ -232,6 +186,12 @@ SSEI(_accuify1_)(
 		for (size_t j = 0U; j < p1z; j++) {
 			pat[j * az + k] &= msk;
 		}
+
+		/* puncs need 1-masking, i.e. treat the portion outside
+		 * the mask as though there were \0 bytes in the buffer
+		 * and seeing as a \nul is a puncs according to pispuncs()
+		 * we have to set the bits not under the mask */
+		puncs[k] |= ~msk;
 	}
 	return;
 }
@@ -248,15 +208,8 @@ SSEI(_accuify1_)(
 # pragma warning (disable:869)
 static inline void
 __attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
-accuify(accu_t *restrict puncs, const void *buf, const size_t bsz)
-{
-	/* stub */
-}
-
-static inline void
-__attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
-accuify1(
-	accu_t *restrict pat,
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
 	const void *buf, const size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
@@ -270,24 +223,12 @@ __attribute__((cpu_specific(core_4th_gen_avx)))
 #else
 __attribute__((target("avx2")))
 #endif
-accuify(accu_t *restrict puncs, const void *buf, const size_t bsz)
-{
-	(void)_accuify256(puncs, buf, bsz);
-	return;
-}
-
-static inline void
-#if defined __INTEL_COMPILER
-__attribute__((cpu_specific(core_4th_gen_avx)))
-#else
-__attribute__((target("avx2")))
-#endif
-accuify1(
-	accu_t *restrict pat,
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
 	const void *buf, const size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
-	(void)_accuify1_256(pat, buf, bsz, az, p1a, p1z);
+	(void)_accuify256(puncs, pat, buf, bsz, az, p1a, p1z);
 	return;
 }
 #endif	/* __INTEL_COMPILER */
@@ -298,26 +239,15 @@ __attribute__((cpu_specific(core_2_duo_ssse3)))
 #else
 __attribute__((target("ssse3")))
 #endif
-accuify(accu_t *restrict puncs, const void *buf, const size_t bsz)
-{
-	(void)_accuify128(puncs, buf, bsz);
-	return;
-}
-
-static inline void
-#if defined __INTEL_COMPILER
-__attribute__((cpu_specific(core_2_duo_ssse3)))
-#else
-__attribute__((target("ssse3")))
-#endif
-accuify1(
-	accu_t *restrict pat,
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
 	const void *buf, const size_t bsz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
-	(void)_accuify1_128(pat, buf, bsz, az, p1a, p1z);
+	(void)_accuify128(puncs, pat, buf, bsz, az, p1a, p1z);
 	return;
 }
+
 
 static __attribute__((const, pure)) uint64_t
 isolw(const uint64_t sur, const uint64_t isol)
