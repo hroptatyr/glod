@@ -118,96 +118,10 @@ error(const char *fmt, ...)
 #include "glep-guts.c"
 
 static uint8_t *p1;
-static uint_fast32_t *c1;
 static size_t np1;
 
 static uint8_t *p2;
-static uint_fast32_t *c2;
 static size_t np2;
-
-static __attribute__((const, pure)) uint64_t
-isolw(const uint64_t sur, const uint64_t isol)
-{
-/* isolation weight, defined as
- * a =  ...101
- * b =  ...010
- * c <- ...010
- * meaning that if bits in b are "surrounded" by bits in a, then they're 1
- *
- * complete table would be:
- * 0101U  1010U  1011U  10100U  10101U  10110U  10111U  10100U
- * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01010U
- * 0010U  0100U  0100U  01000U  01000U  01000U  01000U  01000U  etc.
- *
- * we build the complete table for 4 bits and shift a and b by 3. */
-	uint64_t isol_msk1 = 0b0010010010010010010010010010010010010010010010010010010010010010ULL;
-	uint64_t isol_msk2 = 0b0100100100100100100100100100100100100100100100100100100100100100ULL;
-	uint64_t isol_msk3 = 0b0001001001001001001001001001001001001001001001001001001001001000ULL;
-
-	uint64_t sur_msk1 = 0b0101101101101101101101101101101101101101101101101101101101101101ULL;
-	uint64_t sur_msk2 = 0b1011011011011011011011011011011011011011011011011011011011011010ULL;
-	uint64_t sur_msk3 = 0b0010110110110110110110110110110110110110110110110110110110110100ULL;
-
-	return ((sur & sur_msk1) >> 1U) & ((sur & sur_msk1) << 1U) &
-		(isol & isol_msk1) |
-		((sur & sur_msk2) >> 1U) & ((sur & sur_msk2) << 1U) &
-		(isol & isol_msk2) |
-		((sur & sur_msk3) >> 1U) & ((sur & sur_msk3) << 1U) &
-		(isol & isol_msk3);
-}
-
-static void
-isolwify(const accu_t *puncs, const accu_t *pat, size_t nbits, size_t az)
-{
-	/* our callers shall guarantee that nbits > 0 */
-	const size_t n = (nbits - 1U) / __BITS + 1U;
-
-	assert(nbits > 0);
-	for (size_t j = 0U; j < np1; j++, pat += az) {
-#if __BITS == 64
-		for (size_t i = 0U; i < n; i++) {
-			c1[j] += _popcnt64(isolw(puncs[i], pat[i]));
-		}
-		/* now the only problem that can arise is that bit 63 in
-		 * a pattern accu is set, since the surrounding mask is
-		 * 64bits and 64 == 1 mod 3, we're 1 bit short
-		 * count those occasions here separately */
-		for (size_t i = 0U; i < n; i++) {
-			if ((int64_t)pat[i] < 0 &&
-			    (int64_t)(puncs[i] << 1U) < 0 &&
-			    (i + 1U >= n || puncs[i + 1U] & 0b1U)) {
-				    /* correct manually */
-				    c1[j]++;
-			}
-			if (pat[i] & 0b1U &&
-			    (puncs[i] >> 1U) & 0b1U &&
-			    (i == 0U || (int64_t)puncs[i - 1U] < 0)) {
-				    /* correct manually */
-				    c1[j]++;
-			}
-		}
-#elif __BITS == 32U
-		for (size_t i = 0U; i < n; i++) {
-			c1[j] += _popcnt32(isolw(puncs[i], pat[i]));
-		}
-		for (size_t i = 0U; i < n; i++) {
-			if ((int32_t)pat[i] < 0 &&
-			    (int32_t)(puncs[i] << 1U) < 0 &&
-			    (i + 1U >= n || puncs[i + 1U] & 0b1U)) {
-				    /* correct manually */
-				    c1[j]++;
-			}
-			if (pat[i] & 0b1U &&
-			    (puncs[i] >> 1U) & 0b1U &&
-			    (i == 0U || (int32_t)puncs[i - 1U] < 0)) {
-				    /* correct manually */
-				    c1[j]++;
-			}
-		}
-#endif
-	}
-	return;
-}
 
 
 DEFCORU(co_snarf, {
@@ -251,12 +165,17 @@ DEFCORU(co_snarf, {
 DEFCORU(co_match, {
 		char *buf;
 		size_t bsz;
+		/* counter */
+		uint_fast32_t *c1;
+		size_t nc1;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = CORU_CLOSUR(bsz);
+	uint_fast32_t *const c1 = CORU_CLOSUR(c1);
+	const size_t nc1 = CORU_CLOSUR(nc1);
 	const size_t az = bsz / __BITS;
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
@@ -269,10 +188,7 @@ DEFCORU(co_match, {
 		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
 
 		/* apply isolation-weight measure */
-		isolwify(puncs, pat, nrd, az);
-
-		/* popcnt */
-		;
+		isolwify(c1, nc1, puncs, pat, nrd, az);
 
 		/* now go through and scrape buffer portions off */
 		npr = (nrd / __BITS) * __BITS;
@@ -285,6 +201,8 @@ static int
 match0(int fd)
 {
 	char buf[4U * 4096U];
+	uint_fast32_t c1[np1];
+	uint_fast32_t c2[np2];
 	struct cocore *snarf;
 	struct cocore *match;
 	struct cocore *self;
@@ -298,10 +216,12 @@ match0(int fd)
 		.buf = buf, .bsz = sizeof(buf), .fd = fd);
 	match = START_PACK(
 		co_match, .next = self,
-		.buf = buf, .bsz = sizeof(buf));
+		.buf = buf, .bsz = sizeof(buf),
+		.c1 = c1, .nc1 = np1);
 
 	/* rinse */
-	memset(c1, 0, np1 * sizeof(*c1));
+	memset(c1, 0, sizeof(c1));
+	memset(c2, 0, sizeof(c2));
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -388,7 +308,6 @@ main(int argc, char *argv[])
 				/* resize */
 				const size_t nu = np1 + 64U;
 				p1 = realloc(p1, nu * sizeof(*p1));
-				c1 = realloc(c1, nu * sizeof(*c1));
 			}
 			if (UNLIKELY(*p >= 'A' && *p <= 'Z')) {
 				p1[np1++] = (uint8_t)(*p + 32U);
@@ -401,7 +320,6 @@ main(int argc, char *argv[])
 				/* resize */
 				const size_t nu = np2 + 128U;
 				p2 = realloc(p2, nu * sizeof(*p2));
-				c2 = realloc(c2, nu * sizeof(*c2));
 			}
 			if (UNLIKELY(p[0U] >= 'A' && p[0U] <= 'Z')) {
 				p2[np2++] = (uint8_t)(p[0U] + 32U);
@@ -452,11 +370,9 @@ fr_gl:
 	/* resource hand over */
 	if (p1 != NULL) {
 		free(p1);
-		free(c1);
 	}
 	if (p2 != NULL) {
 		free(p2);
-		free(c2);
 	}
 	glep_fr(pf);
 	glod_fr_gleps(pf);
