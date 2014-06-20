@@ -114,6 +114,9 @@ error(const char *fmt, ...)
 #define SSEZ	256
 #include "glep-guts.c"
 
+#undef SSEZ
+#include "glep-guts.c"
+
 static uint8_t *p1;
 static uint_fast32_t *c1;
 static size_t np1;
@@ -200,48 +203,6 @@ isolwify(const accu_t *puncs, const accu_t *pat, size_t n, size_t az)
 #endif
 	}
 	return;
-}
-
-#if defined __INTEL_COMPILER
-# pragma warning (disable:869)
-static void
-__attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
-accuify(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, size_t bsz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
-{
-	/* stub */
-}
-# pragma warning (default:869)
-
-static void
-#if defined __INTEL_COMPILER
-__attribute__((cpu_specific(core_4th_gen_avx)))
-#else
-__attribute__((target("avx2")))
-#endif
-accuify(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
-{
-	return _accuify256(puncs, pat, buf, bz, az, p1a, p1z);
-}
-#endif	/* __INTEL_COMPILER */
-
-static void
-#if defined __INTEL_COMPILER
-__attribute__((cpu_specific(core_2_duo_ssse3)))
-#else
-__attribute__((target("ssse3")))
-#endif
-accuify(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
-{
-	return _accuify128(puncs, pat, buf, bz, az, p1a, p1z);
 }
 
 

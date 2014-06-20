@@ -1,9 +1,6 @@
 #include <immintrin.h>
 
-#if !defined SSEZ
-# error need an SSE level
-#endif
-
+#if defined SSEZ
 #define QU(a)		a
 #define PS(a, b)	a ## b
 #define XP(a, b)	PS(a, b)
@@ -38,8 +35,10 @@
 #else
 # error SSE level not supported
 #endif
+#endif	/* SSEZ */
 
-
+
+#if defined SSEI
 static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
@@ -173,7 +172,62 @@ SSEI(_accuify)(
 	return;
 }
 #endif	/* __BITS */
+#endif  /* SSEI */
 
+
+#if !defined SSEZ
+/* stuff that is to be eval'd once */
+#if !defined INCLUDED_glep_guts_c_
+#define INCLUDED_glep_guts_c_
+
+#if defined __INTEL_COMPILER
+# pragma warning (disable:869)
+static inline void
+__attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, const size_t bz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	/* stub */
+}
+# pragma warning (default:869)
+
+static inline void
+#if defined __INTEL_COMPILER
+__attribute__((cpu_specific(core_4th_gen_avx)))
+#else
+__attribute__((target("avx2")))
+#endif
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, const size_t bz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	(void)_accuify256(puncs, pat, buf, bz, az, p1a, p1z);
+	return;
+}
+#endif	/* __INTEL_COMPILER */
+
+static inline void
+#if defined __INTEL_COMPILER
+__attribute__((cpu_specific(core_2_duo_ssse3)))
+#else
+__attribute__((target("ssse3")))
+#endif
+accuify(
+	accu_t *restrict puncs, accu_t *restrict pat,
+	const void *buf, const size_t bz, const size_t az,
+	const uint8_t *p1a, size_t p1z)
+{
+	(void)_accuify128(puncs, pat, buf, bz, az, p1a, p1z);
+	return;
+}
+
+#endif	/* INCLUDED_glep_guts_c_ */
+#endif	/* !SSEZ */
+
+
 /* prepare for the next inclusion */
 #undef __mXi
 #undef _mmX_load_si
