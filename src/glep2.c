@@ -190,7 +190,8 @@ DEFCORU(co_match, {
 	/* enter the main match loop */
 	do {
 		/* put bit patterns into puncs and pat */
-		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
+		accuify(puncs, (const void*)buf, nrd);
+		accuify1(pat, (const void*)buf, nrd, az, p1, np1);
 
 		/* apply isolation-weight measure */
 		isolwify(c1, nc1, puncs, pat, nrd, az);
