@@ -242,11 +242,9 @@ DEFCORU(co_snarf, {
 			memmove(buf, buf + npr, nun);
 		}
 	}
-	/* final drain */
-	if (nun) {
-		/* we don't care how much got processed */
-		YIELD(nun);
-	}
+	/* final drain not necessary,
+	 * the co_matcher will process overhanging bits but
+	 * simply not tell us about it */
 	return nrd;
 }
 

@@ -113,9 +113,10 @@ SSEI(_accuify)(
 	const uint8_t *p1a, size_t p1z)
 {
 	const __mXi *b = buf;
-	const size_t eoi = bsz / sizeof(*b);
+	const size_t eoi = (bsz - 1U) / sizeof(*b);
 
-	for (size_t i = 0U, k = 0U; i < eoi; k++) {
+	assert(bsz > 0);
+	for (size_t i = 0U, k = 0U; i <= eoi; k++) {
 		register __mXi data1;
 #if SSEZ < 256 || __BITS == 64
 		register __mXi data2;
@@ -169,6 +170,23 @@ SSEI(_accuify)(
 				<< 3U * sizeof(__mXi);
 		}
 #endif	/* SSEZ < 256 && __BITS == 64 */
+	}
+	/* the last puncs/pat cell probably needs masking */
+	if ((bsz % __BITS)) {
+		const size_t k = bsz / __BITS;
+		accu_t msk = ((accu_t)1U << (bsz % __BITS)) - 1U;
+
+		/* patterns need 0-masking, i.e. set bits under the mask
+		 * have to be cleared */
+		for (size_t j = 0U; j < p1z; j++) {
+			pat[j * az + k] &= msk;
+		}
+
+		/* puncs need 1-masking, i.e. treat the portion outside
+		 * the mask as though there were \0 bytes in the buffer
+		 * and seeing as a \nul is a puncs according to pispuncs()
+		 * we have to set the bits not under the mask */
+		puncs[k] |= ~msk;
 	}
 	return;
 }
