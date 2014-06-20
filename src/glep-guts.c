@@ -1,4 +1,8 @@
-#include <immintrin.h>
+#if defined __INTEL_COMPILER
+# include <immintrin.h>
+#elif defined __GNUC__
+# include <x86intrin.h>
+#endif
 
 #if defined SSEZ
 #define QU(a)		a
