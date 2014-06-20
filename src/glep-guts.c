@@ -113,8 +113,10 @@ SSEI(_accuify)(
 	const uint8_t *p1a, size_t p1z)
 {
 	const __mXi *b = buf;
+	/* express BZ in terms of __mXi multiples */
+	const size_t eoi = bz * (__BITS / sizeof(*b));
 
-	for (size_t i = 0U, k = 0U; i < bz; k++) {
+	for (size_t i = 0U, k = 0U; i < eoi; k++) {
 		register __mXi data1;
 #if SSEZ < 256 || __BITS == 64
 		register __mXi data2;
