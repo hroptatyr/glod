@@ -110,13 +110,12 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 static void
 SSEI(_accuify)(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, size_t bsz, const size_t az,
+	const void *buf, const size_t bz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
 	const __mXi *b = buf;
-	const size_t eoi = bsz / sizeof(*b);
 
-	for (size_t i = 0U, k = 0U; i < eoi; k++) {
+	for (size_t i = 0U, k = 0U; i < bz; k++) {
 		register __mXi data1;
 #if SSEZ < 256 || __BITS == 64
 		register __mXi data2;

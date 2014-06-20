@@ -223,10 +223,10 @@ __attribute__((target("avx2")))
 #endif
 accuify(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, size_t bsz, const size_t az,
+	const void *buf, const size_t bz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
-	return _accuify256(puncs, pat, buf, bsz, az, p1a, p1z);
+	return _accuify256(puncs, pat, buf, bz, az, p1a, p1z);
 }
 #endif	/* __INTEL_COMPILER */
 
@@ -238,10 +238,10 @@ __attribute__((target("ssse3")))
 #endif
 accuify(
 	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, size_t bsz, const size_t az,
+	const void *buf, const size_t bz, const size_t az,
 	const uint8_t *p1a, size_t p1z)
 {
-	return _accuify128(puncs, pat, buf, bsz, az, p1a, p1z);
+	return _accuify128(puncs, pat, buf, bz, az, p1a, p1z);
 }
 
 
@@ -304,21 +304,24 @@ DEFCORU(co_match, {
 	accu_t puncs[az];
 	accu_t pat[np1 * az];
 
+	if (UNLIKELY(nrd == 0U)) {
+		return 0;
+	}
 	/* enter the main match loop */
 	do {
-		size_t nr = nrd / __BITS;
+		size_t bz = nrd / __BITS;
 
 		/* put bit patterns into puncs and pat */
-		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
+		accuify(puncs, pat, (const void*)buf, bz, az, p1, np1);
 
 		/* apply isolation-weight measure */
-		isolwify(puncs, pat, nr, az);
+		isolwify(puncs, pat, bz, az);
 
 		/* popcnt */
 		;
 
 		/* now go through and scrape buffer portions off */
-		npr = nr * __BITS;
+		npr = bz * __BITS;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
