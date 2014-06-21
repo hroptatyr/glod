@@ -52,6 +52,14 @@
 #define XP(a, b)	PS(a, b)
 #define SSEI(x)		XP(x, SSEZ)
 
+#if SSEZ == 128 && !defined HAVE___M128I
+# undef SSEI
+#elif SSEZ == 256 && !defined HAVE___M256I
+# undef SSEI
+#elif SSEZ == 512 && !defined HAVE___M512I
+# undef SSEI
+#endif
+
 #if SSEZ == 128
 # define __mXi			__m128i
 # define _mmX_load_si(x)	_mm_load_si128(x)
