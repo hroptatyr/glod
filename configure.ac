@@ -46,7 +46,20 @@ AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
 ## check for intrinsics
 AC_CHECK_HEADERS([immintrin.h])
 AC_CHECK_HEADERS([x86intrin.h])
-AC_CHECK_TYPES([__m256i], [], [], [[#include <immintrin.h>]])
+AC_CHECK_TYPES([__m128i], [], [], [[
+#if defined HAVE_X86INTRIN_H
+# include <x86intrin.h>
+#elif defined HAVE_IMMINTRIN_H
+# include <immintrin.h>
+#endif
+]])
+AC_CHECK_TYPES([__m256i], [], [], [[
+#if defined HAVE_X86INTRIN_H
+# include <x86intrin.h>
+#elif defined HAVE_IMMINTRIN_H
+# include <immintrin.h>
+#endif
+]])
 AC_MSG_CHECKING([for _tzcnt_u32])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <immintrin.h>]], [_tzcnt_u32(0U);])], [
 	ac_cv_func__tzcnt_u32="yes"
