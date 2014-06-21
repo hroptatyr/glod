@@ -1,8 +1,13 @@
+#if defined HAVE_CONFIG_H
+# include "config.h"
+#endif	/* HAVE_CONFIG_H */
 #if defined __INTEL_COMPILER
 # include <immintrin.h>
-#elif defined __GNUC__
+#elif defined __GNUC__ && defined HAVE_X86INTRIN_H
 # include <x86intrin.h>
-# include <immintrin.h>
+# if defined HAVE_IMMINTRIN_H
+#  include <immintrin.h>
+# endif	 /* HAVE_IMMINTRIN_H */
 #endif
 
 #if defined SSEZ
