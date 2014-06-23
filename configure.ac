@@ -76,8 +76,10 @@ AC_DEFUN([SXE_CHECK_SIMD], [dnl
 #endif
 ]], [$2])], [
 	eval AS_TR_SH(ac_cv_func_$1)="yes"
+	$3
 ], [
 	eval AS_TR_SH(ac_cv_func_$1)="no"
+	$4
 ])
 	AC_MSG_RESULT([${ac_cv_func_$1}])
 ])dnl SXE_CHECK_SIMD
@@ -86,6 +88,9 @@ SXE_CHECK_SIMD([_tzcnt_u32], [_tzcnt_u32(0U);])
 SXE_CHECK_SIMD([_tzcnt_u64], [_tzcnt_u64(0U);])
 SXE_CHECK_SIMD([_popcnt32], [_popcnt32(0U);])
 SXE_CHECK_SIMD([_popcnt64], [_popcnt64(0U);])
+SXE_CHECK_SIMD([_mm256_cmpeq_epi8],
+	[_mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_set1_epi8('x'));],
+	[AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are declared])])
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
 

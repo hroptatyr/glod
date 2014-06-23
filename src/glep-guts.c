@@ -54,7 +54,7 @@
 
 #if SSEZ == 128 && !defined HAVE___M128I
 # undef SSEI
-#elif SSEZ == 256 && !defined HAVE___M256I
+#elif SSEZ == 256 && !(defined HAVE___M256I && defined HAVE_MM256_INT_INTRINS)
 # undef SSEI
 #elif SSEZ == 512 && !defined HAVE___M512I
 # undef SSEI
