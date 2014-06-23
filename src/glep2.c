@@ -181,13 +181,31 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
 	return;
 }
 
-static void
-recode(uint8_t *restrict tgt, const char *s, size_t z)
+static uint_fast32_t
+dcount(const accu_t *src)
 {
-	for (size_t i = 0U; i < z; i++) {
+	uint_fast32_t cnt = 0U;
+
+	for (size_t i = 0U; i < CHUNKZ / __BITS; i++) {
+#if __BITS == 64
+		cnt += _popcnt64(src[i]);
+#elif __BITS == 32U
+		cnt += _popcnt32(src[i]);
+#endif
+	}
+	return cnt;
+}
+
+static size_t
+recode(uint8_t *restrict tgt, const char *s)
+{
+	size_t i;
+
+	for (i = 0U; s[i]; i++) {
 		tgt[i] = offs[s[i]];
 	}
-	return;
+	tgt[i] = '\0';
+	return i;
 }
 
 
@@ -233,33 +251,39 @@ DEFCORU(co_match, {
 		char *buf;
 		size_t bsz;
 		/* counter */
-		uint_fast32_t *c1;
-		size_t nc1;
+		uint_fast32_t *cnt;
+		const glep_pat_t *pats;
+		size_t npats;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	uint_fast32_t *const c1 = CORU_CLOSUR(c1);
-	const size_t nc1 = CORU_CLOSUR(nc1);
+	uint_fast32_t *const cnt = CORU_CLOSUR(cnt);
+	const glep_pat_t *pats = CORU_CLOSUR(pats);
+	const size_t npats = CORU_CLOSUR(npats);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 
 	/* enter the main match loop */
 	do {
 		accu_t c[CHUNKZ / __BITS];
-		uint8_t str[4U];
 
 		/* put bit patterns into puncs and pat */
 		decomp(deco, (const void*)buf, nrd, pchars, npchars);
 
-		/* match pattern */
-		str[0U] = '\0';
-		recode(str + 1U, "so", 3U);
-		dmatch(c, deco, str, 4U);
+		for (size_t i = 0U; i < npats; i++) {
+			uint8_t str[256U];
+			size_t len;
 
-		/* count the matches */
-		;
+			/* match pattern */
+			str[0U] = '\0';
+			len = recode(str + 1U, pats[i].s);
+			dmatch(c, deco, str, len + 1U);
+
+			/* count the matches */
+			cnt[i] = dcount(c);
+		}
 
 		/* now go through and scrape buffer portions off */
 		npr = (nrd / __BITS) * __BITS;
@@ -278,6 +302,7 @@ match0(gleps_t pf, int fd, const char *fn)
 	int res = 0;
 	ssize_t nrd;
 	ssize_t npr;
+	uint_fast32_t cnt[pf->npats];
 
 	self = PREP();
 	snarf = START_PACK(
@@ -285,7 +310,11 @@ match0(gleps_t pf, int fd, const char *fn)
 		.buf = buf, .bsz = sizeof(buf), .fd = fd);
 	match = START_PACK(
 		co_match, .next = self,
-		.buf = buf, .bsz = sizeof(buf));
+		.buf = buf, .bsz = sizeof(buf),
+		.cnt = cnt, .pats = pf->pats, .npats = pf->npats);
+
+	/* rinse */
+	memset(cnt, 0, sizeof(cnt));
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -308,27 +337,25 @@ match0(gleps_t pf, int fd, const char *fn)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-#if 0
 	if (show_pats_p) {
-		for (size_t i = 0U; i < np1; i++) {
-			glep_pat_t p = pf->pats[mp1[i]];
+		for (size_t i = 0U; i < pf->npats; i++) {
+			glep_pat_t p = pf->pats[i];
 
 			fputs(p.s, stdout);
 			putchar('\t');
-			printf("%lu\t", c1[i]);
+			printf("%lu\t", cnt[i]);
 			puts(fn);
 		}
 	} else {
-		for (size_t i = 0U; i < np1; i++) {
-			glep_pat_t p = pf->pats[mp1[i]];
+		for (size_t i = 0U; i < pf->npats; i++) {
+			glep_pat_t p = pf->pats[i];
 
 			fputs(p.y, stdout);
 			putchar('\t');
-			printf("%lu\t", c1[i]);
+			printf("%lu\t", cnt[i]);
 			puts(fn);
 		}
 	}
-#endif
 	UNPREP();
 	return res;
 }
