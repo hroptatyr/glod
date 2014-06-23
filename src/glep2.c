@@ -341,19 +341,23 @@ match0(gleps_t pf, int fd, const char *fn)
 		for (size_t i = 0U; i < pf->npats; i++) {
 			glep_pat_t p = pf->pats[i];
 
-			fputs(p.s, stdout);
-			putchar('\t');
-			printf("%lu\t", cnt[i]);
-			puts(fn);
+			if (cnt[i]) {
+				fputs(p.s, stdout);
+				putchar('\t');
+				printf("%lu\t", cnt[i]);
+				puts(fn);
+			}
 		}
 	} else {
 		for (size_t i = 0U; i < pf->npats; i++) {
 			glep_pat_t p = pf->pats[i];
 
-			fputs(p.y, stdout);
-			putchar('\t');
-			printf("%lu\t", cnt[i]);
-			puts(fn);
+			if (cnt[i]) {
+				fputs(p.y, stdout);
+				putchar('\t');
+				printf("%lu\t", cnt[i]);
+				puts(fn);
+			}
 		}
 	}
 	UNPREP();
