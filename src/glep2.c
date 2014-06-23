@@ -279,7 +279,7 @@ DEFCORU(co_match, {
 			/* match pattern */
 			str[0U] = '\0';
 			len = recode(str + 1U, pats[i].s);
-			dmatch(c, deco, str, len + 1U);
+			dmatch(c, deco, str, len + 2U);
 
 			/* count the matches */
 			cnt[i] = dcount(c);
