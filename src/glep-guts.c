@@ -161,10 +161,8 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 
 #if defined __BITS
 static void
-SSEI(_accuify)(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, size_t bsz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
+SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
+	      const char pchars[static 0x100U], size_t npchars)
 {
 	const __mXi *b = buf;
 	const size_t eoi = (bsz - 1U) / sizeof(*b);
@@ -187,17 +185,17 @@ SSEI(_accuify)(
 		data2 = SSEI(ptolower)(data2);
 #endif
 		/* lodge */
-		puncs[k] = (accu_t)SSEI(pispuncs)(data1);
+		tgt[0U][k] = (accu_t)SSEI(pispuncs)(data1);
 #if SSEZ < 256 || __BITS == 64
-		puncs[k] |= (accu_t)SSEI(pispuncs)(data2) << sizeof(__mXi);
+		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data2) << sizeof(__mXi);
 #endif
 
-		for (size_t j = 0U; j < p1z; j++) {
-			const uint8_t p = p1a[j];
+		for (size_t j = 1U; j <= npchars; j++) {
+			const char p = pchars[j];
 
-			pat[j * az + k] = (accu_t)SSEI(pmatch)(data1, p);
+			tgt[j][k] = (accu_t)SSEI(pmatch)(data1, p);
 #if SSEZ < 256 || __BITS == 64
-			pat[j * az + k] |=
+			tgt[j][k] |=
 				(accu_t)SSEI(pmatch)(data2, p) << sizeof(__mXi);
 #endif
 		}
@@ -210,16 +208,16 @@ SSEI(_accuify)(
 		data1 = SSEI(ptolower)(data1);
 		data2 = SSEI(ptolower)(data2);
 		/* lodge */
-		puncs[k] |= (accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
-		puncs[k] |= (accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
+		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
+		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
 
-		for (size_t j = 0U; j < p1z; j++) {
-			const uint8_t p = p1a[j];
+		for (size_t j = 1U; j <= npchars; j++) {
+			const char p = pchars[j];
 
-			pat[j * az + k] |=
+			tgt[j][k] |=
 				(accu_t)SSEI(pmatch)(data1, p)
 				<< 2U * sizeof(__mXi);
-			pat[j * az + k] |=
+			tgt[j][k] |=
 				(accu_t)SSEI(pmatch)(data2, p)
 				<< 3U * sizeof(__mXi);
 		}
@@ -232,15 +230,15 @@ SSEI(_accuify)(
 
 		/* patterns need 0-masking, i.e. set bits under the mask
 		 * have to be cleared */
-		for (size_t j = 0U; j < p1z; j++) {
-			pat[j * az + k] &= msk;
+		for (size_t j = 1U; j <= npchars; j++) {
+			tgt[j][k] &= msk;
 		}
 
 		/* puncs need 1-masking, i.e. treat the portion outside
 		 * the mask as though there were \0 bytes in the buffer
 		 * and seeing as a \nul is a puncs according to pispuncs()
 		 * we have to set the bits not under the mask */
-		puncs[k] |= ~msk;
+		tgt[0U][k] |= ~msk;
 	}
 	return;
 }
@@ -257,10 +255,8 @@ SSEI(_accuify)(
 # pragma warning (disable:869)
 static inline void
 __attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
-accuify(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bsz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
+decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
+       const char pchars[static 0x100U], size_t npchars)
 {
 	/* stub */
 }
@@ -272,12 +268,10 @@ __attribute__((cpu_specific(core_4th_gen_avx)))
 #else
 __attribute__((target("avx2")))
 #endif
-accuify(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bsz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
+decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
+       const char pchars[static 0x100U], size_t npchars)
 {
-	(void)_accuify256(puncs, pat, buf, bsz, az, p1a, p1z);
+	(void)_decomp256(tgt, buf, bsz, pchars, npchars);
 	return;
 }
 #endif	/* __INTEL_COMPILER */
@@ -288,12 +282,10 @@ __attribute__((cpu_specific(core_2_duo_ssse3)))
 #else
 __attribute__((target("ssse3")))
 #endif
-accuify(
-	accu_t *restrict puncs, accu_t *restrict pat,
-	const void *buf, const size_t bsz, const size_t az,
-	const uint8_t *p1a, size_t p1z)
+decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
+       const char pchars[static 0x100U], size_t npchars)
 {
-	(void)_accuify128(puncs, pat, buf, bsz, az, p1a, p1z);
+	(void)_decomp128(tgt, buf, bsz, pchars, npchars);
 	return;
 }
 

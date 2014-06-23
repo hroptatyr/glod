@@ -118,15 +118,77 @@ error(const char *fmt, ...)
 #undef SSEZ
 #include "glep-guts.c"
 
-static uint8_t *p1;
-static size_t np1;
-/* map from p1[i] -> pats[j], the i,j part */
-static size_t *mp1;
+#define CHUNKZ		(4U * 4096U)
+static accu_t deco[0x100U][CHUNKZ / __BITS];
+/* the alphabet we're dealing with */
+static char pchars[0x100U];
+static size_t npchars;
+/* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
+static uint8_t offs[0x100U];
 
-static uint8_t *p2;
-static size_t np2;
-/* map from p2[i] -> pats[j], the i,j part */
-static size_t *mp2;
+static void
+shiftr(accu_t *restrict tgt, const accu_t *src, unsigned int n)
+{
+/* shift TGT right by N bits */
+	unsigned int i = n / __BITS;
+	unsigned int sh = n % __BITS;
+	unsigned int j = 0U;
+
+	if (UNLIKELY(n == 0U)) {
+		memcpy(tgt, src, CHUNKZ / __BITS * sizeof(*src));
+		return;
+	} else if (UNLIKELY(sh == 0U)) {
+		memcpy(tgt, src + i, (CHUNKZ / __BITS - i) * sizeof(*src));
+		memset(tgt + (CHUNKZ / __BITS - i), 0, i * sizeof(*tgt));
+		return;
+	}
+	/* otherwise do it the hard way */
+	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
+	     i < CHUNKZ / __BITS - 1U; i++, j++) {
+		tgt[j] = src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
+	}
+	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
+		tgt[j] = 0U;
+	}
+	return;
+}
+
+static void
+and(accu_t *restrict tgt, const accu_t *src)
+{
+/* and TGT and SRC */
+	for (size_t i = 0U; i < CHUNKZ / __BITS; i++) {
+		tgt[i] &= src[i];
+	}
+	return;
+}
+
+static void
+dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
+       const uint8_t s[], size_t z)
+{
+/* this is matching on the fully decomposed buffer
+ * we say a character C matches at position I iff SRC[C] & (1U << i)
+ * we say a string S[] matches if all characters S[i] match
+ * note the characters are offsets according to the PCHARS alphabet. */
+	accu_t tmp[CHUNKZ / __BITS];
+
+	shiftr(tgt, src[*s], 0U);
+	for (size_t i = 1U; i < z; i++) {
+		shiftr(tmp, src[s[i]], i);
+		and(tgt, tmp);
+	}
+	return;
+}
+
+static void
+recode(uint8_t *restrict tgt, const char *s, size_t z)
+{
+	for (size_t i = 0U; i < z; i++) {
+		tgt[i] = offs[s[i]];
+	}
+	return;
+}
 
 
 DEFCORU(co_snarf, {
@@ -178,22 +240,26 @@ DEFCORU(co_match, {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const size_t bsz = CORU_CLOSUR(bsz);
 	uint_fast32_t *const c1 = CORU_CLOSUR(c1);
 	const size_t nc1 = CORU_CLOSUR(nc1);
-	const size_t az = bsz / __BITS;
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
-	accu_t puncs[az];
-	accu_t pat[np1 * az];
 
 	/* enter the main match loop */
 	do {
-		/* put bit patterns into puncs and pat */
-		accuify(puncs, pat, (const void*)buf, nrd, az, p1, np1);
+		accu_t c[CHUNKZ / __BITS];
+		uint8_t str[4U];
 
-		/* apply isolation-weight measure */
-		isolwify(c1, nc1, puncs, pat, nrd, az);
+		/* put bit patterns into puncs and pat */
+		decomp(deco, (const void*)buf, nrd, pchars, npchars);
+
+		/* match pattern */
+		str[0U] = '\0';
+		recode(str + 1U, "so", 3U);
+		dmatch(c, deco, str, 4U);
+
+		/* count the matches */
+		;
 
 		/* now go through and scrape buffer portions off */
 		npr = (nrd / __BITS) * __BITS;
@@ -205,9 +271,7 @@ DEFCORU(co_match, {
 static int
 match0(gleps_t pf, int fd, const char *fn)
 {
-	char buf[4U * 4096U];
-	uint_fast32_t c1[np1];
-	uint_fast32_t c2[np2];
+	char buf[CHUNKZ];
 	struct cocore *snarf;
 	struct cocore *match;
 	struct cocore *self;
@@ -221,12 +285,7 @@ match0(gleps_t pf, int fd, const char *fn)
 		.buf = buf, .bsz = sizeof(buf), .fd = fd);
 	match = START_PACK(
 		co_match, .next = self,
-		.buf = buf, .bsz = sizeof(buf),
-		.c1 = c1, .nc1 = np1);
-
-	/* rinse */
-	memset(c1, 0, sizeof(c1));
-	memset(c2, 0, sizeof(c2));
+		.buf = buf, .bsz = sizeof(buf));
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -249,6 +308,7 @@ match0(gleps_t pf, int fd, const char *fn)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
+#if 0
 	if (show_pats_p) {
 		for (size_t i = 0U; i < np1; i++) {
 			glep_pat_t p = pf->pats[mp1[i]];
@@ -268,7 +328,7 @@ match0(gleps_t pf, int fd, const char *fn)
 			puts(fn);
 		}
 	}
-
+#endif
 	UNPREP();
 	return res;
 }
@@ -292,6 +352,17 @@ out:
 	/* and out are we */
 	(void)munmap_fn(f);
 	return res;
+}
+
+static void
+add_pchar(char c)
+{
+	if (offs[c]) {
+		return;
+	}
+	offs[c] = ++npchars;
+	pchars[offs[c]] = c;
+	return;
 }
 
 
@@ -327,41 +398,21 @@ main(int argc, char *argv[])
 		const char *p = pf->pats[i].s;
 		const size_t z = strlen(p);
 
-		switch (z) {
-		case 1U:
-			if (UNLIKELY(!(np1 % 64U))) {
-				/* resize */
-				const size_t nu = np1 + 64U;
-				p1 = realloc(p1, nu * sizeof(*p1));
-				mp1 = realloc(mp1, nu * sizeof(*mp1));
-			}
-			mp1[np1] = i;
-			if (UNLIKELY(*p >= 'A' && *p <= 'Z')) {
-				p1[np1++] = (uint8_t)(*p + 32U);
-			} else {
-				p1[np1++] = (uint8_t)*p;
-			}
-			break;
+		for (size_t j = 0U; j < z / 4U; j++) {
+			add_pchar(p[4U * j + 0U]);
+			add_pchar(p[4U * j + 1U]);
+			add_pchar(p[4U * j + 2U]);
+			add_pchar(p[4U * j + 3U]);
+		}
+		switch (z % 4U) {
+		case 3U:
+			add_pchar(p[2U]);
 		case 2U:
-			if (UNLIKELY(!(np2 % 128U))) {
-				/* resize */
-				const size_t nu = np2 + 128U;
-				p2 = realloc(p2, nu * sizeof(*p2));
-				mp2 = realloc(mp2, nu * sizeof(*mp2));
-			}
-			mp2[np2] = i;
-			if (UNLIKELY(p[0U] >= 'A' && p[0U] <= 'Z')) {
-				p2[np2++] = (uint8_t)(p[0U] + 32U);
-			} else {
-				p2[np2++] = (uint8_t)p[0U];
-			}
-			if (UNLIKELY(p[1U] >= 'A' && p[1U] <= 'Z')) {
-				p2[np2++] = (uint8_t)(p[1U] + 32U);
-			} else {
-				p2[np2++] = (uint8_t)p[1U];
-			}
-			break;
+			add_pchar(p[1U]);
+		case 1U:
+			add_pchar(p[0U]);
 		default:
+		case 0U:
 			break;
 		}
 	}
@@ -397,12 +448,6 @@ main(int argc, char *argv[])
 
 fr_gl:
 	/* resource hand over */
-	if (p1 != NULL) {
-		free(p1);
-	}
-	if (p2 != NULL) {
-		free(p2);
-	}
 	glep_fr(pf);
 	glod_fr_gleps(pf);
 out:
