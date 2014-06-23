@@ -347,6 +347,7 @@ main(int argc, char *argv[])
 				/* resize */
 				const size_t nu = np2 + 128U;
 				p2 = realloc(p2, nu * sizeof(*p2));
+				mp2 = realloc(mp2, nu * sizeof(*mp2));
 			}
 			mp2[np2] = i;
 			if (UNLIKELY(p[0U] >= 'A' && p[0U] <= 'Z')) {
