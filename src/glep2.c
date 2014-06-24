@@ -47,6 +47,7 @@
 #include "glep.h"
 #include "boobs.h"
 #include "intern.h"
+#include "enum.h"
 #include "nifty.h"
 #include "coru.h"
 
@@ -81,6 +82,7 @@ struct wpat_s {
 
 static const char stdin_fn[] = "<stdin>";
 static int show_pats_p;
+static size_t nclass;
 
 #define warn(x...)
 
@@ -355,15 +357,54 @@ match0(gleps_t pf, int fd, const char *fn)
 			}
 		}
 	} else {
-		for (size_t i = 0U; i < pf->npats; i++) {
-			glep_pat_t p = pf->pats[i];
+		uint_fast32_t clscnt[nclass + 1U];
 
-			if (cnt[i]) {
-				fputs(p.y, stdout);
-				putchar('\t');
-				printf("%lu\t", cnt[i]);
-				puts(fn);
+		memset(clscnt, 0, sizeof(clscnt));
+		for (size_t i = 0U; i < pf->npats; i++) {
+			const char *p = pf->pats[i].y;
+			const char *on;
+
+			if (!cnt[i]) {
+				continue;
 			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				clscnt[k] += cnt[i];
+			} while ((p = on + 1U, on));
+		}
+		for (size_t i = 0U; i < pf->npats; i++) {
+			const char *p = pf->pats[i].y;
+			const char *on;
+
+			if (!cnt[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				if (clscnt[k]) {
+					fwrite(p,  1, z, stdout);
+					putchar('\t');
+					printf("%lu\t", clscnt[k]);
+					puts(fn);
+					clscnt[k] = 0U;
+				}
+			} while ((p = on + 1U, on));
 		}
 	}
 	UNPREP();
@@ -428,6 +469,25 @@ main(int argc, char *argv[])
 
 	if (argi->show_patterns_flag) {
 		show_pats_p = 1;
+	} else {
+		for (size_t i = 0U; i < pf->npats; i++) {
+			const char *p = pf->pats[i].y;
+			const char *on;
+
+			do {
+				size_t z;
+				obnum_t k;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				if ((k = enumerate(p, z)) > nclass) {
+					nclass = k;
+				}
+			} while ((p = on + 1U, on));
+		}
 	}
 
 	/* oki, rearrange patterns into 1grams, 2grams, 3,4grams, etc. */
