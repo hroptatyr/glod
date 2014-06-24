@@ -155,22 +155,26 @@ shiftr(accu_t *restrict tgt, const accu_t *src, unsigned int n)
 	return;
 }
 
-static void
+static unsigned int
 shiftr_and(accu_t *restrict tgt, const accu_t *src, unsigned int n)
 {
 	unsigned int i = n / __BITS;
 	unsigned int sh = n % __BITS;
 	unsigned int j = 0U;
+	unsigned int res = 0U;
 
 	/* otherwise do it the hard way */
 	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
 	     i < CHUNKZ / __BITS - 1U; i++, j++) {
 		tgt[j] &= src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
+		if (tgt[j]) {
+			res++;
+		}
 	}
 	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
 		tgt[j] = 0U;
 	}
-	return;
+	return res;
 }
 
 static void
@@ -184,7 +188,9 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
 
 	shiftr(tgt, src[*s], 0U);
 	for (size_t i = 1U; i < z; i++) {
-		shiftr_and(tgt, src[s[i]], i);
+		if (!shiftr_and(tgt, src[s[i]], i)) {
+			break;
+		}
 	}
 	return;
 }
