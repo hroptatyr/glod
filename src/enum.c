@@ -120,6 +120,22 @@ debug(const char *fmt, ...)
 static void(*verbf)(const char *fmt, ...) = quiet;
 #else  /* !STANDALONE */
 # define verbf(args...)
+
+static hash_t
+murmur(const uint8_t *str, size_t len)
+{
+/* tokyocabinet's hasher,
+ * used for the non-standalone version because there's less dependencies */
+	size_t idx = 19780211U;
+	uint_fast32_t hash = 751U;
+	const uint8_t *rp = str + len;
+
+	while (len--) {
+		idx = idx * 37U + *str++;
+		hash = (hash * 31U) ^ *--rp;
+	}
+	return (hash_t){idx, hash};
+}
 #endif	/* STANDALONE */
 
 static void*
@@ -136,8 +152,12 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 static hash_t
 hash_str(const char *str, size_t len)
 {
+#if defined STANDALONE
 	uint64_t h64 = spooky_hash64(str, len, 0xcafebabeU);
 	return *(hash_t*)&h64;
+#else  /* !STANDALONE */
+	return murmur((const uint8_t*)str, len);
+#endif	/* STANDALONE */
 }
 
 obnum_t
