@@ -545,6 +545,8 @@ main(int argc, char *argv[])
 
 fr_gl:
 	/* resource hand over */
+	clear_enums();
+	clear_interns();
 	glep_fr(pf);
 	glod_fr_gleps(pf);
 out:
