@@ -136,6 +136,12 @@ EXTRA_DIST += tilm.alrt
 EXTRA_DIST += til2.alrt
 EXTRA_DIST += tilm.txt
 
+glep_TESTS += glep.11.tst
+glep_TESTS += glep.12.tst
+glep_TESTS += glep.13.tst
+glep_TESTS += glep.14.tst
+EXTRA_DIST += stops.alrt
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst

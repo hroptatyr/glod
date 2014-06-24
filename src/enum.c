@@ -48,9 +48,8 @@
 #include <errno.h>
 #include <stdio.h>
 #include "libbloom/spooky.h"
+#include "enum.h"
 #include "nifty.h"
-
-typedef uint32_t obint_t;
 
 /* a hash is the bucket locator and a chksum for collision detection */
 typedef struct {
@@ -69,7 +68,7 @@ struct hdr_s {
 
 /* the beef table */
 static struct {
-	obint_t ob;
+	obnum_t ob;
 	uint32_t ck;
 } *sstk;
 /* alloc size, 2-power */
@@ -84,6 +83,7 @@ static bool savep;
 static bool xtndp = true;
 
 
+#if defined STANDALONE
 static void
 __attribute__((format(printf, 1, 2)))
 error(const char *fmt, ...)
@@ -99,16 +99,6 @@ error(const char *fmt, ...)
 	}
 	fputc('\n', stderr);
 	return;
-}
-
-static void*
-recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
-{
-	nmemb_ol *= membz;
-	nmemb_nu *= membz;
-	buf = realloc(buf, nmemb_nu);
-	memset((uint8_t*)buf + nmemb_ol, 0, nmemb_nu - nmemb_ol);
-	return buf;
 }
 
 static __attribute__((format(printf, 1, 2))) void
@@ -128,17 +118,50 @@ debug(const char *fmt, ...)
 }
 
 static void(*verbf)(const char *fmt, ...) = quiet;
+#else  /* !STANDALONE */
+# define verbf(args...)
+
+static hash_t
+murmur(const uint8_t *str, size_t len)
+{
+/* tokyocabinet's hasher,
+ * used for the non-standalone version because there's less dependencies */
+	size_t idx = 19780211U;
+	uint_fast32_t hash = 751U;
+	const uint8_t *rp = str + len;
+
+	while (len--) {
+		idx = idx * 37U + *str++;
+		hash = (hash * 31U) ^ *--rp;
+	}
+	return (hash_t){idx, hash};
+}
+#endif	/* STANDALONE */
+
+static void*
+recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
+{
+	nmemb_ol *= membz;
+	nmemb_nu *= membz;
+	buf = realloc(buf, nmemb_nu);
+	memset((uint8_t*)buf + nmemb_ol, 0, nmemb_nu - nmemb_ol);
+	return buf;
+}
 
 
 static hash_t
 hash_str(const char *str, size_t len)
 {
+#if defined STANDALONE
 	uint64_t h64 = spooky_hash64(str, len, 0xcafebabeU);
 	return *(hash_t*)&h64;
+#else  /* !STANDALONE */
+	return murmur((const uint8_t*)str, len);
+#endif	/* STANDALONE */
 }
 
-static obint_t
-enum_str(const char *str, size_t len)
+obnum_t
+enumerate(const char *str, size_t len)
 {
 #define SSTK_NSLOT	(256U)
 #define SSTK_STACK	(4U * SSTK_NSLOT)
@@ -166,7 +189,7 @@ enum_str(const char *str, size_t len)
 		} else if (!sstk[off].ob) {
 			if (xtndp) {
 				/* found empty slot */
-				obint_t ob = ++obn;
+				obnum_t ob = ++obn;
 				sstk[off].ob = ob;
 				sstk[off].ck = hx.chk;
 				nstk++;
@@ -202,7 +225,7 @@ enum_str(const char *str, size_t len)
 			} else if (!sstk[off].ob) {
 				if (xtndp) {
 					/* found empty slot */
-					obint_t ob = ++obn;
+					obnum_t ob = ++obn;
 					sstk[off].ob = ob;
 					sstk[off].ck = hx.chk;
 					nstk++;
@@ -216,7 +239,7 @@ enum_str(const char *str, size_t len)
 	return 0U;
 }
 
-static void
+void
 clear_enums(void)
 {
 	if (LIKELY(sstk != NULL)) {
@@ -226,10 +249,14 @@ clear_enums(void)
 	zstk = 0U;
 	nstk = 0U;
 	obn = 0U;
+	if (savep) {
+		savep = false;
+	}
 	return;
 }
 
 
+#if defined STANDALONE
 static int
 enum0(void)
 {
@@ -238,7 +265,7 @@ enum0(void)
 
 	for (ssize_t nrd; (nrd = getline(&line, &llen, stdin)) > 0;) {
 		line[--nrd] = '\0';
-		printf("%u\n", enum_str(line, nrd));
+		printf("%u\n", enumerate(line, nrd));
 	}
 	free(line);
 	return 0;
@@ -340,6 +367,7 @@ clo:
 	unlink(fn);
 	return -1;
 }
+#endif	/* STANDALONE */
 
 
 #if defined STANDALONE
