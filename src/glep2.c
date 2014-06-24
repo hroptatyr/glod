@@ -154,11 +154,19 @@ shiftr(accu_t *restrict tgt, const accu_t *src, unsigned int n)
 }
 
 static void
-and(accu_t *restrict tgt, const accu_t *src)
+shiftr_and(accu_t *restrict tgt, const accu_t *src, unsigned int n)
 {
-/* and TGT and SRC */
-	for (size_t i = 0U; i < CHUNKZ / __BITS; i++) {
-		tgt[i] &= src[i];
+	unsigned int i = n / __BITS;
+	unsigned int sh = n % __BITS;
+	unsigned int j = 0U;
+
+	/* otherwise do it the hard way */
+	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
+	     i < CHUNKZ / __BITS - 1U; i++, j++) {
+		tgt[j] &= src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
+	}
+	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
+		tgt[j] = 0U;
 	}
 	return;
 }
@@ -171,12 +179,10 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
  * we say a character C matches at position I iff SRC[C] & (1U << i)
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
-	accu_t tmp[CHUNKZ / __BITS];
 
 	shiftr(tgt, src[*s], 0U);
 	for (size_t i = 1U; i < z; i++) {
-		shiftr(tmp, src[s[i]], i);
-		and(tgt, tmp);
+		shiftr_and(tgt, src[s[i]], i);
 	}
 	return;
 }
