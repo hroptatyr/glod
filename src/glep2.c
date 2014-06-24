@@ -129,29 +129,10 @@ static size_t npchars;
 static uint8_t offs[0x100U];
 
 static void
-shiftr(accu_t *restrict tgt, const accu_t *src, unsigned int n)
+dbang(accu_t *restrict tgt, const accu_t *src)
 {
-/* shift TGT right by N bits */
-	unsigned int i = n / __BITS;
-	unsigned int sh = n % __BITS;
-	unsigned int j = 0U;
-
-	if (UNLIKELY(n == 0U)) {
-		memcpy(tgt, src, CHUNKZ / __BITS * sizeof(*src));
-		return;
-	} else if (UNLIKELY(sh == 0U)) {
-		memcpy(tgt, src + i, (CHUNKZ / __BITS - i) * sizeof(*src));
-		memset(tgt + (CHUNKZ / __BITS - i), 0, i * sizeof(*tgt));
-		return;
-	}
-	/* otherwise do it the hard way */
-	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
-	     i < CHUNKZ / __BITS - 1U; i++, j++) {
-		tgt[j] = src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
-	}
-	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
-		tgt[j] = 0U;
-	}
+/* populate TGT with SRC */
+	memcpy(tgt, src, CHUNKZ / __BITS * sizeof(*src));
 	return;
 }
 
@@ -186,8 +167,9 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
 
-	shiftr(tgt, src[*s], 0U);
+	dbang(tgt, src[*s]);
 	for (size_t i = 1U; i < z; i++) {
+		/* SRC >>= i, TGT &= SRC */
 		if (!shiftr_and(tgt, src[s[i]], i)) {
 			break;
 		}
