@@ -21,5 +21,5 @@ would output YIELD instead of PATTERN.
   -V, --version            Print version and exit.
   -f, --pattern-file=FILE  Read patterns from FILE.
   -v, --invert-match       Report FILEs that don't match any patterns.
-  --show-patterns          Always show patterns even if a pattern name
+  -S, --show-patterns      Always show patterns even if a pattern name
                            is provided in the pattern file.
