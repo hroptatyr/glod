@@ -103,7 +103,9 @@ SSEI(pispuncs)(register __mXi data)
 	register __mXi y1;
 
 	/* check for <=SPC, !, " */
-	y0 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('"' + 1));
+	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\0' - 1));
+	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('"' + 1));
+	y0 = _mmX_and_si(x0, x1);
 
 	/* check for '() */
 	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\'' - 1));
