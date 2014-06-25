@@ -293,6 +293,76 @@ DEFCORU(co_match, {
 	return 0;
 }
 
+static void
+pr_results(
+	const glep_pat_t *pats, size_t npats,
+	const uint_fast32_t *cnt, const char *fn)
+{
+	if (show_pats_p) {
+		for (size_t i = 0U; i < npats; i++) {
+			glep_pat_t p = pats[i];
+
+			if (cnt[i]) {
+				fputs(p.s, stdout);
+				putchar('\t');
+				printf("%lu\t", cnt[i]);
+				puts(fn);
+			}
+		}
+	} else {
+		uint_fast32_t clscnt[nclass + 1U];
+
+		memset(clscnt, 0, sizeof(clscnt));
+		for (size_t i = 0U; i < npats; i++) {
+			const char *p = pats[i].y;
+			const char *on;
+
+			if (!cnt[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				clscnt[k] += cnt[i];
+			} while ((p = on + 1U, on));
+		}
+		for (size_t i = 0U; i < npats; i++) {
+			const char *p = pats[i].y;
+			const char *on;
+
+			if (!cnt[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				if (clscnt[k]) {
+					fwrite(p,  1, z, stdout);
+					putchar('\t');
+					printf("%lu\t", clscnt[k]);
+					puts(fn);
+					clscnt[k] = 0U;
+				}
+			} while ((p = on + 1U, on));
+		}
+	}
+	return;
+}
+
 
 static int
 match0(gleps_t pf, int fd, const char *fn)
@@ -339,68 +409,9 @@ match0(gleps_t pf, int fd, const char *fn)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-	if (show_pats_p) {
-		for (size_t i = 0U; i < pf->npats; i++) {
-			glep_pat_t p = pf->pats[i];
+	/* just print all them results now */
+	pr_results(pf->pats, pf->npats, cnt, fn);
 
-			if (cnt[i]) {
-				fputs(p.s, stdout);
-				putchar('\t');
-				printf("%lu\t", cnt[i]);
-				puts(fn);
-			}
-		}
-	} else {
-		uint_fast32_t clscnt[nclass + 1U];
-
-		memset(clscnt, 0, sizeof(clscnt));
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const char *p = pf->pats[i].y;
-			const char *on;
-
-			if (!cnt[i]) {
-				continue;
-			}
-			do {
-				obnum_t k;
-				size_t z;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				k = enumerate(p, z);
-				clscnt[k] += cnt[i];
-			} while ((p = on + 1U, on));
-		}
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const char *p = pf->pats[i].y;
-			const char *on;
-
-			if (!cnt[i]) {
-				continue;
-			}
-			do {
-				obnum_t k;
-				size_t z;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				k = enumerate(p, z);
-				if (clscnt[k]) {
-					fwrite(p,  1, z, stdout);
-					putchar('\t');
-					printf("%lu\t", clscnt[k]);
-					puts(fn);
-					clscnt[k] = 0U;
-				}
-			} while ((p = on + 1U, on));
-		}
-	}
 	UNPREP();
 	return res;
 }
