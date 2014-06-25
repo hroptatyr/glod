@@ -137,7 +137,7 @@ dbang(accu_t *restrict tgt, const accu_t *src)
 }
 
 static unsigned int
-shiftr_and(accu_t *restrict tgt, const accu_t *src, unsigned int n)
+shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t n)
 {
 	unsigned int i = n / __BITS;
 	unsigned int sh = n % __BITS;
@@ -147,6 +147,9 @@ shiftr_and(accu_t *restrict tgt, const accu_t *src, unsigned int n)
 	/* otherwise do it the hard way */
 	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
 	     i < CHUNKZ / __BITS - 1U; i++, j++) {
+		if (!tgt[j]) {
+			continue;
+		}
 		tgt[j] &= src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
 		if (tgt[j]) {
 			res++;
