@@ -204,7 +204,7 @@ recode(uint8_t *restrict tgt, const char *s)
 	size_t i;
 
 	for (i = 0U; s[i]; i++) {
-		tgt[i] = offs[s[i]];
+		tgt[i] = offs[(unsigned char)s[i]];
 	}
 	tgt[i] = '\0';
 	return i;
