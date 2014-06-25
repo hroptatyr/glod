@@ -272,6 +272,9 @@ DEFCORU(co_match, {
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 
+	if (UNLIKELY(nrd <= 0)) {
+		return 0;
+	}
 	/* enter the main match loop */
 	do {
 		accu_t c[CHUNKZ / __BITS];
@@ -292,8 +295,8 @@ DEFCORU(co_match, {
 			cnt[i] += dcount(c);
 		}
 
-		/* now go through and scrape buffer portions off */
-		npr = (nrd / __BITS) * __BITS;
+		/* we did use up all data */
+		npr = nrd;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }
