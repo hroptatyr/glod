@@ -160,7 +160,7 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 }
 
 #if defined __BITS
-static void
+static inline __attribute__((always_inline)) void
 SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	      const char pchars[static 0x100U], size_t npchars)
 {
@@ -253,7 +253,7 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:869)
-static inline void
+static void
 __attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
 decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
        const char pchars[static 0x100U], size_t npchars)
@@ -262,7 +262,7 @@ decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 }
 # pragma warning (default:869)
 
-static inline void
+static void
 #if defined __INTEL_COMPILER
 __attribute__((cpu_specific(core_4th_gen_avx)))
 #else
@@ -276,7 +276,7 @@ decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 }
 #endif	/* __INTEL_COMPILER */
 
-static inline void
+static void
 #if defined __INTEL_COMPILER
 __attribute__((cpu_specific(core_2_duo_ssse3)))
 #else
