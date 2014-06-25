@@ -499,8 +499,9 @@ main(int argc, char *argv[])
 	for (size_t i = 0U; i < pf->npats; i++) {
 		const char *p = pf->pats[i].s;
 		const size_t z = strlen(p);
+		size_t j;
 
-		for (size_t j = 0U; j < z / 4U; j++) {
+		for (j = 0U; j < z / 4U; j++) {
 			add_pchar(p[4U * j + 0U]);
 			add_pchar(p[4U * j + 1U]);
 			add_pchar(p[4U * j + 2U]);
@@ -508,11 +509,11 @@ main(int argc, char *argv[])
 		}
 		switch (z % 4U) {
 		case 3U:
-			add_pchar(p[2U]);
+			add_pchar(p[4U * j + 2U]);
 		case 2U:
-			add_pchar(p[1U]);
+			add_pchar(p[4U * j + 1U]);
 		case 1U:
-			add_pchar(p[0U]);
+			add_pchar(p[4U * j + 0U]);
 		default:
 		case 0U:
 			break;
