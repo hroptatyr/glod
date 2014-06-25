@@ -196,6 +196,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 		if (UNLIKELY(res == NULL)) {
 			size_t iniz = 64U * sizeof(*res->pats);
 			res = malloc(sizeof(*res) + iniz);
+			res->ctx = NULL;
 			res->npats = 0U;
 			/* create a bit of breathing space for the
 			 * pats string strand */
