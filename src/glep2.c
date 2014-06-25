@@ -152,7 +152,10 @@ shiftr_and(accu_t *restrict tgt, const accu_t *src, unsigned int n)
 			res++;
 		}
 	}
-	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
+	if ((tgt[j] &= src[i] >> sh)) {
+		res++;
+	}
+	for (j++; j < CHUNKZ / __BITS; j++) {
 		tgt[j] = 0U;
 	}
 	return res;
