@@ -233,6 +233,10 @@ DEFCORU(co_snarf, {
 	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
+		/* insist on filling the buffer */
+		if (nun < bsz) {
+			continue;
+		}
 		/* process */
 		npr = YIELD(nun);
 		/* now it's NPR less unprocessed bytes */
@@ -243,9 +247,10 @@ DEFCORU(co_snarf, {
 			memmove(buf, buf + npr, nun);
 		}
 	}
-	/* final drain not necessary,
-	 * the co_matcher will process overhanging bits but
-	 * simply not tell us about it */
+	/* final drain */
+	if (nun) {
+		YIELD(nun);
+	}
 	return nrd;
 }
 
