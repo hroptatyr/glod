@@ -128,16 +128,16 @@ static size_t npchars;
 /* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
 static uint8_t offs[0x100U];
 
-static void
-dbang(accu_t *restrict tgt, const accu_t *src)
+static inline void
+dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
 {
 /* populate TGT with SRC */
-	memcpy(tgt, src, CHUNKZ / __BITS * sizeof(*src));
+	memcpy(tgt, src, ssz * sizeof(*src));
 	return;
 }
 
-static unsigned int
-shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t n)
+static inline unsigned int
+shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
 {
 	unsigned int i = n / __BITS;
 	unsigned int sh = n % __BITS;
@@ -146,7 +146,7 @@ shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t n)
 
 	/* otherwise do it the hard way */
 	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
-	     i < CHUNKZ / __BITS - 1U; i++, j++) {
+	     i < ssz - 1U; i++, j++) {
 		if (!tgt[j]) {
 			continue;
 		}
@@ -155,17 +155,18 @@ shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t n)
 			res++;
 		}
 	}
-	if ((tgt[j] &= src[i] >> sh)) {
+	if (tgt[j] && (tgt[j] &= src[i] >> sh)) {
 		res++;
 	}
-	for (j++; j < CHUNKZ / __BITS; j++) {
+	for (j++; j < ssz; j++) {
 		tgt[j] = 0U;
 	}
 	return res;
 }
 
 static void
-dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
+dmatch(accu_t *restrict tgt,
+       accu_t (*const src)[0x100U], size_t ssz,
        const uint8_t s[], size_t z)
 {
 /* this is matching on the fully decomposed buffer
@@ -173,10 +174,10 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
 
-	dbang(tgt, src[*s]);
+	dbang(tgt, src[*s], ssz);
 	for (size_t i = 1U; i < z; i++) {
 		/* SRC >>= i, TGT &= SRC */
-		if (!shiftr_and(tgt, src[s[i]], i)) {
+		if (!shiftr_and(tgt, src[s[i]], ssz, i)) {
 			break;
 		}
 	}
@@ -184,11 +185,11 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
 }
 
 static uint_fast32_t
-dcount(const accu_t *src)
+dcount(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U; i < CHUNKZ / __BITS; i++) {
+	for (size_t i = 0U; i < ssz; i++) {
 #if __BITS == 64
 		cnt += _popcnt64(src[i]);
 #elif __BITS == 32U
@@ -278,9 +279,10 @@ DEFCORU(co_match, {
 	/* enter the main match loop */
 	do {
 		accu_t c[CHUNKZ / __BITS];
+		size_t nb;
 
 		/* put bit patterns into puncs and pat */
-		decomp(deco, (const void*)buf, nrd, pchars, npchars);
+		nb = decomp(deco, (const void*)buf, nrd, pchars, npchars);
 
 		for (size_t i = 0U; i < npats; i++) {
 			uint8_t str[256U];
@@ -289,10 +291,10 @@ DEFCORU(co_match, {
 			/* match pattern */
 			str[0U] = '\0';
 			len = recode(str + 1U, pats[i].s);
-			dmatch(c, deco, str, len + 2U);
+			dmatch(c, deco, nb, str, len + 2U);
 
 			/* count the matches */
-			cnt[i] += dcount(c);
+			cnt[i] += dcount(c, nb);
 		}
 
 		/* we did use up all data */
