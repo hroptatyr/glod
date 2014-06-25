@@ -438,7 +438,7 @@ out:
 }
 
 static void
-add_pchar(char c)
+add_pchar(unsigned char c)
 {
 	if (offs[c]) {
 		return;
