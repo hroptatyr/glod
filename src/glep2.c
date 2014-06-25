@@ -185,7 +185,7 @@ dmatch(accu_t *restrict tgt,
 }
 
 static uint_fast32_t
-dcount(const accu_t *src, size_t ssz)
+_dcount_routin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
@@ -194,6 +194,24 @@ dcount(const accu_t *src, size_t ssz)
 		cnt += _popcnt64(src[i]);
 #elif __BITS == 32U
 		cnt += _popcnt32(src[i]);
+#endif
+	}
+	return cnt;
+}
+
+static uint_fast32_t
+#if defined __GNUC__ && !defined __INTEL_COMPILER
+__attribute__((target("popcnt")))
+#endif	/* GCC */
+_dcount_intrin(const accu_t *src, size_t ssz)
+{
+	uint_fast32_t cnt = 0U;
+
+	for (size_t i = 0U; i < ssz; i++) {
+#if __BITS == 64
+		cnt += _mm_popcnt_u64(src[i]);
+#elif __BITS == 32U
+		cnt += _mm_popcnt_u32(src[i]);
 #endif
 	}
 	return cnt;
@@ -272,9 +290,15 @@ DEFCORU(co_match, {
 	const size_t npats = CORU_CLOSUR(npats);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
+	static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
 
 	if (UNLIKELY(nrd <= 0)) {
 		return 0;
+	}
+	if (dcount == NULL && has_popcnt_p()) {
+		dcount = _dcount_intrin;
+	} else {
+		dcount = _dcount_routin;
 	}
 	/* enter the main match loop */
 	do {
