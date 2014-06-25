@@ -128,53 +128,45 @@ static size_t npchars;
 /* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
 static uint8_t offs[0x100U];
 
-static void
-shiftr(accu_t *restrict tgt, const accu_t *src, unsigned int n)
+static inline void
+dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
 {
-/* shift TGT right by N bits */
-	unsigned int i = n / __BITS;
-	unsigned int sh = n % __BITS;
-	unsigned int j = 0U;
-
-	if (UNLIKELY(n == 0U)) {
-		memcpy(tgt, src, CHUNKZ / __BITS * sizeof(*src));
-		return;
-	} else if (UNLIKELY(sh == 0U)) {
-		memcpy(tgt, src + i, (CHUNKZ / __BITS - i) * sizeof(*src));
-		memset(tgt + (CHUNKZ / __BITS - i), 0, i * sizeof(*tgt));
-		return;
-	}
-	/* otherwise do it the hard way */
-	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
-	     i < CHUNKZ / __BITS - 1U; i++, j++) {
-		tgt[j] = src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
-	}
-	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
-		tgt[j] = 0U;
-	}
+/* populate TGT with SRC */
+	memcpy(tgt, src, ssz * sizeof(*src));
 	return;
 }
 
-static void
-shiftr_and(accu_t *restrict tgt, const accu_t *src, unsigned int n)
+static inline unsigned int
+shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
 {
 	unsigned int i = n / __BITS;
 	unsigned int sh = n % __BITS;
 	unsigned int j = 0U;
+	unsigned int res = 0U;
 
 	/* otherwise do it the hard way */
 	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
-	     i < CHUNKZ / __BITS - 1U; i++, j++) {
+	     i < ssz - 1U; i++, j++) {
+		if (!tgt[j]) {
+			continue;
+		}
 		tgt[j] &= src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
+		if (tgt[j]) {
+			res++;
+		}
 	}
-	for (tgt[j] = src[i] >> sh; j < CHUNKZ / __BITS; j++) {
+	if (tgt[j] && (tgt[j] &= src[i] >> sh)) {
+		res++;
+	}
+	for (j++; j < ssz; j++) {
 		tgt[j] = 0U;
 	}
-	return;
+	return res;
 }
 
 static void
-dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
+dmatch(accu_t *restrict tgt,
+       accu_t (*const src)[0x100U], size_t ssz,
        const uint8_t s[], size_t z)
 {
 /* this is matching on the fully decomposed buffer
@@ -182,19 +174,22 @@ dmatch(accu_t *restrict tgt, accu_t (*const src)[0x100U],
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
 
-	shiftr(tgt, src[*s], 0U);
+	dbang(tgt, src[*s], ssz);
 	for (size_t i = 1U; i < z; i++) {
-		shiftr_and(tgt, src[s[i]], i);
+		/* SRC >>= i, TGT &= SRC */
+		if (!shiftr_and(tgt, src[s[i]], ssz, i)) {
+			break;
+		}
 	}
 	return;
 }
 
 static uint_fast32_t
-dcount(const accu_t *src)
+dcount(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U; i < CHUNKZ / __BITS; i++) {
+	for (size_t i = 0U; i < ssz; i++) {
 #if __BITS == 64
 		cnt += _popcnt64(src[i]);
 #elif __BITS == 32U
@@ -210,7 +205,7 @@ recode(uint8_t *restrict tgt, const char *s)
 	size_t i;
 
 	for (i = 0U; s[i]; i++) {
-		tgt[i] = offs[s[i]];
+		tgt[i] = offs[(unsigned char)s[i]];
 	}
 	tgt[i] = '\0';
 	return i;
@@ -239,6 +234,10 @@ DEFCORU(co_snarf, {
 	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
+		/* insist on filling the buffer */
+		if (nun < bsz) {
+			continue;
+		}
 		/* process */
 		npr = YIELD(nun);
 		/* now it's NPR less unprocessed bytes */
@@ -249,9 +248,10 @@ DEFCORU(co_snarf, {
 			memmove(buf, buf + npr, nun);
 		}
 	}
-	/* final drain not necessary,
-	 * the co_matcher will process overhanging bits but
-	 * simply not tell us about it */
+	/* final drain */
+	if (nun) {
+		YIELD(nun);
+	}
 	return nrd;
 }
 
@@ -273,12 +273,16 @@ DEFCORU(co_match, {
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 
+	if (UNLIKELY(nrd <= 0)) {
+		return 0;
+	}
 	/* enter the main match loop */
 	do {
 		accu_t c[CHUNKZ / __BITS];
+		size_t nb;
 
 		/* put bit patterns into puncs and pat */
-		decomp(deco, (const void*)buf, nrd, pchars, npchars);
+		nb = decomp(deco, (const void*)buf, nrd, pchars, npchars);
 
 		for (size_t i = 0U; i < npats; i++) {
 			uint8_t str[256U];
@@ -287,16 +291,86 @@ DEFCORU(co_match, {
 			/* match pattern */
 			str[0U] = '\0';
 			len = recode(str + 1U, pats[i].s);
-			dmatch(c, deco, str, len + 2U);
+			dmatch(c, deco, nb, str, len + 2U);
 
 			/* count the matches */
-			cnt[i] = dcount(c);
+			cnt[i] += dcount(c, nb);
 		}
 
-		/* now go through and scrape buffer portions off */
-		npr = (nrd / __BITS) * __BITS;
+		/* we did use up all data */
+		npr = nrd;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
+}
+
+static void
+pr_results(
+	const glep_pat_t *pats, size_t npats,
+	const uint_fast32_t *cnt, const char *fn)
+{
+	if (show_pats_p) {
+		for (size_t i = 0U; i < npats; i++) {
+			glep_pat_t p = pats[i];
+
+			if (cnt[i]) {
+				fputs(p.s, stdout);
+				putchar('\t');
+				printf("%lu\t", cnt[i]);
+				puts(fn);
+			}
+		}
+	} else {
+		uint_fast32_t clscnt[nclass + 1U];
+
+		memset(clscnt, 0, sizeof(clscnt));
+		for (size_t i = 0U; i < npats; i++) {
+			const char *p = pats[i].y;
+			const char *on;
+
+			if (!cnt[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				clscnt[k] += cnt[i];
+			} while ((p = on + 1U, on));
+		}
+		for (size_t i = 0U; i < npats; i++) {
+			const char *p = pats[i].y;
+			const char *on;
+
+			if (!cnt[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				if (clscnt[k]) {
+					fwrite(p,  1, z, stdout);
+					putchar('\t');
+					printf("%lu\t", clscnt[k]);
+					puts(fn);
+					clscnt[k] = 0U;
+				}
+			} while ((p = on + 1U, on));
+		}
+	}
+	return;
 }
 
 
@@ -345,68 +419,9 @@ match0(gleps_t pf, int fd, const char *fn)
 		assert(npr <= nrd);
 	} while (nrd > 0);
 
-	if (show_pats_p) {
-		for (size_t i = 0U; i < pf->npats; i++) {
-			glep_pat_t p = pf->pats[i];
+	/* just print all them results now */
+	pr_results(pf->pats, pf->npats, cnt, fn);
 
-			if (cnt[i]) {
-				fputs(p.s, stdout);
-				putchar('\t');
-				printf("%lu\t", cnt[i]);
-				puts(fn);
-			}
-		}
-	} else {
-		uint_fast32_t clscnt[nclass + 1U];
-
-		memset(clscnt, 0, sizeof(clscnt));
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const char *p = pf->pats[i].y;
-			const char *on;
-
-			if (!cnt[i]) {
-				continue;
-			}
-			do {
-				obnum_t k;
-				size_t z;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				k = enumerate(p, z);
-				clscnt[k] += cnt[i];
-			} while ((p = on + 1U, on));
-		}
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const char *p = pf->pats[i].y;
-			const char *on;
-
-			if (!cnt[i]) {
-				continue;
-			}
-			do {
-				obnum_t k;
-				size_t z;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				k = enumerate(p, z);
-				if (clscnt[k]) {
-					fwrite(p,  1, z, stdout);
-					putchar('\t');
-					printf("%lu\t", clscnt[k]);
-					puts(fn);
-					clscnt[k] = 0U;
-				}
-			} while ((p = on + 1U, on));
-		}
-	}
 	UNPREP();
 	return res;
 }
@@ -433,7 +448,7 @@ out:
 }
 
 static void
-add_pchar(char c)
+add_pchar(unsigned char c)
 {
 	if (offs[c]) {
 		return;
@@ -494,8 +509,9 @@ main(int argc, char *argv[])
 	for (size_t i = 0U; i < pf->npats; i++) {
 		const char *p = pf->pats[i].s;
 		const size_t z = strlen(p);
+		size_t j;
 
-		for (size_t j = 0U; j < z / 4U; j++) {
+		for (j = 0U; j < z / 4U; j++) {
 			add_pchar(p[4U * j + 0U]);
 			add_pchar(p[4U * j + 1U]);
 			add_pchar(p[4U * j + 2U]);
@@ -503,11 +519,11 @@ main(int argc, char *argv[])
 		}
 		switch (z % 4U) {
 		case 3U:
-			add_pchar(p[2U]);
+			add_pchar(p[4U * j + 2U]);
 		case 2U:
-			add_pchar(p[1U]);
+			add_pchar(p[4U * j + 1U]);
 		case 1U:
-			add_pchar(p[0U]);
+			add_pchar(p[4U * j + 0U]);
 		default:
 		case 0U:
 			break;
@@ -545,6 +561,8 @@ main(int argc, char *argv[])
 
 fr_gl:
 	/* resource hand over */
+	clear_enums();
+	clear_interns();
 	glep_fr(pf);
 	glod_fr_gleps(pf);
 out:

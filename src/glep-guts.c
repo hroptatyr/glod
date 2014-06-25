@@ -103,7 +103,9 @@ SSEI(pispuncs)(register __mXi data)
 	register __mXi y1;
 
 	/* check for <=SPC, !, " */
-	y0 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('"' + 1));
+	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\0' - 1));
+	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('"' + 1));
+	y0 = _mmX_and_si(x0, x1);
 
 	/* check for '() */
 	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\'' - 1));
@@ -160,7 +162,7 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 }
 
 #if defined __BITS
-static void
+static inline __attribute__((always_inline)) size_t
 SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	      const char pchars[static 0x100U], size_t npchars)
 {
@@ -240,7 +242,7 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 		 * we have to set the bits not under the mask */
 		tgt[0U][k] |= ~msk;
 	}
-	return;
+	return bsz / __BITS + ((bsz % __BITS) > 0U);
 }
 #endif	/* __BITS */
 #endif  /* SSEI */
@@ -253,7 +255,7 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:869)
-static inline void
+static size_t
 __attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
 decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
        const char pchars[static 0x100U], size_t npchars)
@@ -262,7 +264,7 @@ decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 }
 # pragma warning (default:869)
 
-static inline void
+static size_t
 #if defined __INTEL_COMPILER
 __attribute__((cpu_specific(core_4th_gen_avx)))
 #else
@@ -271,12 +273,11 @@ __attribute__((target("avx2")))
 decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
        const char pchars[static 0x100U], size_t npchars)
 {
-	(void)_decomp256(tgt, buf, bsz, pchars, npchars);
-	return;
+	return _decomp256(tgt, buf, bsz, pchars, npchars);
 }
 #endif	/* __INTEL_COMPILER */
 
-static inline void
+static size_t
 #if defined __INTEL_COMPILER
 __attribute__((cpu_specific(core_2_duo_ssse3)))
 #else
@@ -285,8 +286,7 @@ __attribute__((target("ssse3")))
 decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
        const char pchars[static 0x100U], size_t npchars)
 {
-	(void)_decomp128(tgt, buf, bsz, pchars, npchars);
-	return;
+	return _decomp128(tgt, buf, bsz, pchars, npchars);
 }
 
 #endif	/* INCLUDED_glep_guts_c_ */

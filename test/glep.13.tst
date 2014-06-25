@@ -3,7 +3,6 @@
 $ cat "${srcdir}/1206796.txt" | glep2 --show-patterns -f "${srcdir}/stops.alrt"
 aus	2	<stdin>
 bis	1	<stdin>
-da	1	<stdin>
 damit	1	<stdin>
 das	1	<stdin>
 daß	1	<stdin>
@@ -25,7 +24,6 @@ mit	1	<stdin>
 nicht	1	<stdin>
 sein	1	<stdin>
 sie	3	<stdin>
-t	1	<stdin>
 und	2	<stdin>
 vom	1	<stdin>
 von	1	<stdin>

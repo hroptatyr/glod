@@ -354,8 +354,8 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	SXE_CHECK_COMPILER_FLAG([-xHost], [
 		featflags="${featflags} -xHost"])
 
-	SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
-		featflags="${featflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
+	dnl SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
+	dnl 	featflags="${featflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
 
 	SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
 		featflags="${featflags} -mtune=native -march=native"])

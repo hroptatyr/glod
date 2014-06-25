@@ -1,18 +1,16 @@
 #!/usr/bin/clitoris  ## -*- shell-script -*-
 
 $ cat "${srcdir}/utf8-terms.txt" | glep2 -f "${srcdir}/stops.alrt"
-de	23	<stdin>
-nl	12	<stdin>
-en	16	<stdin>
-da	13	<stdin>
-no	12	<stdin>
-hu	9	<stdin>
-sv	8	<stdin>
-it	9	<stdin>
-pt	3	<stdin>
-es	8	<stdin>
-fr	9	<stdin>
-fi	5	<stdin>
-tr	1	<stdin>
-ru	77	<stdin>
+de	21	<stdin>
+nl	11	<stdin>
+en	13	<stdin>
+da	12	<stdin>
+no	11	<stdin>
+hu	3	<stdin>
+sv	7	<stdin>
+fi	4	<stdin>
+es	3	<stdin>
+it	2	<stdin>
+fr	1	<stdin>
+ru	6	<stdin>
 $
