@@ -284,7 +284,7 @@ DEFCORU(co_match, {
 			dmatch(c, deco, str, len + 2U);
 
 			/* count the matches */
-			cnt[i] = dcount(c);
+			cnt[i] += dcount(c);
 		}
 
 		/* now go through and scrape buffer portions off */
