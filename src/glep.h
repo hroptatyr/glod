@@ -75,7 +75,7 @@ struct gleps_s {
 	glep_pat_t pats[];
 };
 
-/* match sets, each bit corresponds to an alert */
+/* match sets, each counter corresponds to an alert */
 struct glep_mset_s {
 	size_t nms;
 	uint_fast32_t ms[];
@@ -105,16 +105,15 @@ extern void glep_fr(gleps_t);
 
 
 /* mset fiddling */
-#define MSET_MOD	(sizeof(uint_fast32_t) * 8U/*CHAR_BIT*/)
-
 static inline glep_mset_t
-glep_make_mset(size_t nbits)
+glep_make_mset(size_t npats)
 {
 	glep_mset_t res;
-	size_t nby = (nbits / MSET_MOD + 1U) * sizeof(*res->ms);
+	const size_t nby = npats * sizeof(*res->ms);
 
 	res = malloc(sizeof(*res) + nby);
-	res->nms = nbits;
+	res->nms = npats;
+	memset(res->ms, 0, nby);
 	return res;
 }
 
@@ -128,20 +127,14 @@ glep_free_mset(glep_mset_t ms)
 static inline void
 glep_mset_rset(glep_mset_t ms)
 {
-	memset(ms->ms, 0, (ms->nms / MSET_MOD + 1U) * sizeof(*ms->ms));
+	memset(ms->ms, 0, ms->nms * sizeof(*ms->ms));
 	return;
 }
 
 static inline void
-glep_mset_set(glep_mset_t ms, unsigned int i)
+glep_mset_set(glep_mset_t ms, size_t i)
 {
-	static const size_t mod = sizeof(uint_fast32_t) * 8U/*CHAR_BIT*/;
-	unsigned int d;
-	unsigned int r;
-
-	d = i / mod;
-	r = i % mod;
-	ms->ms[d] |= (uint_fast32_t)1U << r;
+	ms->ms[i]++;
 	return;
 }
 
