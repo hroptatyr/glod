@@ -45,6 +45,10 @@
 #  include <immintrin.h>
 # endif	 /* HAVE_IMMINTRIN_H */
 #endif
+#if !defined INCLUDED_cpuid_h_
+# define INCLUDED_cpuid_h_
+# include <cpuid.h>
+#endif	/* !INCLUDED_cpuid_h_ */
 
 #if defined SSEZ
 #define QU(a)		a
@@ -287,6 +291,29 @@ decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
        const char pchars[static 0x100U], size_t npchars)
 {
 	return _decomp128(tgt, buf, bsz, pchars, npchars);
+}
+
+/**
+ * @return true if the CPU supports the SSE 4.2 POPCNT instruction
+ * else false.
+ * Microsoft __popcnt documentation:
+ * http://msdn.microsoft.com/en-en/library/bb385231.aspx
+ */
+static inline __attribute__((pure, const)) bool
+has_popcnt_p(void)
+{
+#if defined bit_POPCNT
+# define _FEAT_POPCNT	bit_POPCNT
+#else  /* !bit_POPCNT */
+# define _FEAT_POPCNT	(1U << 23U)
+#endif	/* bit_POPCNT */
+	unsigned int info_type = 0x00000001U;
+	unsigned int ax[1U], bx[1U], cx[1U], dx[1U];
+
+	if (__get_cpuid(info_type, ax, bx, cx, dx)) {
+		return (*cx & _FEAT_POPCNT);
+	}
+	return false;
 }
 
 #endif	/* INCLUDED_glep_guts_c_ */

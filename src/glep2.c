@@ -121,10 +121,12 @@ error(const char *fmt, ...)
 #include "glep-guts.c"
 
 #define CHUNKZ		(4U * 4096U)
+#define USE_CACHE
 static accu_t deco[0x100U][CHUNKZ / __BITS];
 /* the alphabet we're dealing with */
 static char pchars[0x100U];
 static size_t npchars;
+static size_t ncchars;
 /* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
 static uint8_t offs[0x100U];
 
@@ -173,9 +175,36 @@ dmatch(accu_t *restrict tgt,
  * we say a character C matches at position I iff SRC[C] & (1U << i)
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
+	size_t i = 0U;
 
+#if defined USE_CACHE
+	if (!*s && pchars[s[1U]] >= 'a' && pchars[s[1U]] <= 'z') {
+		unsigned char c = (unsigned char)(pchars[s[1U]] - ('a' - 1));
+
+		if (offs[c]) {
+			dbang(tgt, src[offs[c]], ssz);
+		} else {
+			/* cache the first round */
+			dbang(tgt, src[*s], ssz);
+			shiftr_and(tgt, src[s[1U]], ssz, 1U);
+
+			offs[c] = ++ncchars;
+			pchars[offs[c]] = c;
+
+			/* violate the const */
+			dbang(src[offs[c]], tgt, ssz);
+		}
+		i = 2U;
+	} else {
+		dbang(tgt, src[*s], ssz);
+		i = 1U;
+	}
+#else  /* !USE_CACHE */
 	dbang(tgt, src[*s], ssz);
-	for (size_t i = 1U; i < z; i++) {
+	i = 1U;
+#endif	/* USE_CACHE */
+
+	for (; i < z; i++) {
 		/* SRC >>= i, TGT &= SRC */
 		if (!shiftr_and(tgt, src[s[i]], ssz, i)) {
 			break;
@@ -185,7 +214,7 @@ dmatch(accu_t *restrict tgt,
 }
 
 static uint_fast32_t
-dcount(const accu_t *src, size_t ssz)
+_dcount_routin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
@@ -194,6 +223,24 @@ dcount(const accu_t *src, size_t ssz)
 		cnt += _popcnt64(src[i]);
 #elif __BITS == 32U
 		cnt += _popcnt32(src[i]);
+#endif
+	}
+	return cnt;
+}
+
+static uint_fast32_t
+#if defined __GNUC__ && !defined __INTEL_COMPILER
+__attribute__((target("popcnt")))
+#endif	/* GCC */
+_dcount_intrin(const accu_t *src, size_t ssz)
+{
+	uint_fast32_t cnt = 0U;
+
+	for (size_t i = 0U; i < ssz; i++) {
+#if __BITS == 64
+		cnt += _mm_popcnt_u64(src[i]);
+#elif __BITS == 32U
+		cnt += _mm_popcnt_u32(src[i]);
 #endif
 	}
 	return cnt;
@@ -272,9 +319,15 @@ DEFCORU(co_match, {
 	const size_t npats = CORU_CLOSUR(npats);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
+	static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
 
 	if (UNLIKELY(nrd <= 0)) {
 		return 0;
+	}
+	if (dcount == NULL && has_popcnt_p()) {
+		dcount = _dcount_intrin;
+	} else {
+		dcount = _dcount_routin;
 	}
 	/* enter the main match loop */
 	do {
@@ -283,6 +336,13 @@ DEFCORU(co_match, {
 
 		/* put bit patterns into puncs and pat */
 		nb = decomp(deco, (const void*)buf, nrd, pchars, npchars);
+
+#if defined USE_CACHE
+		for (unsigned char i = '\1'; i < ' '; i++) {
+			offs[i] = 0U;
+		}
+		ncchars = npchars;
+#endif	/* USE_CACHE */
 
 		for (size_t i = 0U; i < npats; i++) {
 			uint8_t str[256U];
