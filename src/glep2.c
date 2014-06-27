@@ -228,6 +228,7 @@ _dcount_routin(const accu_t *src, size_t ssz)
 	return cnt;
 }
 
+#if defined HAVE_POPCNT_INTRINS
 static uint_fast32_t
 #if defined __GNUC__ && !defined __INTEL_COMPILER
 __attribute__((target("popcnt")))
@@ -245,6 +246,7 @@ _dcount_intrin(const accu_t *src, size_t ssz)
 	}
 	return cnt;
 }
+#endif	/* HAVE_POPCNT_INTRINS */
 
 static size_t
 recode(uint8_t *restrict tgt, const char *s)
@@ -324,11 +326,16 @@ DEFCORU(co_match, {
 	if (UNLIKELY(nrd <= 0)) {
 		return 0;
 	}
+#if defined HAVE_POPCNT_INTRINS
 	if (dcount == NULL && has_popcnt_p()) {
 		dcount = _dcount_intrin;
 	} else {
 		dcount = _dcount_routin;
 	}
+#else  /* !HAVE_POPCNT_INTRINS */
+# define dcount	_dcount_routin
+#endif	/* HAVE_POPCNT_INTRINS */
+
 	/* enter the main match loop */
 	do {
 		accu_t c[CHUNKZ / __BITS];
