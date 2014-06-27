@@ -64,6 +64,7 @@ AC_CHECK_TYPES([__m256i], [], [], [[
 ]])
 
 AC_DEFUN([SXE_CHECK_SIMD], [dnl
+dnl Usage: SXE_CHECK_SIMD([INTRIN], [[SNIPPET], [IF-FOUND], [IF-NOT-FOUND]])
 	AC_MSG_CHECKING([for SIMD routine $1])
 	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #if defined HAVE_IA32INTRIN_H
@@ -78,7 +79,7 @@ AC_DEFUN([SXE_CHECK_SIMD], [dnl
 #if defined HAVE_POPCNTINTRIN_H
 # include <popcntintrin.h>
 #endif
-]], [$2])], [
+]], [ifelse([$2],[],[$1(0U)],[$2]);])], [
 	eval AS_TR_SH(ac_cv_func_$1)="yes"
 	$3
 ], [
@@ -88,14 +89,14 @@ AC_DEFUN([SXE_CHECK_SIMD], [dnl
 	AC_MSG_RESULT([${ac_cv_func_$1}])
 ])dnl SXE_CHECK_SIMD
 
-SXE_CHECK_SIMD([_tzcnt_u32], [_tzcnt_u32(0U);])
-SXE_CHECK_SIMD([_tzcnt_u64], [_tzcnt_u64(0U);])
-SXE_CHECK_SIMD([_popcnt32], [_popcnt32(0U);])
-SXE_CHECK_SIMD([_popcnt64], [_popcnt64(0U);])
-SXE_CHECK_SIMD([_mm_popcnt_u32], [_mm_popcnt_u32(0U);])
-SXE_CHECK_SIMD([_mm_popcnt_u64], [_mm_popcnt_u64(0U);])
+SXE_CHECK_SIMD([_tzcnt_u32])
+SXE_CHECK_SIMD([_tzcnt_u64])
+SXE_CHECK_SIMD([_popcnt32])
+SXE_CHECK_SIMD([_popcnt64])
+SXE_CHECK_SIMD([_mm_popcnt_u32])
+SXE_CHECK_SIMD([_mm_popcnt_u64])
 SXE_CHECK_SIMD([_mm256_cmpeq_epi8],
-	[_mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_set1_epi8('x'));],
+	[_mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_set1_epi8('x'))],
 	[AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are declared])])
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
