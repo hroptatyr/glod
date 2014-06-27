@@ -47,6 +47,7 @@ AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
 AC_CHECK_HEADERS([immintrin.h])
 AC_CHECK_HEADERS([x86intrin.h])
 AC_CHECK_HEADERS([ia32intrin.h])
+AC_CHECK_HEADERS([popcntintrin.h])
 AC_CHECK_TYPES([__m128i], [], [], [[
 #if defined HAVE_X86INTRIN_H
 # include <x86intrin.h>
@@ -74,6 +75,9 @@ AC_DEFUN([SXE_CHECK_SIMD], [dnl
 #if defined HAVE_IMMINTRIN_H
 # include <immintrin.h>
 #endif
+#if defined HAVE_POPCNTINTRIN_H
+# include <popcntintrin.h>
+#endif
 ]], [$2])], [
 	eval AS_TR_SH(ac_cv_func_$1)="yes"
 	$3
@@ -88,6 +92,8 @@ SXE_CHECK_SIMD([_tzcnt_u32], [_tzcnt_u32(0U);])
 SXE_CHECK_SIMD([_tzcnt_u64], [_tzcnt_u64(0U);])
 SXE_CHECK_SIMD([_popcnt32], [_popcnt32(0U);])
 SXE_CHECK_SIMD([_popcnt64], [_popcnt64(0U);])
+SXE_CHECK_SIMD([_mm_popcnt_u32], [_mm_popcnt_u32(0U);])
+SXE_CHECK_SIMD([_mm_popcnt_u64], [_mm_popcnt_u64(0U);])
 SXE_CHECK_SIMD([_mm256_cmpeq_epi8],
 	[_mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_set1_epi8('x'));],
 	[AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are declared])])
