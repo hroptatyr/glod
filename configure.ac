@@ -169,6 +169,11 @@ if test "${ac_cv_func__mm256_mpsadbw_epu8}" = "yes"; then
 	AC_DEFINE([HAVE_MM256_SAD_INTRINS], [1], [define if sum-of-abs-diff intrinsics are usable])
 fi
 
+if test "${ac_cv_func__mm_popcnt_u32}" = "yes" -a \
+	"${ac_cv_func__mm_popcnt_u64}" = "yes"; then
+	AC_DEFINE([HAVE_POPCNT_INTRINS], [1], [define if popcnt intrinsics are usable])
+fi
+
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
 
 
