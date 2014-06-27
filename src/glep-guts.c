@@ -59,11 +59,12 @@
 #define XP(a, b)	PS(a, b)
 #define SSEI(x)		XP(x, SSEZ)
 
-#if SSEZ == 128 && !defined HAVE___M128I
+#if 0
+#elif SSEZ == 128 && !(defined HAVE___M128I && defined HAVE_MM128_INT_INTRINS)
 # undef SSEI
 #elif SSEZ == 256 && !(defined HAVE___M256I && defined HAVE_MM256_INT_INTRINS)
 # undef SSEI
-#elif SSEZ == 512 && !defined HAVE___M512I
+#elif SSEZ == 512 && !(defined HAVE___M512I && defined HAVE_MM512_INT_INTRINS)
 # undef SSEI
 #endif
 
