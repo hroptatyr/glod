@@ -516,6 +516,8 @@ main(int argc, char *argv[])
 	glep_fr(pf);
 	glep_free_mset(ms);
 fr_gl:
+	clear_enums();
+	clear_interns();
 	glod_fr_gleps(pf);
 out:
 	yuck_free(argi);
