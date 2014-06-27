@@ -73,7 +73,7 @@ AC_CHECK_TYPES([__m512i], [], [], [[
 AC_DEFUN([SXE_CHECK_SIMD], [dnl
 dnl Usage: SXE_CHECK_SIMD([INTRIN], [[SNIPPET], [IF-FOUND], [IF-NOT-FOUND]])
 	AC_MSG_CHECKING([for SIMD routine $1])
-	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #if defined HAVE_IA32INTRIN_H
 # include <ia32intrin.h>
 #endif
@@ -167,6 +167,11 @@ if test "${ac_cv_func__mm_mpsadbw_epu8}" = "yes"; then
 fi
 if test "${ac_cv_func__mm256_mpsadbw_epu8}" = "yes"; then
 	AC_DEFINE([HAVE_MM256_SAD_INTRINS], [1], [define if sum-of-abs-diff intrinsics are usable])
+fi
+
+if test "${ac_cv_func__mm_popcnt_u32}" = "yes" -a \
+	"${ac_cv_func__mm_popcnt_u64}" = "yes"; then
+	AC_DEFINE([HAVE_POPCNT_INTRINS], [1], [define if popcnt intrinsics are usable])
 fi
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
