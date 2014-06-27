@@ -73,7 +73,7 @@ AC_CHECK_TYPES([__m512i], [], [], [[
 AC_DEFUN([SXE_CHECK_SIMD], [dnl
 dnl Usage: SXE_CHECK_SIMD([INTRIN], [[SNIPPET], [IF-FOUND], [IF-NOT-FOUND]])
 	AC_MSG_CHECKING([for SIMD routine $1])
-	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #if defined HAVE_IA32INTRIN_H
 # include <ia32intrin.h>
 #endif
