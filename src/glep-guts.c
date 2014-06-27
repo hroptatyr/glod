@@ -44,6 +44,9 @@
 # if defined HAVE_IMMINTRIN_H
 #  include <immintrin.h>
 # endif	 /* HAVE_IMMINTRIN_H */
+# if defined HAVE_POPCNTINTRIN_H
+#  include <popcntintrin.h>
+# endif	 /* HAVE_POPCNTINTRIN_H */
 #endif
 #if !defined INCLUDED_cpuid_h_
 # define INCLUDED_cpuid_h_
