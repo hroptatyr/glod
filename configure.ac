@@ -95,9 +95,28 @@ SXE_CHECK_SIMD([_popcnt32])
 SXE_CHECK_SIMD([_popcnt64])
 SXE_CHECK_SIMD([_mm_popcnt_u32])
 SXE_CHECK_SIMD([_mm_popcnt_u64])
-SXE_CHECK_SIMD([_mm256_cmpeq_epi8],
-	[_mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_set1_epi8('x'))],
-	[AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are declared])])
+SXE_CHECK_SIMD([_mm_mpsadbw_epu8], [dnl
+	__m128i x, y;
+	_mm_mpsadbw_epu8(x, y, 0b101U)
+])
+SXE_CHECK_SIMD([_mm256_cmpeq_epi8], [dnl
+	__m256i x, y;
+	_mm256_cmpeq_epi8(x, y)
+])
+SXE_CHECK_SIMD([_mm256_mpsadbw_epu8], [dnl
+	__m256i x, y;
+	_mm256_mpsadbw_epu8(x, y, 0b101U)
+])
+
+if test "${ac_cv_func__mm_mpsadbw_epu8}" = "yes"; then
+	AC_DEFINE([HAVE_MM128_SAD_INTRINS], [1], [define if sum-of-abs-diff intrinsics are usable])
+fi
+if test "${ac_cv_func__mm256_cmpeq_epi8}" = "yes"; then
+	AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are usable])
+fi
+if test "${ac_cv_func__mm256_mpsadbw_epu8}" = "yes"; then
+	AC_DEFINE([HAVE_MM256_SAD_INTRINS], [1], [define if sum-of-abs-diff intrinsics are usable])
+fi
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
 
