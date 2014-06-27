@@ -44,6 +44,9 @@
 # if defined HAVE_IMMINTRIN_H
 #  include <immintrin.h>
 # endif	 /* HAVE_IMMINTRIN_H */
+# if defined HAVE_POPCNTINTRIN_H
+#  include <popcntintrin.h>
+# endif	 /* HAVE_POPCNTINTRIN_H */
 #endif
 #if !defined INCLUDED_cpuid_h_
 # define INCLUDED_cpuid_h_
@@ -56,15 +59,17 @@
 #define XP(a, b)	PS(a, b)
 #define SSEI(x)		XP(x, SSEZ)
 
-#if SSEZ == 128 && !defined HAVE___M128I
+#if 0
+#elif SSEZ == 128 && !(defined HAVE___M128I && defined HAVE_MM128_INT_INTRINS)
 # undef SSEI
 #elif SSEZ == 256 && !(defined HAVE___M256I && defined HAVE_MM256_INT_INTRINS)
 # undef SSEI
-#elif SSEZ == 512 && !defined HAVE___M512I
+#elif SSEZ == 512 && !(defined HAVE___M512I && defined HAVE_MM512_INT_INTRINS)
 # undef SSEI
 #endif
 
-#if SSEZ == 128
+#if 0
+#elif SSEZ == 128
 # define __mXi			__m128i
 # define _mmX_load_si(x)	_mm_load_si128(x)
 # define _mmX_loadu_si(x)	_mm_loadu_si128(x)
@@ -90,6 +95,19 @@
 # define _mmX_and_si(x, y)	_mm256_and_si256(x, y)
 # define _mmX_xor_si(x, y)	_mm256_xor_si256(x, y)
 # define _mmX_movemask_epi8(x)	_mm256_movemask_epi8(x)
+#elif SSEZ == 512
+# define __mXi			__m512i
+# define _mmX_load_si(x)	_mm512_load_si512(x)
+# define _mmX_loadu_si(x)	_mm512_loadu_si512(x)
+# define _mmX_set1_epi8(x)	_mm512_set1_epi8(x)
+# define _mmX_setzero_si()	_mm512_setzero_si512()
+# define _mmX_cmpeq_epi8(x, y)	_mm512_cmpeq_epi8(x, y)
+# define _mmX_cmpgt_epi8(x, y)	_mm512_cmpgt_epi8(x, y)
+# define _mmX_cmplt_epi8(x, y)	_mm512_cmpgt_epi8(y, x)
+# define _mmX_add_epi8(x, y)	_mm512_add_epi8(x, y)
+# define _mmX_and_si(x, y)	_mm512_and_si512(x, y)
+# define _mmX_xor_si(x, y)	_mm512_xor_si512(x, y)
+# define _mmX_movemask_epi8(x)	_mm512_movemask_epi8(x)
 #else
 # error SSE level not supported
 #endif
