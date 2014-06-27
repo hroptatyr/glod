@@ -42,6 +42,7 @@
 #include "glep.h"
 #include "boobs.h"
 #include "intern.h"
+#include "enum.h"
 #include "nifty.h"
 
 /* lib stuff */
@@ -303,6 +304,7 @@ glod_fr_gleps(gleps_t g)
 static int invert_match_p;
 static int show_pats_p;
 static int show_count_p;
+static size_t nclass;
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -358,22 +360,78 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 	/* ... then grep, ... */
 	glep_gr(ms, pf, f.fb.d, f.fb.z);
 	/* ... then print all matches */
-	for (size_t i = 0U; i < ms->nms; i++) {
-		glep_pat_t p;
+	if (show_pats_p) {
+		for (size_t i = 0U; i < ms->nms; i++) {
+			glep_pat_t p;
 
-		if (!ms->ms[i]) {
-			continue;
+			if (!ms->ms[i]) {
+				continue;
+			}
+			/* otherwise do the printing work */
+			p = pf->pats[i];
+			fputs(p.s, stdout);
+			if (!show_count_p) {
+				putchar('\t');
+			} else {
+				printf("\t%lu\t", ms->ms[i]);
+			}
+			puts(fn);
+			nmtch++;
 		}
-		/* otherwise do the printing work */
-		p = pf->pats[i];
-		fputs(!show_pats_p ? (p.y ?: p.s) : p.s, stdout);
-		if (!show_count_p) {
-			putchar('\t');
-		} else {
-			printf("\t%lu\t", ms->ms[i]);
+	} else {
+		uint_fast32_t clscnt[nclass + 1U];
+
+		memset(clscnt, 0, sizeof(clscnt));
+		for (size_t i = 0U; i < ms->nms; i++) {
+			const char *p = pf->pats[i].y;
+			const char *on;
+
+			if (!ms->ms[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				clscnt[k] += ms->ms[i];
+			} while ((p = on + 1U, on));
 		}
-		puts(fn);
-		nmtch++;
+		for (size_t i = 0U; i < ms->nms; i++) {
+			const char *p = pf->pats[i].y;
+			const char *on;
+
+			if (!ms->ms[i]) {
+				continue;
+			}
+			do {
+				obnum_t k;
+				size_t z;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				k = enumerate(p, z);
+				if (clscnt[k]) {
+					fwrite(p, 1, z, stdout);
+					if (!show_count_p) {
+						putchar('\t');
+					} else {
+						printf("\t%lu\t", clscnt[k]);
+					}
+					puts(fn);
+					clscnt[k] = 0U;
+					nmtch++;
+				}
+			} while ((p = on + 1U, on));
+		}
 	}
 	if (invert_match_p && !nmtch) {
 		puts(fn);
@@ -413,6 +471,25 @@ main(int argc, char *argv[])
 	}
 	if (argi->show_patterns_flag) {
 		show_pats_p = 1;
+	} else {
+		for (size_t i = 0U; i < pf->npats; i++) {
+			const char *p = pf->pats[i].y;
+			const char *on;
+
+			do {
+				size_t z;
+				obnum_t k;
+
+				if ((on = strchr(p, ',')) == NULL) {
+					z = strlen(p);
+				} else {
+					z = on - p;
+				}
+				if ((k = enumerate(p, z)) > nclass) {
+					nclass = k;
+				}
+			} while ((p = on + 1U, on));
+		}
 	}
 	if (argi->count_flag) {
 		show_count_p = 1;
@@ -439,6 +516,8 @@ main(int argc, char *argv[])
 	glep_fr(pf);
 	glep_free_mset(ms);
 fr_gl:
+	clear_enums();
+	clear_interns();
 	glod_fr_gleps(pf);
 out:
 	yuck_free(argi);
