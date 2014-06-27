@@ -102,34 +102,64 @@ SXE_CHECK_SIMD([_popcnt32])
 SXE_CHECK_SIMD([_popcnt64])
 SXE_CHECK_SIMD([_mm_popcnt_u32])
 SXE_CHECK_SIMD([_mm_popcnt_u64])
+
+SXE_CHECK_SIMD([_mm_add_epi8], [dnl
+	__m128i x, y = _mm_setzero_si128();
+	_mm_add_epi8(x, y)
+])
 SXE_CHECK_SIMD([_mm_cmpeq_epi8], [dnl
 	__m128i x, y = _mm_setzero_si128();
 	_mm_cmpeq_epi8(x, y)
+])
+SXE_CHECK_SIMD([_mm_movemask_epi8], [dnl
+	__m128i x;
+	_mm_movemask_epi8(x)
 ])
 SXE_CHECK_SIMD([_mm_mpsadbw_epu8], [dnl
 	__m128i x, y;
 	_mm_mpsadbw_epu8(x, y, 0b101U)
 ])
+
+SXE_CHECK_SIMD([_mm256_add_epi8], [dnl
+	__m256i x, y = _mm256_setzero_si256();
+	_mm256_add_epi8(x, y)
+])
 SXE_CHECK_SIMD([_mm256_cmpeq_epi8], [dnl
 	__m256i x, y = _mm256_setzero_si256();
 	_mm256_cmpeq_epi8(x, y)
+])
+SXE_CHECK_SIMD([_mm256_movemask_epi8], [dnl
+	__m256i x;
+	_mm256_movemask_epi8(x)
 ])
 SXE_CHECK_SIMD([_mm256_mpsadbw_epu8], [dnl
 	__m256i x, y;
 	_mm256_mpsadbw_epu8(x, y, 0b101U)
 ])
+
+SXE_CHECK_SIMD([_mm512_add_epi8], [dnl
+	__m512i x, y = _mm512_setzero_si512();
+	_mm512_add_epi8(x, y)
+])
 SXE_CHECK_SIMD([_mm512_cmpeq_epi8], [dnl
 	__m512i x, y = _mm512_setzero_si512();
 	_mm512_cmpeq_epi8(x, y)
 ])
+SXE_CHECK_SIMD([_mm512_movemask_epi8], [dnl
+	__m512i x;
+	_mm512_movemask_epi8(x)
+])
 
-if test "${ac_cv_func__mm_cmpeq_epi8}" = "yes"; then
+if test "${ac_cv_func__mm_cmpeq_epi8}" = "yes" -a \
+	"${ac_cv_func__mm_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM128_INT_INTRINS], [1], [define if _mm128_* integer intrinsics are usable])
 fi
-if test "${ac_cv_func__mm256_cmpeq_epi8}" = "yes"; then
+if test "${ac_cv_func__mm256_cmpeq_epi8}" = "yes" -a \
+	"${ac_cv_func__mm256_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are usable])
 fi
-if test "${ac_cv_func__mm512_cmpeq_epi8}" = "yes"; then
+if test "${ac_cv_func__mm512_cmpeq_epi8}" = "yes" -a \
+	"${ac_cv_func__mm512_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM512_INT_INTRINS], [1], [define if _mm512_* integer intrinsics are usable])
 fi
 if test "${ac_cv_func__mm_mpsadbw_epu8}" = "yes"; then
