@@ -50,13 +50,16 @@
  **/
 typedef uint_fast32_t obint_t;
 
-/**
- * Return the interned representation of STR. */
-extern obint_t intern(const char *str, size_t len);
+typedef struct obarray_s *obarray_t;
 
 /**
- * Unintern the OBINT object. */
-extern void unintern(obint_t);
+ * Return the interned representation of STR in OB.
+ * Use NULL for the default obarray. */
+extern obint_t intern(obarray_t ob, const char *str, size_t len);
+
+/**
+ * Unintern the OBINT object from obarray OB (or NULL for default). */
+extern void unintern(obarray_t ob, obint_t);
 
 /**
  * Return the string representation of an OBINT object. */

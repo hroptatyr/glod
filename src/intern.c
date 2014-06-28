@@ -55,7 +55,6 @@ typedef struct {
 	uint_fast32_t ck;
 } obcell_t;
 
-typedef struct obarray_s *obarray_t;
 struct obarray_s {
 	/* next obint/number of obints */
 	size_t obn;
@@ -146,7 +145,7 @@ make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 
 
 obint_t
-intern(const char *str, size_t len)
+intern(obarray_t UNUSED(oa), const char *str, size_t len)
 {
 #define SSTK_NSLOT	(256U)
 #define SSTK_STACK	(4U * SSTK_NSLOT)
@@ -231,7 +230,7 @@ intern(const char *str, size_t len)
 }
 
 void
-unintern(obint_t UNUSED(ob))
+unintern(obarray_t UNUSED(oa), obint_t UNUSED(ob))
 {
 	return;
 }

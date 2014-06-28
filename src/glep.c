@@ -213,7 +213,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 
 	auto obint_t snarf_yld(word_t w)
 	{
-		return intern(w.s, w.z);
+		return intern(NULL, w.s, w.z);
 	}
 
 	/* now go through the buffer looking for " escapes */
