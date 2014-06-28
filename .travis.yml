@@ -1,0 +1,28 @@
+language: c
+
+compiler:
+  - gcc
+
+before_install:
+  - sudo apt-get -qq update
+
+install:
+  - sudo apt-get install -qq libtokyocabinet-dev
+
+before_script:
+  - autoreconf -vfi
+
+script: 
+  - ./configure || { cat config.log; false; }
+  - make clean all check || { cat test/test-suite.log; false; }
+  - make distcheck
+
+## whitelist
+branches:
+  only:
+    - master
+    - next
+
+notifications:
+  email:
+    - devel@fresse.org
