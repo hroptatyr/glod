@@ -50,22 +50,33 @@ typedef struct {
 	uint_fast32_t chk;
 } hash_t;
 
-/* the beef table */
-static struct {
+typedef struct {
 	obint_t ob;
 	uint_fast32_t ck;
-} *sstk;
-/* alloc size, 2-power */
-static size_t zstk;
-/* number of elements */
-static size_t nstk;
+} obcell_t;
 
-/* the big string obarray */
-static char *restrict obs;
-/* alloc size, 2-power */
-static size_t obz;
-/* next ob */
-static size_t obn;
+typedef struct obarray_s *obarray_t;
+struct obarray_s {
+	/* next obint/number of obints */
+	size_t obn;
+	/* alloc size, 2-power */
+	size_t obz;
+	/* beef data */
+	union {
+		char c[];
+		uint8_t u8[];
+		uint32_t u32[];
+		obcell_t oc[];
+	} beef;
+};
+
+struct obarr_s {
+	struct obarray_s *str;
+	struct obarray_s *stk;
+};
+
+/* the beef table */
+static struct obarr_s dflt;
 
 static hash_t
 murmur(const uint8_t *str, size_t len)
@@ -93,18 +104,29 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 }
 
 static obint_t
-make_obint(const char *str, size_t len)
+make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 {
 /* put STR (of length LEN) into string obarray, don't check for dups */
 #define OBAR_MINZ	(1024U)
+#define obs		(*oa)->beef.u8
+#define obn		(*oa)->obn
+#define obz		(*oa)->obz
+#define xtra		sizeof(*oa)
 	/* make sure we pad with \0 bytes to the next 4-byte multiple */
 	size_t pad = ((len / 4U) + 1U) * 4U;
 	obint_t res;
 
-	if (UNLIKELY(obn + pad >= obz)) {
-		size_t nuz = (obz * 2U) ?: OBAR_MINZ;
+	if (UNLIKELY(*oa == NULL)) {
+		size_t nuz;
 
-		obs = recalloc(obs, obz, nuz, sizeof(*obs));
+		for (nuz = OBAR_MINZ; pad >= nuz; nuz *= 2U);
+		*oa = calloc(nuz + xtra, sizeof(*obs));
+		obz = nuz;
+	} else if (UNLIKELY(obn + pad >= obz)) {
+		size_t nuz;
+
+		for (nuz = (obz * 2U); obn + pad >= nuz; nuz *= 2U);
+		*oa = recalloc(*oa, obz + xtra, nuz + xtra, sizeof(*obs));
 		obz = nuz;
 	}
 	/* paste the string in question */
@@ -116,6 +138,10 @@ make_obint(const char *str, size_t len)
 	/* inc the obn pointer */
 	obn += pad;
 	return res;
+#undef obs
+#undef obn
+#undef obz
+#undef xtra
 }
 
 
@@ -125,6 +151,9 @@ intern(const char *str, size_t len)
 #define SSTK_NSLOT	(256U)
 #define SSTK_STACK	(4U * SSTK_NSLOT)
 #define OBINT_MAX_LEN	(256U)
+#define sstk		dflt.stk->beef.oc
+#define nstk		dflt.stk->obn
+#define zstk		dflt.stk->obz
 
 	if (UNLIKELY(len == 0U || len >= OBINT_MAX_LEN)) {
 		/* don't bother */
@@ -140,9 +169,10 @@ intern(const char *str, size_t len)
 	uint_fast32_t k = hx.idx;
 
 	/* just try what we've got */
-	if (UNLIKELY(!zstk)) {
-		zstk = SSTK_STACK;
-		sstk = calloc(zstk, sizeof(*sstk));
+	if (UNLIKELY(!dflt.stk)) {
+		size_t z = SSTK_STACK;
+		dflt.stk = calloc(z + 2, sizeof(*sstk));
+		zstk = z;
 	}
 
 	/* here's the initial probe then */
@@ -154,7 +184,7 @@ intern(const char *str, size_t len)
 			return sstk[off].ob;
 		} else if (!sstk[off].ob) {
 			/* found empty slot */
-			obint_t ob = make_obint(str, len);
+			obint_t ob = make_obint(&dflt.str, str, len);
 			sstk[off].ob = ob;
 			sstk[off].ck = hx.chk;
 			nstk++;
@@ -167,10 +197,11 @@ intern(const char *str, size_t len)
 		k = hx.idx;
 
 		if (UNLIKELY(i >= zstk)) {
-			sstk = recalloc(sstk, zstk, i << 2U, sizeof(*sstk));
-			zstk = i << 2U;
+			const size_t nu = i << 2U;
+			dflt.stk = recalloc(dflt.stk, zstk, nu, sizeof(*sstk));
+			zstk = nu;
 
-			if (UNLIKELY(sstk == NULL)) {
+			if (UNLIKELY(dflt.stk == NULL)) {
 				zstk = 0UL, nstk = 0UL;
 				break;
 			}
@@ -185,7 +216,7 @@ intern(const char *str, size_t len)
 				return sstk[off].ob;
 			} else if (!sstk[off].ob) {
 				/* found empty slot */
-				obint_t ob = make_obint(str, len);
+				obint_t ob = make_obint(&dflt.str, str, len);
 				sstk[off].ob = ob;
 				sstk[off].ck = hx.chk;
 				nstk++;
@@ -194,6 +225,9 @@ intern(const char *str, size_t len)
 		}
 	}
 	return 0U;
+#undef sstk
+#undef nstk
+#undef zstk
 }
 
 void
@@ -207,25 +241,23 @@ obint_name(obint_t ob)
 {
 	if (UNLIKELY(ob == 0UL)) {
 		return NULL;
+	} else if (UNLIKELY(dflt.str == NULL)) {
+		return NULL;
 	}
-	return obs + obint_off(ob);
+	return dflt.str->beef.c + obint_off(ob);
 }
 
 void
 clear_interns(void)
 {
-	if (LIKELY(sstk != NULL)) {
-		free(sstk);
+	if (LIKELY(dflt.stk != NULL)) {
+		free(dflt.stk);
 	}
-	sstk = NULL;
-	zstk = 0U;
-	nstk = 0U;
-	if (LIKELY(obs != NULL)) {
-		free(obs);
+	dflt.stk = NULL;
+	if (LIKELY(dflt.str != NULL)) {
+		free(dflt.str);
 	}
-	obs = NULL;
-	obz = 0U;
-	obn = 0U;
+	dflt.str = NULL;
 	return;
 }
 
