@@ -63,8 +63,7 @@ struct obarray_s {
 	/* beef data */
 	union {
 		char c[];
-		uint8_t u8[];
-		uint32_t u32[];
+		obint_t oi[];
 		obcell_t oc[];
 	} beef;
 };
@@ -107,7 +106,7 @@ make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 {
 /* put STR (of length LEN) into string obarray, don't check for dups */
 #define OBAR_MINZ	(1024U)
-#define obs		(*oa)->beef.u8
+#define obs		(*oa)->beef.c
 #define obn		(*oa)->obn
 #define obz		(*oa)->obz
 #define xtra		sizeof(*oa)
@@ -127,6 +126,9 @@ make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 		for (nuz = (obz * 2U); obn + pad >= nuz; nuz *= 2U);
 		*oa = recalloc(*oa, obz + xtra, nuz + xtra, sizeof(*obs));
 		obz = nuz;
+	}
+	if (UNLIKELY(*oa == NULL)) {
+		return 0U;
 	}
 	/* paste the string in question */
 	memcpy(obs + (res = obn), str, len);
