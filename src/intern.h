@@ -69,19 +69,4 @@ extern const char *obint_name(obint_t);
  * Clean up resources used by the interning system. */
 extern void clear_interns(void);
 
-
-static inline size_t
-obint_off(obint_t ob)
-{
-	/* mask out the length bit */
-	return (ob >> 8U) << 2U;
-}
-
-static inline size_t
-obint_len(obint_t ob)
-{
-	/* mask out the offset bit */
-	return ob & 0b11111111U;
-}
-
 #endif	/* INCLUDED_intern_h_ */

@@ -143,6 +143,20 @@ make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 #undef xtra
 }
 
+static inline size_t
+obint_off(obint_t ob)
+{
+	/* mask out the length bit */
+	return (ob >> 8U) << 2U;
+}
+
+static inline size_t
+obint_len(obint_t ob)
+{
+	/* mask out the offset bit */
+	return ob & 0b11111111U;
+}
+
 
 obint_t
 intern(obarray_t UNUSED(oa), const char *str, size_t len)
