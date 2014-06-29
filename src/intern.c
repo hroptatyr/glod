@@ -69,6 +69,7 @@ struct obarray_s {
 };
 
 struct obarr_s {
+	struct obarray_s *cnt;
 	struct obarray_s *str;
 	struct obarray_s *stk;
 };
@@ -145,6 +146,38 @@ make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 #undef xtra
 }
 
+static obint_t
+bang_obint(obarray_t oa[static 1U], obint_t of)
+{
+/* bang an offset obint into a counting obint */
+#define OBCNT_MINZ	(256U)
+#define obs		(*oa)->beef.oi
+#define obn		(*oa)->obn
+#define obz		(*oa)->obz
+#define xtra		sizeof(*oa)
+	if (UNLIKELY(*oa == NULL)) {
+		size_t nuz = OBCNT_MINZ;
+
+		*oa = calloc(nuz + xtra, sizeof(*obs));
+		obz = nuz;
+	} else if (UNLIKELY(obn >= obz)) {
+		size_t nuz = obz * 2U;
+
+		*oa = recalloc(*oa, obz + xtra, nuz + xtra, sizeof(*obs));
+		obz = nuz;
+	}
+	if (UNLIKELY(*oa == NULL)) {
+		return 0U;
+	}
+
+	obs[obn] = of;
+	return ++obn;
+#undef obs
+#undef obn
+#undef obz
+#undef xtra
+}
+
 static inline size_t
 obint_off(obint_t ob)
 {
@@ -199,7 +232,8 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 			return sstk[off].ob;
 		} else if (!sstk[off].ob) {
 			/* found empty slot */
-			obint_t ob = make_obint(&dflt.str, str, len);
+			obint_t of = make_obint(&dflt.str, str, len);
+			obint_t ob = bang_obint(&dflt.cnt, of);
 			sstk[off].ob = ob;
 			sstk[off].ck = hx.chk;
 			nstk++;
@@ -231,7 +265,8 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 				return sstk[off].ob;
 			} else if (!sstk[off].ob) {
 				/* found empty slot */
-				obint_t ob = make_obint(&dflt.str, str, len);
+				obint_t of = make_obint(&dflt.str, str, len);
+				obint_t ob = bang_obint(&dflt.cnt, of);
 				sstk[off].ob = ob;
 				sstk[off].ck = hx.chk;
 				nstk++;
@@ -259,12 +294,16 @@ obint_name(obint_t ob)
 	} else if (UNLIKELY(dflt.str == NULL)) {
 		return NULL;
 	}
-	return dflt.str->beef.c + obint_off(ob);
+	return dflt.str->beef.c + obint_off(dflt.cnt->beef.oi[ob - 1U]);
 }
 
 void
 clear_interns(void)
 {
+	if (LIKELY(dflt.cnt != NULL)) {
+		free(dflt.cnt);
+	}
+	dflt.cnt = NULL;
 	if (LIKELY(dflt.stk != NULL)) {
 		free(dflt.stk);
 	}
