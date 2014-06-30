@@ -69,7 +69,9 @@ struct vector_s {
 };
 
 struct obarray_s {
+#if defined ENUM_INTERNS
 	struct vector_s *cnt;
+#endif	/* ENUM_INTERNS */
 	struct vector_s *str;
 	struct vector_s *stk;
 };
@@ -146,6 +148,7 @@ make_obint(struct vector_s *oa[static 1U], const char *str, size_t len)
 #undef xtra
 }
 
+#if defined ENUM_INTERNS
 static obint_t
 bang_obint(struct vector_s *oa[static 1U], obint_t of)
 {
@@ -177,6 +180,7 @@ bang_obint(struct vector_s *oa[static 1U], obint_t of)
 #undef obz
 #undef xtra
 }
+#endif	/* ENUM_INTERNS */
 
 static inline size_t
 obint_off(obint_t ob)
@@ -232,8 +236,11 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 			return sstk[off].ob;
 		} else if (!sstk[off].ob) {
 			/* found empty slot */
-			obint_t of = make_obint(&dflt.str, str, len);
-			obint_t ob = bang_obint(&dflt.cnt, of);
+			obint_t ob = make_obint(&dflt.str, str, len);
+
+#if defined ENUM_INTERNS
+			ob = bang_obint(&dflt.cnt, ob);
+#endif	/* ENUM_INTERNS */
 			sstk[off].ob = ob;
 			sstk[off].ck = hx.chk;
 			nstk++;
@@ -265,8 +272,11 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 				return sstk[off].ob;
 			} else if (!sstk[off].ob) {
 				/* found empty slot */
-				obint_t of = make_obint(&dflt.str, str, len);
-				obint_t ob = bang_obint(&dflt.cnt, of);
+				obint_t ob = make_obint(&dflt.str, str, len);
+
+#if defined ENUM_INTERNS
+				ob = bang_obint(&dflt.cnt, ob);
+#endif	/* ENUM_INTERNS */
 				sstk[off].ob = ob;
 				sstk[off].ck = hx.chk;
 				nstk++;
@@ -294,16 +304,21 @@ obint_name(obint_t ob)
 	} else if (UNLIKELY(dflt.str == NULL)) {
 		return NULL;
 	}
-	return dflt.str->beef.c + obint_off(dflt.cnt->beef.oi[ob - 1U]);
+#if defined ENUM_INTERNS
+	ob = dflt.cnt->beef.oi[ob - 1U];
+#endif	/* ENUM_INTERNS */
+	return dflt.str->beef.c + obint_off(ob);
 }
 
 void
 clear_interns(void)
 {
+#if defined ENUM_INTERNS
 	if (LIKELY(dflt.cnt != NULL)) {
 		free(dflt.cnt);
 	}
 	dflt.cnt = NULL;
+#endif	/* ENUM_INTERNS */
 	if (LIKELY(dflt.stk != NULL)) {
 		free(dflt.stk);
 	}
