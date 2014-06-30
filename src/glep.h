@@ -41,6 +41,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "intern.h"
 
 typedef const struct gleps_s *gleps_t;
 typedef struct glep_pat_s glep_pat_t;
@@ -61,15 +62,18 @@ struct glep_pat_s {
 	} fl/*ags*/;
 	/* pattern length */
 	unsigned int n;
-	/** the raw pattern string */
-	const char *s;
-	/** the pattern's associated yield string */
-	const char *y;
+	/* yield number, relative to oa_yld obarray */
+	obint_t y;
 };
 
 struct gleps_s {
 	/* private portion implemented by glep engines */
 	glepcc_t ctx;
+
+	/* obarray for patterns */
+	obarray_t oa_pat;
+	/* obarray for yields */
+	obarray_t oa_yld;
 
 	size_t npats;
 	glep_pat_t pats[];
@@ -136,6 +140,23 @@ glep_mset_set(glep_mset_t ms, size_t i)
 {
 	ms->ms[i]++;
 	return;
+}
+
+static inline const char*
+glep_pat(gleps_t g, size_t i)
+{
+	return obint_name(g->oa_pat, i + 1U);
+}
+
+static inline const char*
+glep_yld(gleps_t g, size_t i)
+{
+	glep_pat_t p = g->pats[i];
+
+	if (p.y) {
+		return obint_name(g->oa_yld, p.y);
+	}
+	return NULL;
 }
 
 #endif	/* INCLUDED_glep_h_ */

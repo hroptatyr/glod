@@ -47,7 +47,6 @@
 #include "glep.h"
 #include "boobs.h"
 #include "intern.h"
-#include "enum.h"
 #include "nifty.h"
 #include "coru.h"
 
@@ -82,7 +81,7 @@ struct wpat_s {
 
 static const char stdin_fn[] = "<stdin>";
 static int show_pats_p;
-static size_t nclass;
+static int show_count_p;
 
 #define warn(x...)
 
@@ -309,16 +308,14 @@ DEFCORU(co_match, {
 		size_t bsz;
 		/* counter */
 		uint_fast32_t *cnt;
-		const glep_pat_t *pats;
-		size_t npats;
+		gleps_t pf;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	uint_fast32_t *const cnt = CORU_CLOSUR(cnt);
-	const glep_pat_t *pats = CORU_CLOSUR(pats);
-	const size_t npats = CORU_CLOSUR(npats);
+	const gleps_t pf = CORU_CLOSUR(pf);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 	static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
@@ -351,13 +348,13 @@ DEFCORU(co_match, {
 		ncchars = npchars;
 #endif	/* USE_CACHE */
 
-		for (size_t i = 0U; i < npats; i++) {
+		for (size_t i = 0U; i < pf->npats; i++) {
 			uint8_t str[256U];
 			size_t len;
 
 			/* match pattern */
 			str[0U] = '\0';
-			len = recode(str + 1U, pats[i].s);
+			len = recode(str + 1U, glep_pat(pf, i));
 			dmatch(c, deco, nb, str, len + 2U);
 
 			/* count the matches */
@@ -371,70 +368,47 @@ DEFCORU(co_match, {
 }
 
 static void
-pr_results(
-	const glep_pat_t *pats, size_t npats,
-	const uint_fast32_t *cnt, const char *fn)
+pr_results(const gleps_t pf, const uint_fast32_t *cnt, const char *fn)
 {
 	if (show_pats_p) {
-		for (size_t i = 0U; i < npats; i++) {
-			glep_pat_t p = pats[i];
-
-			if (cnt[i]) {
-				fputs(p.s, stdout);
-				putchar('\t');
-				printf("%lu\t", cnt[i]);
-				puts(fn);
+		for (size_t i = 0U; i < pf->npats; i++) {
+			if (!cnt[i]) {
+				continue;
 			}
+			/* otherwise do the printing work */
+			fputs(glep_pat(pf, i), stdout);
+			if (!show_count_p) {
+				putchar('\t');
+			} else {
+				printf("\t%lu\t", cnt[i]);
+			}
+			puts(fn);
 		}
 	} else {
-		uint_fast32_t clscnt[nclass + 1U];
+		const size_t nyld = ninterns(pf->oa_yld);
+		uint_fast32_t clscnt[nyld];
 
 		memset(clscnt, 0, sizeof(clscnt));
-		for (size_t i = 0U; i < npats; i++) {
-			const char *p = pats[i].y;
-			const char *on;
+		for (size_t i = 0U; i < pf->npats; i++) {
+			const obint_t yldi = pf->pats[i].y;
 
 			if (!cnt[i]) {
 				continue;
 			}
-			do {
-				obnum_t k;
-				size_t z;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				k = enumerate(p, z);
-				clscnt[k] += cnt[i];
-			} while ((p = on + 1U, on));
+			clscnt[yldi - 1U] += cnt[i];
 		}
-		for (size_t i = 0U; i < npats; i++) {
-			const char *p = pats[i].y;
-			const char *on;
-
-			if (!cnt[i]) {
+		for (size_t i = 0U; i < nyld; i++) {
+			if (!clscnt[i]) {
 				continue;
 			}
-			do {
-				obnum_t k;
-				size_t z;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				k = enumerate(p, z);
-				if (clscnt[k]) {
-					fwrite(p,  1, z, stdout);
-					putchar('\t');
-					printf("%lu\t", clscnt[k]);
-					puts(fn);
-					clscnt[k] = 0U;
-				}
-			} while ((p = on + 1U, on));
+			/* otherwise do the printing work */
+			fputs(obint_name(pf->oa_yld, i + 1U), stdout);
+			if (!show_count_p) {
+				putchar('\t');
+			} else {
+				printf("\t%lu\t", clscnt[i]);
+			}
+			puts(fn);
 		}
 	}
 	return;
@@ -459,8 +433,7 @@ match0(gleps_t pf, int fd, const char *fn)
 		.buf = buf, .bsz = sizeof(buf), .fd = fd);
 	match = START_PACK(
 		co_match, .next = self,
-		.buf = buf, .bsz = sizeof(buf),
-		.cnt = cnt, .pats = pf->pats, .npats = pf->npats);
+		.buf = buf, .bsz = sizeof(buf), .cnt = cnt, .pf = pf);
 
 	/* rinse */
 	memset(cnt, 0, sizeof(cnt));
@@ -487,7 +460,7 @@ match0(gleps_t pf, int fd, const char *fn)
 	} while (nrd > 0);
 
 	/* just print all them results now */
-	pr_results(pf->pats, pf->npats, cnt, fn);
+	pr_results(pf, cnt, fn);
 
 	UNPREP();
 	return res;
@@ -551,31 +524,15 @@ main(int argc, char *argv[])
 
 	if (argi->show_patterns_flag) {
 		show_pats_p = 1;
-	} else {
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const char *p = pf->pats[i].y;
-			const char *on;
-
-			do {
-				size_t z;
-				obnum_t k;
-
-				if ((on = strchr(p, ',')) == NULL) {
-					z = strlen(p);
-				} else {
-					z = on - p;
-				}
-				if ((k = enumerate(p, z)) > nclass) {
-					nclass = k;
-				}
-			} while ((p = on + 1U, on));
-		}
+	}
+	if (argi->count_flag) {
+		show_count_p = 1;
 	}
 
 	/* oki, rearrange patterns into 1grams, 2grams, 3,4grams, etc. */
 	for (size_t i = 0U; i < pf->npats; i++) {
-		const char *p = pf->pats[i].s;
-		const size_t z = strlen(p);
+		const char *p = glep_pat(pf, i);
+		const size_t z = pf->pats[i].n;
 		size_t j;
 
 		for (j = 0U; j < z / 4U; j++) {
@@ -628,7 +585,6 @@ main(int argc, char *argv[])
 
 fr_gl:
 	/* resource hand over */
-	clear_enums();
 	clear_interns(NULL);
 	glep_fr(pf);
 	glod_fr_gleps(pf);

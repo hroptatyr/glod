@@ -118,7 +118,7 @@ make_obint(struct vector_s *oa[static 1U], const char *str, size_t len)
 #define obs		(*oa)->beef.c
 #define obn		(*oa)->obn
 #define obz		(*oa)->obz
-#define xtra		sizeof(*oa)
+#define xtra		sizeof(**oa)
 	/* make sure we pad with \0 bytes to the next 4-byte multiple */
 	size_t pad = ((len / 4U) + 1U) * 4U;
 	obint_t res;
@@ -163,7 +163,7 @@ bang_obint(struct vector_s *oa[static 1U], obint_t of)
 #define obs		(*oa)->beef.oi
 #define obn		(*oa)->obn
 #define obz		(*oa)->obz
-#define xtra		sizeof(*oa)
+#define xtra		sizeof(**oa)
 	if (UNLIKELY(*oa == NULL)) {
 		size_t nuz = OBCNT_MINZ;
 
