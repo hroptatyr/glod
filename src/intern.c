@@ -55,6 +55,12 @@ typedef struct {
 	uint_fast32_t ck;
 } obcell_t;
 
+#if defined __INTEL_COMPILER
+# define FLEX_MARKER
+#elif defined __GNUC__
+# define FLEX_MARKER	0U
+#endif
+
 struct vector_s {
 	/* next obint/number of obints */
 	size_t obn;
@@ -62,9 +68,9 @@ struct vector_s {
 	size_t obz;
 	/* beef data */
 	union {
-		char c[];
-		obint_t oi[];
-		obcell_t oc[];
+		char c[FLEX_MARKER];
+		obint_t oi[FLEX_MARKER];
+		obcell_t oc[FLEX_MARKER];
 	} beef;
 };
 
