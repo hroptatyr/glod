@@ -55,7 +55,7 @@ typedef struct {
 	uint_fast32_t ck;
 } obcell_t;
 
-struct obarray_s {
+struct vector_s {
 	/* next obint/number of obints */
 	size_t obn;
 	/* alloc size, 2-power */
@@ -68,14 +68,14 @@ struct obarray_s {
 	} beef;
 };
 
-struct obarr_s {
-	struct obarray_s *cnt;
-	struct obarray_s *str;
-	struct obarray_s *stk;
+struct obarray_s {
+	struct vector_s *cnt;
+	struct vector_s *str;
+	struct vector_s *stk;
 };
 
 /* the beef table */
-static struct obarr_s dflt;
+static struct obarray_s dflt;
 
 static hash_t
 murmur(const uint8_t *str, size_t len)
@@ -103,7 +103,7 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 }
 
 static obint_t
-make_obint(obarray_t oa[static 1U], const char *str, size_t len)
+make_obint(struct vector_s *oa[static 1U], const char *str, size_t len)
 {
 /* put STR (of length LEN) into string obarray, don't check for dups */
 #define OBAR_MINZ	(1024U)
@@ -147,7 +147,7 @@ make_obint(obarray_t oa[static 1U], const char *str, size_t len)
 }
 
 static obint_t
-bang_obint(obarray_t oa[static 1U], obint_t of)
+bang_obint(struct vector_s *oa[static 1U], obint_t of)
 {
 /* bang an offset obint into a counting obint */
 #define OBCNT_MINZ	(256U)
