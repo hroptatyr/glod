@@ -357,4 +357,18 @@ free_obarray(obarray_t oa)
 	return;
 }
 
+size_t
+ninterns(obarray_t oa)
+{
+	if (oa == NULL) {
+		oa = &dflt;
+	}
+#if defined ENUM_INTERNS
+	return oa->cnt->obn;
+#else  /* !ENUM_INTERNS */
+	/* just a rought estimate innit */
+	return oa->str->obn / 8U;
+#endif	/* ENUM_INTERNS */
+}
+
 /* intern.c ends here */

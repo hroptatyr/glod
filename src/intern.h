@@ -77,4 +77,9 @@ extern const char *obint_name(obarray_t, obint_t);
  * Clean up resources used by the interning system. */
 extern void clear_interns(obarray_t);
 
+/**
+ * Return an estimate how many objects have been interned.
+ * Note, this is only accurate when ENUM_INTERNS is defined. */
+extern size_t ninterns(obarray_t);
+
 #endif	/* INCLUDED_intern_h_ */
