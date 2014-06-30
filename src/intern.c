@@ -198,18 +198,21 @@ obint_len(obint_t ob)
 
 
 obint_t
-intern(obarray_t UNUSED(oa), const char *str, size_t len)
+intern(obarray_t oa, const char *str, size_t len)
 {
 #define SSTK_NSLOT	(256U)
 #define SSTK_STACK	(4U * SSTK_NSLOT)
 #define OBINT_MAX_LEN	(256U)
-#define sstk		dflt.stk->beef.oc
-#define nstk		dflt.stk->obn
-#define zstk		dflt.stk->obz
+#define sstk		oa->stk->beef.oc
+#define nstk		oa->stk->obn
+#define zstk		oa->stk->obz
 
 	if (UNLIKELY(len == 0U || len >= OBINT_MAX_LEN)) {
 		/* don't bother */
 		return 0U;
+	}
+	if (oa == NULL) {
+		oa = &dflt;
 	}
 
 	/* we take 9 probes per 32bit value, hx.idx shifted by 3bits each
@@ -221,9 +224,9 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 	uint_fast32_t k = hx.idx;
 
 	/* just try what we've got */
-	if (UNLIKELY(!dflt.stk)) {
+	if (UNLIKELY(!oa->stk)) {
 		size_t z = SSTK_STACK;
-		dflt.stk = calloc(z + 2, sizeof(*sstk));
+		oa->stk = calloc(z + 2, sizeof(*sstk));
 		zstk = z;
 	}
 
@@ -236,10 +239,10 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 			return sstk[off].ob;
 		} else if (!sstk[off].ob) {
 			/* found empty slot */
-			obint_t ob = make_obint(&dflt.str, str, len);
+			obint_t ob = make_obint(&oa->str, str, len);
 
 #if defined ENUM_INTERNS
-			ob = bang_obint(&dflt.cnt, ob);
+			ob = bang_obint(&oa->cnt, ob);
 #endif	/* ENUM_INTERNS */
 			sstk[off].ob = ob;
 			sstk[off].ck = hx.chk;
@@ -254,10 +257,10 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 
 		if (UNLIKELY(i >= zstk)) {
 			const size_t nu = i << 2U;
-			dflt.stk = recalloc(dflt.stk, zstk, nu, sizeof(*sstk));
+			oa->stk = recalloc(oa->stk, zstk, nu, sizeof(*sstk));
 			zstk = nu;
 
-			if (UNLIKELY(dflt.stk == NULL)) {
+			if (UNLIKELY(oa->stk == NULL)) {
 				zstk = 0UL, nstk = 0UL;
 				break;
 			}
@@ -272,10 +275,10 @@ intern(obarray_t UNUSED(oa), const char *str, size_t len)
 				return sstk[off].ob;
 			} else if (!sstk[off].ob) {
 				/* found empty slot */
-				obint_t ob = make_obint(&dflt.str, str, len);
+				obint_t ob = make_obint(&oa->str, str, len);
 
 #if defined ENUM_INTERNS
-				ob = bang_obint(&dflt.cnt, ob);
+				ob = bang_obint(&oa->cnt, ob);
 #endif	/* ENUM_INTERNS */
 				sstk[off].ob = ob;
 				sstk[off].ck = hx.chk;
@@ -297,36 +300,60 @@ unintern(obarray_t UNUSED(oa), obint_t UNUSED(ob))
 }
 
 const char*
-obint_name(obint_t ob)
+obint_name(obarray_t oa, obint_t ob)
 {
 	if (UNLIKELY(ob == 0UL)) {
 		return NULL;
-	} else if (UNLIKELY(dflt.str == NULL)) {
+	}
+	if (oa == NULL) {
+		oa = &dflt;
+	}
+	if (UNLIKELY(oa->str == NULL)) {
 		return NULL;
 	}
 #if defined ENUM_INTERNS
-	ob = dflt.cnt->beef.oi[ob - 1U];
+	ob = oa->cnt->beef.oi[ob - 1U];
 #endif	/* ENUM_INTERNS */
-	return dflt.str->beef.c + obint_off(ob);
+	return oa->str->beef.c + obint_off(ob);
 }
 
 void
-clear_interns(void)
+clear_interns(obarray_t oa)
 {
+	if (oa == NULL) {
+		oa = &dflt;
+	}
 #if defined ENUM_INTERNS
-	if (LIKELY(dflt.cnt != NULL)) {
-		free(dflt.cnt);
+	if (LIKELY(oa->cnt != NULL)) {
+		free(oa->cnt);
 	}
-	dflt.cnt = NULL;
+	oa->cnt = NULL;
 #endif	/* ENUM_INTERNS */
-	if (LIKELY(dflt.stk != NULL)) {
-		free(dflt.stk);
+	if (LIKELY(oa->stk != NULL)) {
+		free(oa->stk);
 	}
-	dflt.stk = NULL;
-	if (LIKELY(dflt.str != NULL)) {
-		free(dflt.str);
+	oa->stk = NULL;
+	if (LIKELY(oa->str != NULL)) {
+		free(oa->str);
 	}
-	dflt.str = NULL;
+	oa->str = NULL;
+	return;
+}
+
+obarray_t
+make_obarray(void)
+{
+	obarray_t res = calloc(1, sizeof(*res));
+	return res;
+}
+
+void
+free_obarray(obarray_t oa)
+{
+	clear_interns(oa);
+	if (oa != NULL) {
+		free(oa);
+	}
 	return;
 }
 

@@ -53,6 +53,14 @@ typedef uint_fast32_t obint_t;
 typedef struct obarray_s *obarray_t;
 
 /**
+ * Create an obarray. */
+extern obarray_t make_obarray(void);
+
+/**
+ * Free resources associated with an obarray. */
+extern void free_obarray(obarray_t);
+
+/**
  * Return the interned representation of STR in OB.
  * Use NULL for the default obarray. */
 extern obint_t intern(obarray_t ob, const char *str, size_t len);
@@ -63,10 +71,10 @@ extern void unintern(obarray_t ob, obint_t);
 
 /**
  * Return the string representation of an OBINT object. */
-extern const char *obint_name(obint_t);
+extern const char *obint_name(obarray_t, obint_t);
 
 /**
  * Clean up resources used by the interning system. */
-extern void clear_interns(void);
+extern void clear_interns(obarray_t);
 
 #endif	/* INCLUDED_intern_h_ */
