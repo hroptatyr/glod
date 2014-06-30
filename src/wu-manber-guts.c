@@ -155,7 +155,7 @@ find_m(gleps_t g)
 	res = 255U;
 	for (size_t i = 0; i < g->npats; i++) {
 		const glep_pat_t p = g->pats[i];
-		size_t z = strlen(p.s);
+		size_t z = p.n;
 
 		/* only accept m's > 3 if possible */
 		switch (z) {
@@ -277,31 +277,11 @@ glep_cc(gleps_t g)
 		res->SHIFT[i] = (ix_t)(res->m - res->B + 1U);
 	}
 
-	/* suffix handling helpers */
-	auto void add_pat(const glep_pat_t pat)
-	{
-		const unsigned char *p = (const unsigned char*)pat.s;
-		hx_t h;
-
-		/* start out with the actual suffix */
-		h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + res->m - 1);
-		res->HASH[h]++;
-		res->SHIFT[h] = 0U;
-
-		for (size_t j = res->m - 1U, d = 1U; j >= res->B; j--, d++) {
-			h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + j - 1);
-			if (d < res->SHIFT[h]) {
-				res->SHIFT[h] = d;
-			}
-		}
-		return;
-	}
-
-	auto void add_smallpat(const glep_pat_t pat, size_t pz)
+	auto void add_smallpat(const glep_pat_t pat, const unsigned char *p)
 	{
 		/* like add_pat() but account for the fact
-		 * that pat.s is shorter than the minimum pattern length */
-		const unsigned char *p = (const unsigned char*)pat.s;
+		 * that P is shorter than the minimum pattern length */
+		const size_t pz = pat.n;
 		unsigned char c1;
 		unsigned char c2;
 		unsigned char c3;
@@ -445,9 +425,27 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_prf(const glep_pat_t pat, size_t patidx)
+	/* suffix handling helpers */
+	auto void add_pat(const glep_pat_t pat, const unsigned char *p)
 	{
-		const unsigned char *p = (const unsigned char*)pat.s;
+		hx_t h;
+
+		/* start out with the actual suffix */
+		h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + res->m - 1);
+		res->HASH[h]++;
+		res->SHIFT[h] = 0U;
+
+		for (size_t j = res->m - 1U, d = 1U; j >= res->B; j--, d++) {
+			h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + j - 1);
+			if (d < res->SHIFT[h]) {
+				res->SHIFT[h] = d;
+			}
+		}
+		return;
+	}
+
+	auto void add_prf(const glep_pat_t pat, const unsigned char *p, size_t patidx)
+	{
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
 		hx_t h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + res->m - 1);
 
@@ -458,10 +456,9 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_smallprf(const glep_pat_t pat, size_t pz, size_t patidx)
+	auto void add_smallprf(const glep_pat_t pat, const unsigned char *p, size_t pz, size_t patidx)
 	{
 		/* like add_prf() but for particularly small patterns */
-		const unsigned char *const p = (const unsigned char*)pat.s;
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
 		unsigned char cp0 = p[0U];
 		unsigned char c1 = p[pz - 1U];
@@ -521,16 +518,17 @@ glep_cc(gleps_t g)
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
 		const glep_pat_t pat = g->pats[i];
-		const size_t z = strlen(pat.s);
+		const unsigned char *p = (const unsigned char*)glep_pat(g, i);
+		const size_t z = pat.n;
 
 		if (z <= 2U) {
 			/* do nothing */
 			;
 		} else if (res->m > z) {
 			/* handle patters that are apparently too short */
-			add_smallpat(pat, z);
+			add_smallpat(pat, p);
 		} else {
-			add_pat(pat);
+			add_pat(pat, p);
 		}
 	}
 
@@ -543,16 +541,17 @@ glep_cc(gleps_t g)
 	/* prefix handling */
 	for (size_t i = 0; i < g->npats; i++) {
 		const glep_pat_t pat = g->pats[i];
-		const size_t z = strlen(pat.s);
+		const unsigned char *p = (const unsigned char*)glep_pat(g, i);
+		const size_t z = pat.n;
 
 		if (z <= 2U) {
 			/* do nothing */
 			;
 		} else if (res->m > z) {
 			/* handle patterns that are apparently too short */
-			add_smallprf(pat, z, i);
+			add_smallprf(pat, p, z, i);
 		} else {
-			add_prf(pat, i);
+			add_prf(pat, p, i);
 		}
 	}
 
@@ -631,6 +630,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 			if (p == c->PREFIX[pi]) {
 				const hx_t i = c->PATPTR[pi];
 				const glep_pat_t pat = g->pats[i];
+				const char *s = glep_pat(g, i);
 				size_t l;
 
 				/* check the word */
@@ -639,39 +639,39 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 					/* MATCH */
 					glep_mset_set(ms, i);
 					return l;
-				} else if (!pat.s[c->m - 2U]) {
+				} else if (!s[c->m - 2U]) {
 					/* small pattern */
 					sp++;
 
 					switch ((pat.fl.ci << 4U) |
 						(l = c->m - 2U)) {
 					case (0U << 4U) | 3U:
-						if (sp[2U] != pat.s[2U]) {
+						if (sp[2U] != s[2U]) {
 							break;
 						}
 					case (0U << 4U) | 2U:
-						if (sp[1U] != pat.s[1U]) {
+						if (sp[1U] != s[1U]) {
 							break;
 						}
 					case (0U << 4U) | 1U:
-						if (sp[0U] != pat.s[0U]) {
+						if (sp[0U] != s[0U]) {
 							break;
 						}
 						goto match;
 
 					case (1 << 4U) | 3U:
 						if (xlcase[sp[2U]] !=
-						    xlcase[pat.s[2U]]) {
+						    xlcase[s[2U]]) {
 							break;
 						}
 					case (1 << 4U) | 2U:
 						if (xlcase[sp[1U]] !=
-						    xlcase[pat.s[1U]]) {
+						    xlcase[s[1U]]) {
 							break;
 						}
 					case (1 << 4U) | 1U:
 						if (xlcase[sp[0U]] !=
-						    xlcase[pat.s[0U]]) {
+						    xlcase[s[0U]]) {
 							break;
 						}
 						goto match;
@@ -680,11 +680,11 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 						break;
 					}
 				} else if (pat.fl.ci &&
-					   (l = xicmp(pat.s, sp)) &&
+					   (l = xicmp(s, sp)) &&
 					   matchp(pat, sp, l)) {
 					goto match;
 				} else if (!pat.fl.ci &&
-					   (l = xcmp(pat.s, sp)) &&
+					   (l = xcmp(s, sp)) &&
 					   matchp(pat, sp, l)) {
 					goto match;
 				}
