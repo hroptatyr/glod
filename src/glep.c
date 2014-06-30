@@ -213,7 +213,7 @@ glod_rd_gleps(const char *buf, size_t bsz)
 
 	auto obint_t snarf_yld(word_t w)
 	{
-		return intern(w.s, w.z);
+		return intern(NULL, w.s, w.z);
 	}
 
 	/* now go through the buffer looking for " escapes */
@@ -271,7 +271,8 @@ glod_rd_gleps(const char *buf, size_t bsz)
 
 		res->pats[i].s = cch.s + soffs;
 		if (res->pats[i].y != NULL) {
-			res->pats[i].y = obint_name((obint_t)res->pats[i].y);
+			res->pats[i].y =
+				obint_name(NULL, (obint_t)res->pats[i].y);
 		}
 	}
 	return res;
@@ -517,7 +518,7 @@ main(int argc, char *argv[])
 	glep_free_mset(ms);
 fr_gl:
 	clear_enums();
-	clear_interns();
+	clear_interns(NULL);
 	glod_fr_gleps(pf);
 out:
 	yuck_free(argi);

@@ -629,7 +629,7 @@ main(int argc, char *argv[])
 fr_gl:
 	/* resource hand over */
 	clear_enums();
-	clear_interns();
+	clear_interns(NULL);
 	glep_fr(pf);
 	glod_fr_gleps(pf);
 out:

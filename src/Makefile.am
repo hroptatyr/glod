@@ -67,6 +67,8 @@ libglod_la_SOURCES += glep.c glep.h
 libglod_la_SOURCES += wu-manber-guts.c
 libglod_la_SOURCES += levenshtein.c levenshtein.h
 libglod_la_SOURCES += version.c version.h
+libglod_la_CPPFLAGS = $(AM_CPPFLAGS)
+libglod_la_CPPFLAGS += -DENUM_INTERNS
 
 if HAVE_TCBDB
 noinst_LTLIBRARIES += libcorpus.la

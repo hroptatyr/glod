@@ -50,35 +50,36 @@
  **/
 typedef uint_fast32_t obint_t;
 
-/**
- * Return the interned representation of STR. */
-extern obint_t intern(const char *str, size_t len);
+typedef struct obarray_s *obarray_t;
 
 /**
- * Unintern the OBINT object. */
-extern void unintern(obint_t);
+ * Create an obarray. */
+extern obarray_t make_obarray(void);
+
+/**
+ * Free resources associated with an obarray. */
+extern void free_obarray(obarray_t);
+
+/**
+ * Return the interned representation of STR in OB.
+ * Use NULL for the default obarray. */
+extern obint_t intern(obarray_t ob, const char *str, size_t len);
+
+/**
+ * Unintern the OBINT object from obarray OB (or NULL for default). */
+extern void unintern(obarray_t ob, obint_t);
 
 /**
  * Return the string representation of an OBINT object. */
-extern const char *obint_name(obint_t);
+extern const char *obint_name(obarray_t, obint_t);
 
 /**
  * Clean up resources used by the interning system. */
-extern void clear_interns(void);
+extern void clear_interns(obarray_t);
 
-
-static inline size_t
-obint_off(obint_t ob)
-{
-	/* mask out the length bit */
-	return (ob >> 8U) << 2U;
-}
-
-static inline size_t
-obint_len(obint_t ob)
-{
-	/* mask out the offset bit */
-	return ob & 0b11111111U;
-}
+/**
+ * Return an estimate how many objects have been interned.
+ * Note, this is only accurate when ENUM_INTERNS is defined. */
+extern size_t ninterns(obarray_t);
 
 #endif	/* INCLUDED_intern_h_ */
