@@ -121,7 +121,7 @@
 static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
-/* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`' */
+/* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`', '-' */
 	register __mXi x0;
 	register __mXi x1;
 	register __mXi y0;
@@ -138,10 +138,10 @@ SSEI(pispuncs)(register __mXi data)
 	y1 = _mmX_and_si(x0, x1);
 	y0 = _mmX_xor_si(y0, y1);
 
-	/* check for , and . */
-	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(','));
-	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('.'));
-	y1 = _mmX_xor_si(x0, x1);
+	/* check for ,-. */
+	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8(',' - 1));
+	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('.' + 1));
+	y1 = _mmX_and_si(x0, x1);
 	y0 = _mmX_xor_si(y0, y1);
 
 	/* check for :; */
