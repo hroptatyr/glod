@@ -43,6 +43,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <assert.h>
 #include "nifty.h"
 #include "glep.h"
 #include "wu-manber-guts.h"
@@ -416,6 +417,7 @@ wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 				if (0) {
 				match:
 					/* MATCH */
+					assert(g->pats[i].n > 4U);
 					cnt[i]++;
 					return l;
 				} else if (!s[c->m - 2U]) {
