@@ -372,16 +372,31 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 			}
 			clscnt[yldi - 1U] += ms->ms[i];
 		}
-		for (size_t i = 0U; i < nyld; i++) {
-			if (!clscnt[i]) {
+		for (size_t i = 0U; i < ms->nms; i++) {
+			const obint_t yldi = pf->pats[i].y;
+			const char *rs;
+			uint_fast32_t cnt;
+
+			if (UNLIKELY(!yldi)) {
+				cnt = ms->ms[i];
+				rs = glep_pat(pf, i);
+			} else {
+				cnt = clscnt[yldi - 1U];
+				rs = glep_yld(pf, i);
+				/* reset the counter */
+				clscnt[yldi - 1U] = 0U;
+			}
+
+			if (!cnt) {
+				/* only non-0s will be printed */
 				continue;
 			}
 			/* otherwise do the printing work */
-			fputs(obint_name(pf->oa_yld, i + 1U), stdout);
+			fputs(rs, stdout);
 			if (!show_count_p) {
 				putchar('\t');
 			} else {
-				printf("\t%lu\t", clscnt[i]);
+				printf("\t%lu\t", cnt);
 			}
 			puts(fn);
 			nmtch++;
