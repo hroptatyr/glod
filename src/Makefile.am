@@ -216,13 +216,6 @@ fastterms_LDADD = libcoru.la
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
 
-noinst_PROGRAMS += glep2
-glep2_SOURCES = glep2.c
-glep2_SOURCES += glep.yuck
-EXTRA_glep2_SOURCES = glep-guts.c
-glep2_LDADD = libglod.la
-glep2_LDADD += libcoru.la
-
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version

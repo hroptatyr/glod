@@ -1,6 +1,6 @@
 #!/usr/bin/clitoris  ## -*- shell-script -*-
 
-$ cat "${srcdir}/1206796.txt" | glep2 --show-patterns --count -f "${srcdir}/stops.alrt"
+$ cat "${srcdir}/1206796.txt" | glep --show-patterns --count -f "${srcdir}/stops.alrt"
 aus	2	<stdin>
 bis	1	<stdin>
 damit	1	<stdin>

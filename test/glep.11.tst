@@ -1,6 +1,6 @@
 #!/usr/bin/clitoris  ## -*- shell-script -*-
 
-$ cat "${srcdir}/1206796.txt" | glep2 -c -f "${srcdir}/stops.alrt"
+$ cat "${srcdir}/1206796.txt" | glep -c -f "${srcdir}/stops.alrt"
 de	37	<stdin>
 de,pt	1	<stdin>
 da,de,no,sv	2	<stdin>
