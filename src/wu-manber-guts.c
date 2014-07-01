@@ -45,6 +45,7 @@
 #include <string.h>
 #include "nifty.h"
 #include "glep.h"
+#include "wu-manber-guts.h"
 
 /* hash type */
 typedef uint_fast32_t hx_t;
@@ -145,13 +146,14 @@ xicmp(const char *s1, const unsigned char *s2)
 static size_t
 find_m(gleps_t g)
 {
+/* find the length of the shortest pattern */
 	size_t res;
 
 	if (UNLIKELY(g->npats == 0U)) {
 		return 0U;
 	}
 
-	/* otherwise initialise RES to length of first pattern */
+	/* otherwise initialise RES somewhat optimistically */
 	res = 255U;
 	for (size_t i = 0; i < g->npats; i++) {
 		const glep_pat_t p = g->pats[i];
@@ -159,23 +161,17 @@ find_m(gleps_t g)
 
 		/* only accept m's > 3 if possible */
 		switch (z) {
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-			if (UNLIKELY(p.fl.left && p.fl.right)) {
-				;
-			} else if (UNLIKELY(p.fl.left || p.fl.right)) {
-				z += 1U;
-			} else {
-				z += 2U;
-			}
 		default:
-			if (z < 3U) {
-				;
-			} else if (z < res) {
+			if (z < res) {
 				res = z;
 			}
+			break;
+		case 0U:
+		case 1U:
+		case 2U:
+		case 3U:
+		case 4U:
+			/* the SIMD code deals with these */
 			break;
 		}
 	}
@@ -253,18 +249,8 @@ prfh_ci(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
 
 /* glep.h engine api */
 int
-glep_cc(gleps_t g)
+wu_manber_cc(gleps_t g)
 {
-	/* characters to consider for whole-words */
-	static unsigned char cs_ww[] = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
-	/* characters to consider for left/right open words (wildcard) */
-	static unsigned char cs_wc[] = " !\"#$%&'()*+,-./"
-		"0123456789"
-		":;<=>?@"
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-		"[\\]^_`"
-		"abcdefghijklmnopqrstuvwxyz"
-		"{|}~";
 	struct glepcc_s *res;
 	
 	/* get us some memory to chew on */
@@ -275,154 +261,6 @@ glep_cc(gleps_t g)
 	/* prep SHIFT table */
 	for (size_t i = 0; i < countof(res->SHIFT); i++) {
 		res->SHIFT[i] = (ix_t)(res->m - res->B + 1U);
-	}
-
-	auto void add_smallpat(const glep_pat_t pat, const unsigned char *p)
-	{
-		/* like add_pat() but account for the fact
-		 * that P is shorter than the minimum pattern length */
-		const size_t pz = pat.n;
-		unsigned char c1;
-		unsigned char c2;
-		unsigned char c3;
-		hx_t h;
-
-		/* start out with the suffix */
-		switch (res->B) {
-		case 2U:
-			c1 = p[pz - 1U];
-			if (pat.fl.ci) {
-				c1 = xlcase[c1];
-			}
-
-			/* loop through all chars (or non-alphas) */
-			for (const unsigned char *c = pat.fl.right
-				     ? cs_wc : cs_ww,
-				     *const ec = pat.fl.right
-				     ? c + countof(cs_wc) : c + countof(cs_ww);
-			     c < ec; c++) {
-				h = sufh_c(*c, c1, 0U);
-				if (pz + 1U < res->m) {
-					/* we need to account for
-					 * multiple prefixes */
-					res->HASH[h] += pat.fl.left ?
-						countof(cs_wc) : countof(cs_ww);
-				} else {
-					res->HASH[h]++;
-				}
-				res->SHIFT[h] = 0U;
-			}
-			if (pz >= 2U) {
-				c2 = p[pz - 2U];
-
-				if (pat.fl.ci) {
-					c2 = xlcase[c2];
-				}
-				h = sufh_c(c1, c2, 0U);
-				if (res->SHIFT[h] > 1U) {
-					res->SHIFT[h] = 1U;
-				}
-			}
-			if (pz >= 3U) {
-				c3 = p[pz - 3U];
-
-				if (pat.fl.ci) {
-					c3 = xlcase[c3];
-				}
-				/* just entered for pz == 3 */
-				h = sufh_c(c2, c3, 0U);
-				if (res->SHIFT[h] > 2U) {
-					res->SHIFT[h] = 2U;
-				}
-			}
-			/* whole-word matching assumed */
-			if (res->m > pz + 1U) {
-				unsigned char cp = *p;
-
-				if (pat.fl.ci) {
-					cp = xlcase[cp];
-				}
-
-				/* loop through all non-alphas */
-				for (const unsigned char *c = pat.fl.left
-					     ? cs_wc : cs_ww,
-					     *const ec = pat.fl.left
-					     ? c + countof(cs_wc)
-					     : c + countof(cs_ww);
-				     c < ec; c++) {
-					h = sufh_c(*p, *c, 0U);
-					if (res->SHIFT[h] > pz) {
-						res->SHIFT[h] = pz;
-					}
-				}
-			}
-			break;
-		case 3U:
-			c1 = p[pz - 1U];
-			c2 = p[pz - 2U];
-
-			if (pat.fl.ci) {
-				c1 = xlcase[c1];
-				c2 = xlcase[c2];
-			}
-
-			/* loop through all non-alphas */
-			for (const unsigned char *c = pat.fl.right
-				     ? cs_wc : cs_ww,
-				     *const ec = pat.fl.right
-				     ? c + countof(cs_wc) : c + countof(cs_ww);
-			     c < ec; c++) {
-				h = sufh_c(*c, c1, c2);
-				if (pz + 1U < res->m) {
-					/* we need to account for
-					 * multiple prefixes */
-					res->HASH[h] += pat.fl.left ?
-						countof(cs_wc) : countof(cs_ww);
-				} else {
-					res->HASH[h]++;
-				}
-				res->SHIFT[h] = 0U;
-			}
-			if (pz >= 3U) {
-				c3 = p[pz - 3U];
-
-				if (pat.fl.ci) {
-					c3 = xlcase[c3];
-				}
-				h = sufh_c(c1, c2, c3);
-				if (res->SHIFT[h] > 1U) {
-					res->SHIFT[h] = 1U;
-				}
-			}
-			/* whole-word matching assumed */
-			if (res->m > pz + 1U) {
-				/* prefixes count forwards */
-				unsigned char cp1 = p[1U];
-				unsigned char cp0 = p[0U];
-
-				if (pat.fl.ci) {
-					cp1 = xlcase[cp1];
-					cp0 = xlcase[cp0];
-				}
-
-				/* loop through all non-alphas */
-				for (const unsigned char *c = pat.fl.left
-					     ? cs_wc : cs_ww,
-					     *const ec = pat.fl.left
-					     ? c + countof(cs_wc)
-					     : c + countof(cs_ww);
-				     c < ec; c++) {
-					h = sufh_c(cp1, cp0, *c);
-					if (res->SHIFT[h] > pz - 1U) {
-						res->SHIFT[h] = pz - 1U;
-					}
-				}
-			}
-			break;
-		default:
-			break;
-		}
-		return;
 	}
 
 	/* suffix handling helpers */
@@ -456,78 +294,14 @@ glep_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_smallprf(const glep_pat_t pat, const unsigned char *p, size_t pz, size_t patidx)
-	{
-		/* like add_prf() but for particularly small patterns */
-		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
-		unsigned char cp0 = p[0U];
-		unsigned char c1 = p[pz - 1U];
-		unsigned char c2 = 0U;
-
-		if (res->B > 2U) {
-			c2 = p[pz - 2U];
-		}
-		if (pat.fl.ci) {
-			cp0 = xlcase[cp0];
-			c1 = xlcase[c1];
-			c2 = xlcase[c2];
-		}
-
-		auto void bang_var(hx_t h)
-		{
-			for (const unsigned char *c = pat.fl.left
-				     ? cs_wc : cs_ww,
-				     *const ec = pat.fl.left
-				     ? c + countof(cs_wc) : c + countof(cs_ww);
-			     c < ec; c++) {
-				hx_t i;
-
-				i = prfh_c(*c, cp0);
-
-				with (hx_t H = --res->HASH[h]) {
-					res->PATPTR[H] = patidx;
-					res->PREFIX[H] = i;
-				}
-			}
-			return;
-		}
-
-		/* obtain suffix hash next */
-		for (const unsigned char *c = pat.fl.right ? cs_wc : cs_ww,
-			     *const ec = pat.fl.right
-			     ? c + countof(cs_wc) : c + countof(cs_ww);
-		     c < ec; c++) {
-			hx_t h = sufh_c(*c, c1, c2);
-
-			if (pz + 1U < res->m) {
-				/* m = 5, pz = 3, or m = 4, pz = 2,
-				 * this is when going back to the prefix would
-				 * actually jump into no-man's land,
-				 * assume whole words now */
-				bang_var(h);
-			} else {
-				with (hx_t H = --res->HASH[h]) {
-					res->PATPTR[H] = patidx;
-					res->PREFIX[H] = pi;
-				}
-			}
-		}
-		return;
-	}
-
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
 		const glep_pat_t pat = g->pats[i];
 		const unsigned char *p = (const unsigned char*)glep_pat(g, i);
 		const size_t z = pat.n;
 
-		if (z <= 2U) {
-			/* do nothing */
-			;
-		} else if (res->m > z) {
-			/* handle patters that are apparently too short */
-			add_smallpat(pat, p);
-		} else {
+		if (z > 4U) {
+			/* only operate on sufficiently long pats */
 			add_pat(pat, p);
 		}
 	}
@@ -544,13 +318,8 @@ glep_cc(gleps_t g)
 		const unsigned char *p = (const unsigned char*)glep_pat(g, i);
 		const size_t z = pat.n;
 
-		if (z <= 2U) {
-			/* do nothing */
-			;
-		} else if (res->m > z) {
-			/* handle patterns that are apparently too short */
-			add_smallprf(pat, p, z, i);
-		} else {
+		if (z > 4U) {
+			/* only operate on the important pats */
 			add_prf(pat, p, i);
 		}
 	}
@@ -576,7 +345,7 @@ glep_fr(gleps_t g)
 }
 
 int
-glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
+wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 {
 	const glepcc_t c = g->ctx;
 	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
@@ -637,7 +406,7 @@ glep_gr(glep_mset_t ms, gleps_t g, const char *buf, size_t bsz)
 				if (0) {
 				match:
 					/* MATCH */
-					glep_mset_set(ms, i);
+					cnt[i]++;
 					return l;
 				} else if (!s[c->m - 2U]) {
 					/* small pattern */

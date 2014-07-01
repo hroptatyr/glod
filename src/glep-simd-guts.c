@@ -37,6 +37,8 @@
 #if defined HAVE_CONFIG_H
 # include "config.h"
 #endif	/* HAVE_CONFIG_H */
+#include <stdbool.h>
+#include <assert.h>
 #if defined __INTEL_COMPILER
 # include <immintrin.h>
 #elif defined __GNUC__ && defined HAVE_X86INTRIN_H
@@ -52,6 +54,7 @@
 # define INCLUDED_cpuid_h_
 # include <cpuid.h>
 #endif	/* !INCLUDED_cpuid_h_ */
+#include "glep-simd-guts.h"
 
 #if defined SSEZ
 #define QU(a)		a
@@ -285,12 +288,32 @@ typedef uint64_t accu_t;
 #define SSEZ	256
 #include __FILE__
 
+
+#define USE_CACHE
+/* the alphabet we're dealing with */
+static char pchars[0x100U];
+static size_t npchars;
+static size_t ncchars;
+/* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
+static uint8_t offs[0x100U];
+
+static void
+add_pchar(unsigned char c)
+{
+	if (offs[c]) {
+		return;
+	}
+	offs[c] = ++npchars;
+	pchars[offs[c]] = c;
+	return;
+}
+
+
 #if defined __INTEL_COMPILER
 # pragma warning (disable:869)
 static size_t
 __attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
-decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
-       const char pchars[static 0x100U], size_t npchars)
+decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz)
 {
 	/* stub */
 }
@@ -302,8 +325,7 @@ __attribute__((cpu_specific(core_4th_gen_avx)))
 #else
 __attribute__((target("avx2")))
 #endif
-decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
-       const char pchars[static 0x100U], size_t npchars)
+decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz)
 {
 	return _decomp256(tgt, buf, bsz, pchars, npchars);
 }
@@ -315,8 +337,7 @@ __attribute__((cpu_specific(core_2_duo_ssse3)))
 #else
 __attribute__((target("ssse3")))
 #endif
-decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
-       const char pchars[static 0x100U], size_t npchars)
+decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz)
 {
 	return _decomp128(tgt, buf, bsz, pchars, npchars);
 }
@@ -342,6 +363,215 @@ has_popcnt_p(void)
 		return (*cx & _FEAT_POPCNT);
 	}
 	return false;
+}
+
+static inline void
+dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
+{
+/* populate TGT with SRC */
+	memcpy(tgt, src, ssz * sizeof(*src));
+	return;
+}
+
+static inline unsigned int
+shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
+{
+	unsigned int i = n / __BITS;
+	unsigned int sh = n % __BITS;
+	unsigned int j = 0U;
+	unsigned int res = 0U;
+
+	/* otherwise do it the hard way */
+	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
+	     i < ssz - 1U; i++, j++) {
+		if (!tgt[j]) {
+			continue;
+		}
+		tgt[j] &= src[i] >> sh | ((src[i + 1U] & msk) << (__BITS - sh));
+		if (tgt[j]) {
+			res++;
+		}
+	}
+	if (tgt[j] && (tgt[j] &= src[i] >> sh)) {
+		res++;
+	}
+	for (j++; j < ssz; j++) {
+		tgt[j] = 0U;
+	}
+	return res;
+}
+
+static void
+dmatch(accu_t *restrict tgt,
+       accu_t (*const src)[0x100U], size_t ssz,
+       const uint8_t s[], size_t z)
+{
+/* this is matching on the fully decomposed buffer
+ * we say a character C matches at position I iff SRC[C] & (1U << i)
+ * we say a string S[] matches if all characters S[i] match
+ * note the characters are offsets according to the PCHARS alphabet. */
+	size_t i = 0U;
+
+#if defined USE_CACHE
+	if (!*s && pchars[s[1U]] >= 'a' && pchars[s[1U]] <= 'z') {
+		unsigned char c = (unsigned char)(pchars[s[1U]] - ('a' - 1));
+
+		if (offs[c]) {
+			dbang(tgt, src[offs[c]], ssz);
+		} else {
+			/* cache the first round */
+			dbang(tgt, src[*s], ssz);
+			shiftr_and(tgt, src[s[1U]], ssz, 1U);
+
+			offs[c] = ++ncchars;
+			pchars[offs[c]] = c;
+
+			/* violate the const */
+			dbang(src[offs[c]], tgt, ssz);
+		}
+		i = 2U;
+	} else {
+		dbang(tgt, src[*s], ssz);
+		i = 1U;
+	}
+#else  /* !USE_CACHE */
+	dbang(tgt, src[*s], ssz);
+	i = 1U;
+#endif	/* USE_CACHE */
+
+	for (; i < z; i++) {
+		/* SRC >>= i, TGT &= SRC */
+		if (!shiftr_and(tgt, src[s[i]], ssz, i)) {
+			break;
+		}
+	}
+	return;
+}
+
+static uint_fast32_t
+_dcount_routin(const accu_t *src, size_t ssz)
+{
+	uint_fast32_t cnt = 0U;
+
+	for (size_t i = 0U; i < ssz; i++) {
+#if __BITS == 64
+		cnt += _popcnt64(src[i]);
+#elif __BITS == 32U
+		cnt += _popcnt32(src[i]);
+#endif
+	}
+	return cnt;
+}
+
+#if defined HAVE_POPCNT_INTRINS
+static uint_fast32_t
+#if defined __GNUC__ && !defined __INTEL_COMPILER
+__attribute__((target("popcnt")))
+#endif	/* GCC */
+_dcount_intrin(const accu_t *src, size_t ssz)
+{
+	uint_fast32_t cnt = 0U;
+
+	for (size_t i = 0U; i < ssz; i++) {
+#if __BITS == 64
+		cnt += _mm_popcnt_u64(src[i]);
+#elif __BITS == 32U
+		cnt += _mm_popcnt_u32(src[i]);
+#endif
+	}
+	return cnt;
+}
+#endif	/* HAVE_POPCNT_INTRINS */
+
+static size_t
+recode(uint8_t *restrict tgt, const char *s)
+{
+	size_t i;
+
+	for (i = 0U; s[i]; i++) {
+		tgt[i] = offs[(unsigned char)s[i]];
+	}
+	tgt[i] = '\0';
+	return i;
+}
+
+
+/* public glep API */
+static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
+
+int
+glep_simd_cc(gleps_t g)
+{
+/* rearrange patterns into 1grams, 2grams, 3,4grams, etc. */
+	for (size_t i = 0U; i < g->npats; i++) {
+		const char *p = glep_pat(g, i);
+		const size_t z = g->pats[i].n;
+
+		if (z > 4U) {
+			continue;
+		}
+		switch (z) {
+		case 4U:
+			add_pchar(p[3U]);
+		case 3U:
+			add_pchar(p[2U]);
+		case 2U:
+			add_pchar(p[1U]);
+		case 1U:
+			add_pchar(p[0U]);
+		default:
+		case 0U:
+			break;
+		}
+	}
+
+	/* while we're at it, initialise the dcount routine */
+#if defined HAVE_POPCNT_INTRINS
+	if (dcount == NULL && has_popcnt_p()) {
+		dcount = _dcount_intrin;
+	} else {
+		dcount = _dcount_routin;
+	}
+#else  /* !HAVE_POPCNT_INTRINS */
+# define dcount	_dcount_routin
+#endif	/* HAVE_POPCNT_INTRINS */
+	return 0;
+}
+
+int
+glep_simd_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
+{
+	accu_t deco[0x100U][CHUNKZ / __BITS];
+	accu_t c[CHUNKZ / __BITS];
+	size_t nb;
+
+	/* put bit patterns into puncs and pat */
+	nb = decomp(deco, (const void*)buf, bsz);
+
+#if defined USE_CACHE
+	for (unsigned char i = '\1'; i < ' '; i++) {
+		offs[i] = 0U;
+	}
+	ncchars = npchars;
+#endif	/* USE_CACHE */
+
+	for (size_t i = 0U; i < g->npats; i++) {
+		uint8_t str[256U];
+		size_t len;
+
+		if (g->pats[i].n > 4U) {
+			continue;
+		}
+
+		/* match pattern */
+		str[0U] = '\0';
+		len = recode(str + 1U, glep_pat(g, i));
+		dmatch(c, deco, nb, str, len + 2U);
+
+		/* count the matches */
+		cnt[i] += dcount(c, nb);
+	}
+	return 0;
 }
 
 #endif	/* INCLUDED_glep_guts_c_ */

@@ -118,12 +118,14 @@ BUILT_SOURCES += glod-classify.yucc
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c
 glep_SOURCES += glep.c glep.h
-glep_SOURCES += wu-manber-guts.c
+glep_SOURCES += wu-manber-guts.c wu-manber-guts.h
+glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
 EXTRA_glep_SOURCES = glep.yuck
 EXTRA_glep_SOURCES += glep-guts.c
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.la
+glep_LDADD += libcoru.la
 BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
