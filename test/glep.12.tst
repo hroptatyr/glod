@@ -1,6 +1,6 @@
 #!/usr/bin/clitoris  ## -*- shell-script -*-
 
-$ cat "${srcdir}/utf8-terms.txt" | glep2 --count -f "${srcdir}/stops.alrt"
+$ cat "${srcdir}/utf8-terms.txt" | glep --count -f "${srcdir}/stops.alrt"
 nl	2	<stdin>
 de	7	<stdin>
 en	3	<stdin>

@@ -47,6 +47,7 @@ typedef const struct gleps_s *gleps_t;
 typedef struct glep_pat_s glep_pat_t;
 typedef struct glep_mset_s *glep_mset_t;
 
+typedef uint_fast32_t gcnt_t;
 typedef struct glepcc_s *glepcc_t;
 
 struct glep_pat_s {
@@ -84,6 +85,9 @@ struct glep_mset_s {
 	size_t nms;
 	uint_fast32_t ms[];
 };
+
+/* maximum buffer size presented to grepping routines */
+#define CHUNKZ		(4U * 4096U)
 
 
 /**

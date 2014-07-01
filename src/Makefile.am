@@ -63,8 +63,6 @@ libglod_la_SOURCES += fops.c fops.h
 libglod_la_SOURCES += boobs.h
 libglod_la_SOURCES += intern.c intern.h
 libglod_la_SOURCES += enum.c enum.h
-libglod_la_SOURCES += glep.c glep.h
-libglod_la_SOURCES += wu-manber-guts.c
 libglod_la_SOURCES += levenshtein.c levenshtein.h
 libglod_la_SOURCES += version.c version.h
 libglod_la_CPPFLAGS = $(AM_CPPFLAGS)
@@ -119,10 +117,14 @@ BUILT_SOURCES += glod-classify.yucc
 
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c
+glep_SOURCES += glep.c glep.h
+glep_SOURCES += wu-manber-guts.c wu-manber-guts.h
+glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
 glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.la
+glep_LDADD += libcoru.la
 BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
@@ -215,13 +217,6 @@ fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
-
-noinst_PROGRAMS += glep2
-glep2_SOURCES = glep2.c
-glep2_SOURCES += glep.yuck
-EXTRA_glep2_SOURCES = glep-guts.c
-glep2_LDADD = libglod.la
-glep2_LDADD += libcoru.la
 
 
 ## version rules

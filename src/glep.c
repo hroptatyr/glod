@@ -39,10 +39,15 @@
 #endif	/* HAVE_CONFIG_H */
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <fcntl.h>
 #include "glep.h"
+#include "wu-manber-guts.h"
+#include "glep-simd-guts.h"
 #include "boobs.h"
 #include "intern.h"
 #include "nifty.h"
+#include "coru.h"
 
 /* lib stuff */
 typedef size_t idx_t;
@@ -73,14 +78,11 @@ struct wpat_s {
 # define auto	static
 #endif	/* __INTEL_COMPILER */
 
-#if defined STANDALONE
 static const char stdin_fn[] = "<stdin>";
-#endif	/* STANDALONE */
 
 #define warn(x...)
 
 
-#if !defined STANDALONE
 /* word level */
 static word_t
 snarf_word(const char *bp[static 1], const char *const ep)
@@ -185,6 +187,7 @@ append_pat(struct gleps_s *g[static 1U], wpat_t p)
 	return;
 }
 
+
 
 /* public glep API */
 gleps_t
@@ -277,10 +280,95 @@ glod_fr_gleps(gleps_t g)
 	free(pg);
 	return;
 }
-#endif	/* !STANDALONE */
+
+int
+glep_cc(gleps_t g)
+{
+/* compile patterns in G, i.e. preprocessing phase for the SIMD code
+ * or Wu-Manber */
+	wu_manber_cc(g);
+	glep_simd_cc(g);
+	return 0;
+}
 
 
-#if defined STANDALONE
+/* our coroutines */
+DEFCORU(co_snarf, {
+		char *buf;
+		size_t bsz;
+		int fd;
+	}, void *UNUSED(arg))
+{
+	/* upon the first call we expect a completely processed buffer
+	 * just to determine the buffer's size */
+	char *const buf = CORU_CLOSUR(buf);
+	const size_t bsz = CORU_CLOSUR(bsz);
+	const int fd = CORU_CLOSUR(fd);
+	ssize_t npr;
+	ssize_t nrd;
+	size_t nun = 0U;
+
+	/* leave some good advice about our access pattern */
+	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+
+	/* enter the main snarf loop */
+	while ((nrd = read(fd, buf + nun, bsz - nun)) > 0) {
+		/* we've got NRD more unprocessed bytes */
+		nun += nrd;
+		/* insist on filling the buffer */
+		if (nun < bsz) {
+			continue;
+		}
+		/* process */
+		npr = YIELD(nun);
+		/* now it's NPR less unprocessed bytes */
+		nun -= npr;
+
+		/* check if we need to move buffer contents */
+		if (nun > 0) {
+			memmove(buf, buf + npr, nun);
+		}
+	}
+	/* final drain */
+	if (nun) {
+		YIELD(nun);
+	}
+	return nrd;
+}
+
+DEFCORU(co_match, {
+		char *buf;
+		size_t bsz;
+		/* counter */
+		gcnt_t *cnt;
+		gleps_t pf;
+	}, void *arg)
+{
+	/* upon the first call we expect a completely filled buffer
+	 * just to determine the buffer's size */
+	char *const buf = CORU_CLOSUR(buf);
+	gcnt_t *const cnt = CORU_CLOSUR(cnt);
+	const gleps_t pf = CORU_CLOSUR(pf);
+	size_t nrd = (intptr_t)arg;
+	ssize_t npr;
+
+	if (UNLIKELY(nrd <= 0)) {
+		return 0;
+	}
+
+	/* enter the main match loop */
+	do {
+		/* ... then grep, ... */
+		wu_manber_gr(cnt, pf, buf, nrd);
+		glep_simd_gr(cnt, pf, buf, nrd);
+
+		/* we did use up all data */
+		npr = nrd;
+	} while ((nrd = YIELD(npr)) > 0U);
+	return 0;
+}
+
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <errno.h>
@@ -327,26 +415,14 @@ out:
 	return res;
 }
 
-static int
-gr1(gleps_t pf, const char *fn, glep_mset_t ms)
+static void
+pr_results(const gleps_t pf, const uint_fast32_t *cnt, const char *fn)
 {
-	glodfn_t f;
-	int nmtch = 0;
+	size_t nmtch = 0U;
 
-	/* map the file FN and snarf the alerts */
-	if (UNLIKELY((f = mmap_fn(fn, O_RDONLY)).fd < 0)) {
-		return -1;
-	} else if (fn == NULL) {
-		fn = stdin_fn;
-	}
-	/* magic happens here, rinse ms, ... */
-	glep_mset_rset(ms);
-	/* ... then grep, ... */
-	glep_gr(ms, pf, f.fb.d, f.fb.z);
-	/* ... then print all matches */
 	if (show_pats_p) {
-		for (size_t i = 0U; i < ms->nms; i++) {
-			if (!ms->ms[i]) {
+		for (size_t i = 0U; i < pf->npats; i++) {
+			if (!cnt[i]) {
 				continue;
 			}
 			/* otherwise do the printing work */
@@ -354,7 +430,7 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 			if (!show_count_p) {
 				putchar('\t');
 			} else {
-				printf("\t%lu\t", ms->ms[i]);
+				printf("\t%lu\t", cnt[i]);
 			}
 			puts(fn);
 			nmtch++;
@@ -364,30 +440,30 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 		uint_fast32_t clscnt[nyld];
 
 		memset(clscnt, 0, sizeof(clscnt));
-		for (size_t i = 0U; i < ms->nms; i++) {
+		for (size_t i = 0U; i < pf->npats; i++) {
 			const obint_t yldi = pf->pats[i].y;
 
-			if (!ms->ms[i]) {
+			if (!cnt[i]) {
 				continue;
 			}
-			clscnt[yldi - 1U] += ms->ms[i];
+			clscnt[yldi - 1U] += cnt[i];
 		}
-		for (size_t i = 0U; i < ms->nms; i++) {
+		for (size_t i = 0U; i < pf->npats; i++) {
 			const obint_t yldi = pf->pats[i].y;
 			const char *rs;
-			uint_fast32_t cnt;
+			uint_fast32_t rc;
 
 			if (UNLIKELY(!yldi)) {
-				cnt = ms->ms[i];
+				rc = cnt[i];
 				rs = glep_pat(pf, i);
 			} else {
-				cnt = clscnt[yldi - 1U];
+				rc = clscnt[yldi - 1U];
 				rs = glep_yld(pf, i);
 				/* reset the counter */
 				clscnt[yldi - 1U] = 0U;
 			}
 
-			if (!cnt) {
+			if (!rc) {
 				/* only non-0s will be printed */
 				continue;
 			}
@@ -396,7 +472,7 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 			if (!show_count_p) {
 				putchar('\t');
 			} else {
-				printf("\t%lu\t", cnt);
+				printf("\t%lu\t", rc);
 			}
 			puts(fn);
 			nmtch++;
@@ -405,9 +481,58 @@ gr1(gleps_t pf, const char *fn, glep_mset_t ms)
 	if (invert_match_p && !nmtch) {
 		puts(fn);
 	}
+	return;
+}
 
-	(void)munmap_fn(f);
-	return nmtch;
+static int
+match0(gleps_t pf, int fd, const char *fn)
+{
+	char buf[CHUNKZ];
+	struct cocore *snarf;
+	struct cocore *match;
+	struct cocore *self;
+	int res = 0;
+	ssize_t nrd;
+	ssize_t npr;
+	gcnt_t cnt[pf->npats];
+
+	self = PREP();
+	snarf = START_PACK(
+		co_snarf, .next = self,
+		.buf = buf, .bsz = sizeof(buf), .fd = fd);
+	match = START_PACK(
+		co_match, .next = self,
+		.buf = buf, .bsz = sizeof(buf), .cnt = cnt, .pf = pf);
+
+	/* rinse */
+	memset(cnt, 0, sizeof(cnt));
+
+	/* assume a nicely processed buffer to indicate its size to
+	 * the reader coroutine */
+	npr = 0;
+	do {
+		/* technically we could let the corus flip-flop call each other
+		 * but we'd like to filter bad input right away */
+		if (UNLIKELY((nrd = NEXT1(snarf, npr)) < 0)) {
+			error("Error: reading from stdin failed");
+			res = -1;
+			break;
+		}
+
+		if (UNLIKELY((npr = NEXT1(match, nrd)) < 0)) {
+			error("Error: processing stdin failed");
+			res = -1;
+			break;
+		}
+
+		assert(npr <= nrd);
+	} while (nrd > 0);
+
+	/* just print all them results now */
+	pr_results(pf, cnt, fn);
+
+	UNPREP();
+	return res;
 }
 
 
@@ -417,7 +542,6 @@ int
 main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
-	glep_mset_t ms;
 	gleps_t pf;
 	int rc = 0;
 
@@ -445,33 +569,50 @@ main(int argc, char *argv[])
 		show_count_p = 1;
 	}
 
-	/* compile the patterns */
+	/* compile the patterns (opaquely) */
 	if (UNLIKELY(glep_cc(pf) < 0)) {
 		error("Error: cannot compile patterns");
+		rc = 1;
 		goto fr_gl;
 	}
 
-	/* get the mset */
-	ms = glep_make_mset(pf->npats);
-	for (size_t i = 0U; i < argi->nargs || i + argi->nargs == 0U; i++) {
-		const char *fn = argi->args[i];
+	/* get the coroutines going */
+	initialise_cocore();
 
-		if (gr1(pf, fn, ms) < 0) {
-			error("Error: cannot process `%s'", fn ?: stdin_fn);
+	/* process stdin? */
+	if (!argi->nargs) {
+		if (match0(pf, STDIN_FILENO, stdin_fn) < 0) {
+			error("Error: processing stdin failed");
 			rc = 1;
 		}
+		goto fr_gl;
 	}
 
-	/* resource hand over */
-	glep_fr(pf);
-	glep_free_mset(ms);
+	/* process files given on the command line */
+	for (size_t i = 0U; i < argi->nargs; i++) {
+		const char *file = argi->args[i];
+		int fd;
+
+		if (UNLIKELY((fd = open(file, O_RDONLY)) < 0)) {
+			error("Error: cannot open file `%s'", file);
+			rc = 1;
+			continue;
+		} else if (match0(pf, fd, file) < 0) {
+			error("Error: cannot process `%s'", file);
+			rc = 1;
+		}
+		/* clean up */
+		close(fd);
+	}
+
 fr_gl:
+	/* resource hand over */
 	clear_interns(NULL);
+	glep_fr(pf);
 	glod_fr_gleps(pf);
 out:
 	yuck_free(argi);
 	return rc;
 }
-#endif	/* STANDALONE */
 
 /* glep.c ends here */
