@@ -89,13 +89,23 @@ static uint_fast8_t xlcase[] = {
 };
 
 static inline bool
-xalnump(const unsigned char c)
+xpuncsp(const unsigned char c)
 {
-/* if c is 0-9A-Za-z */
+/* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`' */
 	switch (c) {
-	case '0' ... '9':
-	case 'A' ... 'Z':
-	case 'a' ... 'z':
+	case '\0' ... ' ':
+	case '!':
+	case '"':
+	case ',':
+	case '.':
+	case ':':
+	case ';':
+	case '?':
+	case '\'':
+	case '`':
+	case '-':
+	case '(':
+	case ')':
 		return true;
 	default:
 		break;
@@ -370,21 +380,21 @@ wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 			 * so check the right side for word boundaries */
 			if (UNLIKELY(sp + z >= ep)) {
 				return true;
-			} else if (!xalnump(sp[z])) {
+			} else if (xpuncsp(sp[z])) {
 				return true;
 			}
 		} else if (!pat.fl.left && UNLIKELY(pat.fl.right)) {
 			/* we're looking at foo*, so check the left side */
 			if (UNLIKELY(sp == (const unsigned char*)buf)) {
 				return true;
-			} else if (!xalnump(sp[-1])) {
+			} else if (xpuncsp(sp[-1])) {
 				return true;
 			}
 		} else {
 			/* we're looking at foo, so check both boundaries */
 			if ((UNLIKELY(sp == (const unsigned char*)buf) ||
-			     !xalnump(sp[-1])) &&
-			    (UNLIKELY(sp + z >= ep) || !xalnump(sp[z]))) {
+			     xpuncsp(sp[-1])) &&
+			    (UNLIKELY(sp + z >= ep) || xpuncsp(sp[z]))) {
 				return true;
 			}
 		}
