@@ -370,8 +370,14 @@ ninterns(obarray_t oa)
 		oa = &dflt;
 	}
 #if defined ENUM_INTERNS
+	if (UNLIKELY(oa->cnt == NULL)) {
+		return 0U;
+	}
 	return oa->cnt->obn;
 #else  /* !ENUM_INTERNS */
+	if (UNLIKELY(oa->str == NULL)) {
+		return 0U;
+	}
 	/* just a rought estimate innit */
 	return oa->str->obn / 8U;
 #endif	/* ENUM_INTERNS */
