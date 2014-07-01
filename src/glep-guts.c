@@ -270,10 +270,20 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 #endif  /* SSEI */
 
 
-#if !defined SSEZ
 /* stuff that is to be eval'd once */
 #if !defined INCLUDED_glep_guts_c_
 #define INCLUDED_glep_guts_c_
+
+#define __BITS		(64U)
+typedef uint64_t accu_t;
+
+/* instantiate 128bit intrinsics */
+#define SSEZ	128
+#include __FILE__
+
+/* instantiate 256bit intrinsics */
+#define SSEZ	256
+#include __FILE__
 
 #if defined __INTEL_COMPILER
 # pragma warning (disable:869)
@@ -335,7 +345,6 @@ has_popcnt_p(void)
 }
 
 #endif	/* INCLUDED_glep_guts_c_ */
-#endif	/* !SSEZ */
 
 
 /* prepare for the next inclusion */
