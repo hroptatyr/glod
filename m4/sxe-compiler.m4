@@ -349,11 +349,14 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	SXE_CHECK_COMPILER_FLAG([-ipo-jobs256], [
 		optiflags="${optiflags} -ipo-jobs256"])
 
-	SXE_CHECK_COMPILER_FLAG([-fast], [
-		featflags="${featflags} -fast"])
+	SXE_CHECK_COMPILER_FLAG([-no-prec-div], [
+		featflags="${featflags} -no-prec-div"])
 
 	SXE_CHECK_COMPILER_FLAG([-xHost], [
 		featflags="${featflags} -xHost"])
+
+	dnl SXE_CHECK_COMPILER_FLAG([-fast], [
+	dnl 	featflags="${featflags} -fast"])
 
 	dnl SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
 	dnl 	featflags="${featflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
