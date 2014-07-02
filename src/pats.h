@@ -1,6 +1,6 @@
-/*** glep.h -- grepping lexemes
+/*** pats.h -- pattern files
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2014 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
@@ -34,31 +34,68 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  ***/
-#if !defined INCLUDED_glep_h_
-#define INCLUDED_glep_h_
-
+#if !defined INCLUDED_pats_h_
+#define INCLUDED_pats_h_
 #include <stddef.h>
-#include <stdint.h>
-#include "pats.h"
+#include "intern.h"
 
-typedef uint_fast32_t gcnt_t;
-typedef struct glepcc_s *glepcc_t;
+typedef struct glod_pat_s glod_pat_t;
+typedef const struct glod_pats_s *glod_pats_t;
 
-/* maximum buffer size presented to grepping routines */
-#define CHUNKZ		(4U * 4096U)
+struct glod_pat_s {
+	union {
+		unsigned int u;
+		struct {
+			/* case insensitive? */
+			unsigned int ci:1;
+			/* whole word match or just prefix, suffix */
+			unsigned int left:1;
+			unsigned int right:1;
+		};
+	} fl/*ags*/;
+	/* pattern length */
+	unsigned int n;
+	/* pattern string */
+	const char *p;
+	/* yield number, relative to oa_yld obarray */
+	obint_t y;
+};
+
+struct glod_pats_s {
+	/* obarray for patterns */
+	obarray_t oa_pat;
+	/* obarray for yields */
+	obarray_t oa_yld;
+
+	size_t npats;
+	glod_pat_t pats[];
+};
 
 
-/* to be implemented by engines: */
 /**
- * Preprocess patterns. */
-extern glepcc_t glep_cc(glod_pats_t);
+ * Read patterns from file FN. */
+extern glod_pats_t glod_read_pats(const char *fn);
 
 /**
- * Return the number of matches of C in BUF of size BSZ. */
-extern int glep_gr(gcnt_t *restrict, glepcc_t c, const char *buf, size_t bsz);
+ * Free resources associated with P. */
+extern void glod_free_pats(glod_pats_t p);
 
-/**
- * Finalise processing. */
-extern void glep_fr(glepcc_t);
+
+static inline const char*
+glod_pats_pat(glod_pats_t p, size_t i)
+{
+	return p->pats[i].p;
+}
 
-#endif	/* INCLUDED_glep_h_ */
+static inline const char*
+glod_pats_yld(glod_pats_t p, size_t i)
+{
+	glod_pat_t pat = p->pats[i];
+
+	if (pat.y) {
+		return obint_name(p->oa_yld, pat.y);
+	}
+	return NULL;
+}
+
+#endif	/* INCLUDED_pats_h_ */

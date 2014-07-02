@@ -63,6 +63,7 @@ libglod_la_SOURCES += fops.c fops.h
 libglod_la_SOURCES += boobs.h
 libglod_la_SOURCES += intern.c intern.h
 libglod_la_SOURCES += enum.c enum.h
+libglod_la_SOURCES += pats.c pats.h
 libglod_la_SOURCES += levenshtein.c levenshtein.h
 libglod_la_SOURCES += version.c version.h
 libglod_la_CPPFLAGS = $(AM_CPPFLAGS)

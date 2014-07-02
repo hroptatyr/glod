@@ -68,6 +68,9 @@ struct glepcc_s {
 	hx_t PREFIX[TBLZ];
 	/** table with pointers into actual pattern array */
 	hx_t PATPTR[TBLZ];
+
+	/* the original pats */
+	glod_pats_t p;
 };
 
 #if defined __INTEL_COMPILER
@@ -155,7 +158,7 @@ xicmp(const char *s1, const unsigned char *s2)
 #endif	/* __INTEL_COMPILER */
 
 static size_t
-find_m(gleps_t g)
+find_m(glod_pats_t g)
 {
 /* find the length of the shortest pattern */
 	size_t res;
@@ -167,7 +170,7 @@ find_m(gleps_t g)
 	/* otherwise initialise RES somewhat optimistically */
 	res = 255U;
 	for (size_t i = 0; i < g->npats; i++) {
-		const glep_pat_t p = g->pats[i];
+		const glod_pat_t p = g->pats[i];
 		size_t z = p.n;
 
 		/* only accept m's > 3 if possible */
@@ -190,7 +193,7 @@ find_m(gleps_t g)
 }
 
 static size_t
-find_B(gleps_t g, size_t UNUSED(m))
+find_B(glod_pats_t g, size_t UNUSED(m))
 {
 	/* just use agrep's heuristics
 	 * they used to conditionalise on m>2 but we *know* that
@@ -259,8 +262,8 @@ prfh_ci(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
 
 
 /* glep.h engine api */
-int
-wu_manber_cc(gleps_t g)
+glepcc_t
+wu_manber_cc(glod_pats_t g)
 {
 	struct glepcc_s *res;
 	
@@ -275,7 +278,7 @@ wu_manber_cc(gleps_t g)
 	}
 
 	/* suffix handling helpers */
-	auto void add_pat(const glep_pat_t pat, const unsigned char *p)
+	auto void add_pat(const glod_pat_t pat, const unsigned char *p)
 	{
 		hx_t h;
 
@@ -293,7 +296,7 @@ wu_manber_cc(gleps_t g)
 		return;
 	}
 
-	auto void add_prf(const glep_pat_t pat, const unsigned char *p, size_t patidx)
+	auto void add_prf(const glod_pat_t pat, const unsigned char *p, size_t patidx)
 	{
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
 		hx_t h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + res->m - 1);
@@ -307,8 +310,8 @@ wu_manber_cc(gleps_t g)
 
 	/* suffix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		const glep_pat_t pat = g->pats[i];
-		const unsigned char *p = (const unsigned char*)glep_pat(g, i);
+		const glod_pat_t pat = g->pats[i];
+		const unsigned char *p = (const unsigned char*)pat.p;
 		const size_t z = pat.n;
 
 		if (z > 4U) {
@@ -325,8 +328,8 @@ wu_manber_cc(gleps_t g)
 
 	/* prefix handling */
 	for (size_t i = 0; i < g->npats; i++) {
-		const glep_pat_t pat = g->pats[i];
-		const unsigned char *p = (const unsigned char*)glep_pat(g, i);
+		const glod_pat_t pat = g->pats[i];
+		const unsigned char *p = (const unsigned char*)pat.p;
 		const size_t z = pat.n;
 
 		if (z > 4U) {
@@ -335,41 +338,37 @@ wu_manber_cc(gleps_t g)
 		}
 	}
 
+	res->p = g;
+
 	/* yay, bang the mock into the gleps object */
-	with (struct gleps_s *pg = deconst(g)) {
-		pg->ctx = res;
-	}
-	return 0;
+	return res;
 }
 
 /**
  * Free our context object. */
 void
-glep_fr(gleps_t g)
+wu_manber_fr(glepcc_t g)
 {
-	if (LIKELY(g->ctx != NULL)) {
-		with (struct gleps_s *pg = deconst(g)) {
-			free(pg->ctx);
-		}
+	with (struct glepcc_s *pg = deconst(g)) {
+		free(pg);
 	}
 	return;
 }
 
 int
-wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
+wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 {
-	const glepcc_t c = g->ctx;
-	const unsigned char *bp = (const unsigned char*)buf + c->m - 1;
+	const unsigned char *bp = (const unsigned char*)buf + g->m - 1;
 	const unsigned char *const ep = (const unsigned char*)buf + bsz;
 
 	auto inline const unsigned char *prfs(const unsigned char *xp)
 	{
 		/* return a pointer to the prefix of X */
-		return xp - c->m + 1;
+		return xp - g->m + 1;
 	}
 
 	auto bool
-	matchp(const glep_pat_t pat, const unsigned char *const sp, size_t z)
+	matchp(const glod_pat_t pat, const unsigned char *const sp, size_t z)
 	{
 		/* check if PAT is a whole-word match */
 		if (UNLIKELY(pat.fl.left && pat.fl.right)) {
@@ -407,25 +406,25 @@ wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 	{
 		/* loop through all patterns that hash to P */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
-			if (p == c->PREFIX[pi]) {
-				const hx_t i = c->PATPTR[pi];
-				const glep_pat_t pat = g->pats[i];
-				const char *s = glep_pat(g, i);
+			if (p == g->PREFIX[pi]) {
+				const hx_t i = g->PATPTR[pi];
+				const glod_pat_t pat = g->p->pats[i];
+				const char *s = pat.p;
 				size_t l;
 
 				/* check the word */
 				if (0) {
 				match:
 					/* MATCH */
-					assert(g->pats[i].n > 4U);
+					assert(g->p->pats[i].n > 4U);
 					cnt[i]++;
 					return l;
-				} else if (!s[c->m - 2U]) {
+				} else if (!s[g->m - 2U]) {
 					/* small pattern */
 					sp++;
 
 					switch ((pat.fl.ci << 4U) |
-						(l = c->m - 2U)) {
+						(l = g->m - 2U)) {
 					case (0U << 4U) | 3U:
 						if (sp[2U] != s[2U]) {
 							break;
@@ -483,11 +482,11 @@ wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 		hx_t pend;
 
 		/* the next two can be parallelised, no? */
-		h = sufh(c, bp);
-		hci = sufh_ci(c, bp);
+		h = sufh(g, bp);
+		hci = sufh_ci(g, bp);
 
 		/* check suffix */
-		if ((shift = c->SHIFT[h]) && (shci = c->SHIFT[hci])) {
+		if ((shift = g->SHIFT[h]) && (shci = g->SHIFT[hci])) {
 			if (shci < shift) {
 				shift = shci;
 			}
@@ -498,19 +497,19 @@ wu_manber_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 		sp = prfs(bp);
 
 		/* try case aware variant first */
-		pbeg = c->HASH[h + 0U];
-		pend = c->HASH[h + 1U];
+		pbeg = g->HASH[h + 0U];
+		pend = g->HASH[h + 1U];
 
-		if ((shift = match_prfx(sp, pbeg, pend, prfh(c, sp)))) {
+		if ((shift = match_prfx(sp, pbeg, pend, prfh(g, sp)))) {
 			continue;
 		}
 
 		/* try the case insensitive case */
 		if (h != hci) {
-			pbeg = c->HASH[hci + 0U];
-			pend = c->HASH[hci + 1U];
+			pbeg = g->HASH[hci + 0U];
+			pend = g->HASH[hci + 1U];
 		}
-		if ((shift = match_prfx(sp, pbeg, pend, prfh_ci(c, sp)))) {
+		if ((shift = match_prfx(sp, pbeg, pend, prfh_ci(g, sp)))) {
 			continue;
 		}
 
