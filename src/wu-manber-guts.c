@@ -174,19 +174,8 @@ find_m(glod_pats_t g)
 		size_t z = p.n;
 
 		/* only accept m's > 3 if possible */
-		switch (z) {
-		default:
-			if (z < res) {
-				res = z;
-			}
-			break;
-		case 0U:
-		case 1U:
-		case 2U:
-		case 3U:
-		case 4U:
-			/* the SIMD code deals with these */
-			break;
+		if (z < res) {
+			res = z;
 		}
 	}
 	return res;
@@ -314,10 +303,8 @@ wu_manber_cc(glod_pats_t g)
 		const unsigned char *p = (const unsigned char*)pat.p;
 		const size_t z = pat.n;
 
-		if (z > 4U) {
-			/* only operate on sufficiently long pats */
-			add_pat(pat, p);
-		}
+		/* only operate on sufficiently long pats */
+		add_pat(pat, p);
 	}
 
 	/* finalise (integrate) the HASH table */
@@ -332,10 +319,8 @@ wu_manber_cc(glod_pats_t g)
 		const unsigned char *p = (const unsigned char*)pat.p;
 		const size_t z = pat.n;
 
-		if (z > 4U) {
-			/* only operate on the important pats */
-			add_prf(pat, p, i);
-		}
+		/* only operate on the important pats */
+		add_prf(pat, p, i);
 	}
 
 	res->p = g;
@@ -416,7 +401,6 @@ wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 				if (0) {
 				match:
 					/* MATCH */
-					assert(g->p->pats[i].n > 4U);
 					cnt[i]++;
 					return l;
 				} else if (!s[g->m - 2U]) {
