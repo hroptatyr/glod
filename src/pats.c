@@ -299,4 +299,53 @@ glod_free_pats(glod_pats_t p)
 	return;
 }
 
+/* divide pats object for consumption with 2 backends */
+glod_pats_t
+glod_pats_filter(glod_pats_t pv, int(*f)(glod_pat_t))
+{
+	struct glod_pats_s *res;
+
+	/* get some resources on the way */
+	{
+		size_t iniz = 64U * sizeof(*res->pats);
+
+		res = malloc(sizeof(*res) + iniz);
+		res->npats = 0U;
+		res->oa_pat = make_obarray();
+		res->oa_yld = pv->oa_yld;
+	}
+
+	for (size_t i = 0U; i < pv->npats; i++) {
+		glod_pat_t p = pv->pats[i];
+
+		if (!f(p)) {
+			continue;
+		}
+
+		/* otherwise the filter predicate indicated success */
+		with (obint_t x = intern(res->oa_pat, p.p, p.n)) {
+			if (UNLIKELY(x / 64U > res->npats / 64U)) {
+				/* extend */
+				size_t nu = (x / 64U + 1U) * 64U * sizeof(p);
+				res = realloc(res, sizeof(*res) + nu);
+				res->npats = x;
+			} else if (x > res->npats) {
+				res->npats = x;
+			}
+			/* just copy the whole shebang */
+			res->pats[x - 1U] = p;
+		}
+	}
+
+	if (UNLIKELY(!res->npats)) {
+		free(res);
+		return NULL;
+	}
+	/* materialise pattern strings */
+	for (size_t i = 0U; i < res->npats; i++) {
+		res->pats[i].p = obint_name(res->oa_pat, i + 1U);
+	}
+	return res;
+}
+
 /* pats.c ends here */

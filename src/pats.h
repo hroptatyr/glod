@@ -80,6 +80,10 @@ extern glod_pats_t glod_read_pats(const char *fn);
  * Free resources associated with P. */
 extern void glod_free_pats(glod_pats_t p);
 
+/**
+ * Filter patterns P according to F. */
+extern glod_pats_t glod_pats_filter(glod_pats_t p, int(*f)(glod_pat_t));
+
 
 static inline const char*
 glod_pats_pat(glod_pats_t p, size_t i)
