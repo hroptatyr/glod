@@ -38,6 +38,7 @@
 # include "config.h"
 #endif	/* HAVE_CONFIG_H */
 #include <stdbool.h>
+#include <string.h>
 #include <assert.h>
 #if defined __INTEL_COMPILER
 # include <immintrin.h>
@@ -55,6 +56,7 @@
 # include <cpuid.h>
 #endif	/* !INCLUDED_cpuid_h_ */
 #include "glep-simd-guts.h"
+#include "nifty.h"
 
 #if defined SSEZ
 #define QU(a)		a
@@ -499,12 +501,12 @@ recode(uint8_t *restrict tgt, const char *s)
 /* public glep API */
 static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
 
-int
-glep_simd_cc(gleps_t g)
+glepcc_t
+glep_simd_cc(glod_pats_t g)
 {
 /* rearrange patterns into 1grams, 2grams, 3,4grams, etc. */
 	for (size_t i = 0U; i < g->npats; i++) {
-		const char *p = glep_pat(g, i);
+		const char *p = g->pats[i].p;
 		const size_t z = g->pats[i].n;
 
 		if (z > 4U) {
@@ -535,12 +537,13 @@ glep_simd_cc(gleps_t g)
 #else  /* !HAVE_POPCNT_INTRINS */
 # define dcount	_dcount_routin
 #endif	/* HAVE_POPCNT_INTRINS */
-	return 0;
+	return deconst(g);
 }
 
 int
-glep_simd_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
+glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 {
+	glod_pats_t pv = (const void*)g;
 	accu_t deco[0x100U][CHUNKZ / __BITS];
 	accu_t c[CHUNKZ / __BITS];
 	size_t nb;
@@ -555,17 +558,17 @@ glep_simd_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 	ncchars = npchars;
 #endif	/* USE_CACHE */
 
-	for (size_t i = 0U; i < g->npats; i++) {
+	for (size_t i = 0U; i < pv->npats; i++) {
 		uint8_t str[256U];
 		size_t len;
 
-		if (g->pats[i].n > 4U) {
+		if (pv->pats[i].n > 4U) {
 			continue;
 		}
 
 		/* match pattern */
 		str[0U] = '\0';
-		len = recode(str + 1U, glep_pat(g, i));
+		len = recode(str + 1U, pv->pats[i].p);
 		dmatch(c, deco, nb, str, len + 2U);
 
 		/* count the matches */
@@ -574,6 +577,11 @@ glep_simd_gr(gcnt_t *restrict cnt, gleps_t g, const char *buf, size_t bsz)
 	return 0;
 }
 
+void
+glep_simd_fr(glepcc_t UNUSED(g))
+{
+	return;
+}
 #endif	/* INCLUDED_glep_guts_c_ */
 
 
