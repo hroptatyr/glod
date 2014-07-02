@@ -22,12 +22,12 @@ ob	1	<stdin>
 on	1	<stdin>
 vil	1	<stdin>
 was	1	<stdin>
-werden	1	<stdin>
 wil	2	<stdin>
-здесь	1	<stdin>
 и	1	<stdin>
+он	1	<stdin>
+werden	1	<stdin>
+здесь	1	<stdin>
 ней	1	<stdin>
 ним	1	<stdin>
-он	1	<stdin>
 там	1	<stdin>
 $

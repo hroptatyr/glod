@@ -58,8 +58,15 @@ typedef size_t idx_t;
 static const char stdin_fn[] = "<stdin>";
 
 struct glepcc_s {
-	glepcc_t wu_manber;
-	glepcc_t glep_simd;
+	obarray_t oa_yld;
+
+	size_t gs_npats;
+	glod_pats_t glep_simd;
+	glepcc_t glep_simd_cc;
+
+	size_t wm_npats;
+	glod_pats_t wu_manber;
+	glepcc_t wu_manber_cc;
 };
 
 
@@ -147,6 +154,7 @@ DEFCORU(co_match, {
 static int invert_match_p;
 static int show_pats_p;
 static int show_count_p;
+static unsigned int thresh = 4U;
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -164,18 +172,40 @@ error(const char *fmt, ...)
 	return;
 }
 
-static void
-pr_results(const glod_pats_t pf, const uint_fast32_t *cnt, const char *fn)
+
+static int
+__lenle4(glod_pat_t p)
 {
+	return p.n <= thresh;
+}
+
+static int
+__lengt4(glod_pat_t p)
+{
+	return p.n > thresh;
+}
+
+static void
+pr_results(glepcc_t cc, const gcnt_t *cnt, const char *fn)
+{
+	const size_t gsnpats = cc->gs_npats;
+	const size_t totnpats = cc->gs_npats + cc->wm_npats;
 	size_t nmtch = 0U;
 
 	if (show_pats_p) {
-		for (size_t i = 0U; i < pf->npats; i++) {
+		for (size_t i = 0U; i < totnpats; i++) {
+			const char *p;
+
 			if (!cnt[i]) {
 				continue;
 			}
 			/* otherwise do the printing work */
-			fputs(glod_pats_pat(pf, i), stdout);
+			if (i < gsnpats) {
+				p = cc->glep_simd->pats[i].p;
+			} else {
+				p = cc->wu_manber->pats[i - gsnpats].p;
+			}
+			fputs(p, stdout);
 			if (!show_count_p) {
 				putchar('\t');
 			} else {
@@ -185,29 +215,46 @@ pr_results(const glod_pats_t pf, const uint_fast32_t *cnt, const char *fn)
 			nmtch++;
 		}
 	} else {
-		const size_t nyld = ninterns(pf->oa_yld);
+		const size_t nyld = ninterns(cc->oa_yld);
 		uint_fast32_t clscnt[nyld];
 
 		memset(clscnt, 0, sizeof(clscnt));
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const obint_t yldi = pf->pats[i].y;
+		for (size_t i = 0U; i < totnpats; i++) {
+			obint_t yldi;
 
 			if (!cnt[i]) {
 				continue;
 			}
+			if (i < gsnpats) {
+				yldi = cc->glep_simd->pats[i].y;
+			} else {
+				yldi = cc->wu_manber->pats[i - gsnpats].y;
+			}
+			if (UNLIKELY(!yldi)) {
+				continue;
+			}
 			clscnt[yldi - 1U] += cnt[i];
 		}
-		for (size_t i = 0U; i < pf->npats; i++) {
-			const obint_t yldi = pf->pats[i].y;
+		for (size_t i = 0U; i < totnpats; i++) {
+			obint_t yldi;
 			const char *rs;
 			uint_fast32_t rc;
 
+			if (i < gsnpats) {
+				yldi = cc->glep_simd->pats[i].y;
+			} else {
+				yldi = cc->wu_manber->pats[i - gsnpats].y;
+			}
 			if (UNLIKELY(!yldi)) {
 				rc = cnt[i];
-				rs = glod_pats_pat(pf, i);
+				if (i < gsnpats) {
+					rs = cc->glep_simd->pats[i].p;
+				} else {
+					rs = cc->wu_manber->pats[i - gsnpats].p;
+				}
 			} else {
 				rc = clscnt[yldi - 1U];
-				rs = glod_pats_yld(pf, i);
+				rs = obint_name(cc->oa_yld, yldi);
 				/* reset the counter */
 				clscnt[yldi - 1U] = 0U;
 			}
@@ -234,7 +281,7 @@ pr_results(const glod_pats_t pf, const uint_fast32_t *cnt, const char *fn)
 }
 
 static int
-match0(glod_pats_t pf, glepcc_t cc, int fd, const char *fn)
+match0(glepcc_t cc, int fd, const char *fn)
 {
 	char buf[CHUNKZ];
 	struct cocore *snarf;
@@ -243,7 +290,7 @@ match0(glod_pats_t pf, glepcc_t cc, int fd, const char *fn)
 	int res = 0;
 	ssize_t nrd;
 	ssize_t npr;
-	gcnt_t cnt[pf->npats];
+	gcnt_t cnt[cc->wm_npats + cc->gs_npats];
 
 	self = PREP();
 	snarf = START_PACK(
@@ -278,7 +325,7 @@ match0(glod_pats_t pf, glepcc_t cc, int fd, const char *fn)
 	} while (nrd > 0);
 
 	/* just print all them results now */
-	pr_results(pf, cnt, fn);
+	pr_results(cc, cnt, fn);
 
 	UNPREP();
 	return res;
@@ -291,16 +338,35 @@ glep_cc(glod_pats_t g)
  * or Wu-Manber */
 	struct glepcc_s *res = malloc(sizeof(*res));
 
-	res->wu_manber = wu_manber_cc(g);
-	res->glep_simd = glep_simd_cc(g);
+	if ((res->glep_simd = glod_pats_filter(g, __lenle4)) != NULL) {
+		res->glep_simd_cc = glep_simd_cc(res->glep_simd);
+		res->gs_npats = res->glep_simd->npats;
+	} else {
+		res->glep_simd_cc = NULL;
+		res->gs_npats = 0U;
+	}
+
+	if ((res->wu_manber = glod_pats_filter(g, __lengt4)) != NULL) {
+		res->wu_manber_cc = wu_manber_cc(res->wu_manber);
+		res->wm_npats = res->wu_manber->npats;
+	} else {
+		res->wu_manber_cc = NULL;
+		res->wm_npats = 0U;
+	}
+
+	res->oa_yld = g->oa_yld;
 	return res;
 }
 
 int
 glep_gr(gcnt_t *restrict cnt, glepcc_t c, const char *buf, size_t bsz)
 {
-	wu_manber_gr(cnt, c->wu_manber, buf, bsz);
-	glep_simd_gr(cnt, c->glep_simd, buf, bsz);
+	if (LIKELY(c->glep_simd_cc != NULL)) {
+		glep_simd_gr(cnt, c->glep_simd_cc, buf, bsz);
+	}
+	if (LIKELY(c->wu_manber_cc != NULL)) {
+		wu_manber_gr(cnt + c->gs_npats, c->wu_manber_cc, buf, bsz);
+	}
 	return 0;
 }
 
@@ -310,8 +376,26 @@ glep_fr(glepcc_t g)
 	if (UNLIKELY(g == NULL)) {
 		return;
 	}
-	wu_manber_fr(g->wu_manber);
-	glep_simd_fr(g->glep_simd);
+	wu_manber_fr(g->wu_manber_cc);
+	glep_simd_fr(g->glep_simd_cc);
+
+	/* since we shared the oa_yld slot, free our references there */
+	with (struct glod_pats_s *pg = deconst(g->wu_manber)) {
+		if (pg != NULL) {
+			pg->oa_yld = NULL;
+		}
+	}
+	with (struct glod_pats_s *pg = deconst(g->glep_simd)) {
+		if (pg != NULL) {
+			pg->oa_yld = NULL;
+		}
+	}
+	if (g->wu_manber != NULL) {
+		glod_free_pats(g->wu_manber);
+	}
+	if (g->glep_simd != NULL) {
+		glod_free_pats(g->glep_simd);
+	}
 	return;
 }
 
@@ -362,7 +446,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (match0(pf, cc, STDIN_FILENO, stdin_fn) < 0) {
+		if (match0(cc, STDIN_FILENO, stdin_fn) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -378,7 +462,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (match0(pf, cc, fd, file) < 0) {
+		} else if (match0(cc, fd, file) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
