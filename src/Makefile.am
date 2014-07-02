@@ -116,8 +116,7 @@ glod_classify_LDADD = libglod.la
 BUILT_SOURCES += glod-classify.yucc
 
 bin_PROGRAMS += glep
-glep_SOURCES = glep.c
-glep_SOURCES += glep.c glep.h
+glep_SOURCES = glep.c glep.h
 glep_SOURCES += wu-manber-guts.c wu-manber-guts.h
 glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
 glep_SOURCES += glep.yuck
