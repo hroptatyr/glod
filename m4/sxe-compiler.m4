@@ -340,7 +340,8 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 ])dnl SXE_WARNFLAGS
 
 AC_DEFUN([SXE_OPTIFLAGS], [dnl
-	optiflags="-O3"
+	SXE_CHECK_COMPILER_FLAG([-O3], [
+		optiflags="${optiflags} -O3"])
 
 	SXE_CHECK_COMPILER_FLAG([-ipo256], [
 		optiflags="${optiflags} -ipo256"])
