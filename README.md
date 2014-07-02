@@ -21,6 +21,13 @@ All tools deliberately ignore system-wide or user-specific localisation
 settings (locales)!  This (and of course speed) sets glod apart from
 tools like [PRETO][1], [JPreText][3] or [OpenRefine][2].
 
+Moreover, most of the tools deliberately sacrifice portability for speed
+on the actual production platform (which is 64bit AVX2 Intel).  This
+goes as far as using every trick in the book, e.g. Cilk, nested
+functions, assembler-backed co-routines, automatic CPU dispatch, and
+more.  The downside, obviously, is that *underfeatured* compilers (yes,
+clang, looking at you) won't be able to build half the tools.
+
 
 glep
 ----
