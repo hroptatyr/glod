@@ -197,16 +197,16 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	const size_t eoi = (bsz - 1U) / sizeof(*b);
 
 	assert(bsz > 0);
-	for (size_t i = 0U, k = 0U; i <= eoi; k++) {
+	for (size_t i = 0U, k = 0U; i <= eoi; k++, i += __BITS / sizeof(*b)) {
 		register __mXi data1;
 #if SSEZ < 256 || __BITS == 64
 		register __mXi data2;
 #endif
 
 		/* load */
-		data1 = _mmX_load_si(b + i++);
+		data1 = _mmX_load_si(b + i + 0U);
 #if SSEZ < 256 || __BITS == 64
-		data2 = _mmX_load_si(b + i++);
+		data2 = _mmX_load_si(b + i + 1U);
 #endif
 		/* lower */
 		data1 = SSEI(ptolower)(data1);
@@ -231,8 +231,8 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 #if SSEZ < 256 && __BITS == 64
 		/* load */
-		data1 = _mmX_load_si(b + i++);
-		data2 = _mmX_load_si(b + i++);
+		data1 = _mmX_load_si(b + i + 2U);
+		data2 = _mmX_load_si(b + i + 3U);
 		/* lower */
 		data1 = SSEI(ptolower)(data1);
 		data2 = SSEI(ptolower)(data2);
