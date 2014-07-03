@@ -681,6 +681,8 @@ dnl defines sxe_cv_feat_cilk to "yes" if applicable, "no" otherwise
 dnl also AC_DEFINEs HAVE_CILK
 	AC_CHECK_HEADERS([cilk/cilk.h])
 
+	SXE_CHECK_COMPILER_FLAG([-fcilkplus], [CFLAGS="${CFLAGS} -fcilkplus"])
+
 	AC_MSG_CHECKING([whether Cilk+ keywords work])
 	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <stdlib.h>
