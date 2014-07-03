@@ -376,8 +376,12 @@ glep_fr(glepcc_t g)
 	if (UNLIKELY(g == NULL)) {
 		return;
 	}
-	wu_manber_fr(g->wu_manber_cc);
-	glep_simd_fr(g->glep_simd_cc);
+	if (g->wu_manber_cc != NULL) {
+		wu_manber_fr(g->wu_manber_cc);
+	}
+	if (g->glep_simd_cc != NULL) {
+		glep_simd_fr(g->glep_simd_cc);
+	}
 
 	/* since we shared the oa_yld slot, free our references there */
 	with (struct glod_pats_s *pg = deconst(g->wu_manber)) {
