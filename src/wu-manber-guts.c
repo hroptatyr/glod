@@ -87,7 +87,10 @@ static uint_fast8_t xlcase[] = {
 	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
 	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
 	'x', 'y', 'z', 'Z' + 1U, 'Z' + 2U, 'Z' + 3U, 'Z' + 4U, 'Z' + 5U,
-	y('Z' + 6U + 0U), y('Z' + 6U + 16U), y('Z' + 6U + 32U),
+	y('Z' + 6U + 0U), y('Z' + 6U + 16U), /* <- that's all ASCIIs  */
+	y('Z' + 6U + 32U), y('Z' + 6U + 48U),
+	y('Z' + 6U + 64U), y('Z' + 6U + 80U),
+	y('Z' + 6U + 96U), y('Z' + 6U + 112U),
 #undef x
 #undef y
 };
