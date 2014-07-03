@@ -87,7 +87,10 @@ static uint_fast8_t xlcase[] = {
 	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
 	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
 	'x', 'y', 'z', 'Z' + 1U, 'Z' + 2U, 'Z' + 3U, 'Z' + 4U, 'Z' + 5U,
-	y('Z' + 6U + 0U), y('Z' + 6U + 16U), y('Z' + 6U + 32U),
+	y('Z' + 6U + 0U), y('Z' + 6U + 16U), /* <- that's all ASCIIs  */
+	y('Z' + 6U + 32U), y('Z' + 6U + 48U),
+	y('Z' + 6U + 64U), y('Z' + 6U + 80U),
+	y('Z' + 6U + 96U), y('Z' + 6U + 112U),
 #undef x
 #undef y
 };
@@ -301,7 +304,6 @@ wu_manber_cc(glod_pats_t g)
 	for (size_t i = 0; i < g->npats; i++) {
 		const glod_pat_t pat = g->pats[i];
 		const unsigned char *p = (const unsigned char*)pat.p;
-		const size_t z = pat.n;
 
 		/* only operate on sufficiently long pats */
 		add_pat(pat, p);
@@ -317,7 +319,6 @@ wu_manber_cc(glod_pats_t g)
 	for (size_t i = 0; i < g->npats; i++) {
 		const glod_pat_t pat = g->pats[i];
 		const unsigned char *p = (const unsigned char*)pat.p;
-		const size_t z = pat.n;
 
 		/* only operate on the important pats */
 		add_prf(pat, p, i);
@@ -401,7 +402,7 @@ wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 				if (0) {
 				match:
 					/* MATCH */
-					cnt[i]++;
+					cnt[pat.idx]++;
 					return l;
 				} else if (!s[g->m - 2U]) {
 					/* small pattern */

@@ -255,6 +255,7 @@ __read_pats(const char *buf, size_t bsz)
 	/* materialise pattern strings */
 	for (size_t i = 0U; i < res->npats; i++) {
 		res->pats[i].p = obint_name(res->oa_pat, i + 1U);
+		res->pats[i].idx = (unsigned int)i;
 	}
 	return res;
 }

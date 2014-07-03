@@ -59,6 +59,8 @@ struct glod_pat_s {
 	const char *p;
 	/* yield number, relative to oa_yld obarray */
 	obint_t y;
+	/* index, this is the IDX-th pattern */
+	unsigned int idx;
 };
 
 struct glod_pats_s {
