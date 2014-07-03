@@ -301,7 +301,6 @@ wu_manber_cc(glod_pats_t g)
 	for (size_t i = 0; i < g->npats; i++) {
 		const glod_pat_t pat = g->pats[i];
 		const unsigned char *p = (const unsigned char*)pat.p;
-		const size_t z = pat.n;
 
 		/* only operate on sufficiently long pats */
 		add_pat(pat, p);
@@ -317,7 +316,6 @@ wu_manber_cc(glod_pats_t g)
 	for (size_t i = 0; i < g->npats; i++) {
 		const glod_pat_t pat = g->pats[i];
 		const unsigned char *p = (const unsigned char*)pat.p;
-		const size_t z = pat.n;
 
 		/* only operate on the important pats */
 		add_prf(pat, p, i);
