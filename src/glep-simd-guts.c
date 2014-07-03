@@ -315,6 +315,7 @@ add_pchar(unsigned char c)
 enum feat_e {
 	_FEAT_UNK,
 	_FEAT_POPCNT,
+	_FEAT_SSE2,
 	_FEAT_SSSE3,
 	_FEAT_AVX2,
 	_FEAT_AVX512F,
@@ -364,6 +365,8 @@ has_cpu_feature_p(enum feat_e x)
 		break;
 	case _FEAT_POPCNT:
 		return ecx[0U] >> 23U & 0b1U;
+	case _FEAT_SSE2:
+		return edx[0U] >> 26U & 0b1U;
 	case _FEAT_SSSE3:
 		return ecx[0U] >> 9U & 0b1U;
 	case _FEAT_AVX2:
@@ -559,7 +562,7 @@ glep_simd_cc(glod_pats_t g)
 		decomp = _decomp256;
 #endif	/* HAVE_MM256_INT_INTRINS */
 #if defined HAVE_MM128_INT_INTRINS
-	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_SSSE3)) {
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_SSE2)) {
 		decomp = _decomp128;
 #else  /* HAVE_MM128_INT_INTRINS */
 # error compiler lacks support for decomp routine
