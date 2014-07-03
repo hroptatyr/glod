@@ -44,58 +44,6 @@ AC_CHECK_HEADERS([pty.h])
 AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
 
 ## check for intrinsics
-AC_CHECK_HEADERS([immintrin.h])
-AC_CHECK_HEADERS([x86intrin.h])
-AC_CHECK_HEADERS([ia32intrin.h])
-AC_CHECK_HEADERS([popcntintrin.h])
-AC_CHECK_TYPES([__m128i], [], [], [[
-#if defined HAVE_X86INTRIN_H
-# include <x86intrin.h>
-#elif defined HAVE_IMMINTRIN_H
-# include <immintrin.h>
-#endif
-]])
-AC_CHECK_TYPES([__m256i], [], [], [[
-#if defined HAVE_X86INTRIN_H
-# include <x86intrin.h>
-#elif defined HAVE_IMMINTRIN_H
-# include <immintrin.h>
-#endif
-]])
-AC_CHECK_TYPES([__m512i], [], [], [[
-#if defined HAVE_X86INTRIN_H
-# include <x86intrin.h>
-#elif defined HAVE_IMMINTRIN_H
-# include <immintrin.h>
-#endif
-]])
-
-AC_DEFUN([SXE_CHECK_SIMD], [dnl
-dnl Usage: SXE_CHECK_SIMD([INTRIN], [[SNIPPET], [IF-FOUND], [IF-NOT-FOUND]])
-	AC_MSG_CHECKING([for SIMD routine $1])
-	AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-#if defined HAVE_IA32INTRIN_H
-# include <ia32intrin.h>
-#endif
-#if defined HAVE_X86INTRIN_H
-# include <x86intrin.h>
-#endif
-#if defined HAVE_IMMINTRIN_H
-# include <immintrin.h>
-#endif
-#if defined HAVE_POPCNTINTRIN_H
-# include <popcntintrin.h>
-#endif
-]], [ifelse([$2],[],[$1(0U)],[$2]);])], [
-	eval AS_TR_SH(ac_cv_func_$1)="yes"
-	$3
-], [
-	eval AS_TR_SH(ac_cv_func_$1)="no"
-	$4
-])
-	AC_MSG_RESULT([${ac_cv_func_$1}])
-])dnl SXE_CHECK_SIMD
-
 SXE_CHECK_SIMD([_tzcnt_u32])
 SXE_CHECK_SIMD([_tzcnt_u64])
 SXE_CHECK_SIMD([_popcnt32])
@@ -175,6 +123,8 @@ if test "${ac_cv_func__mm_popcnt_u32}" = "yes" -a \
 fi
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
+
+SXE_CHECK_CILK
 
 
 PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
