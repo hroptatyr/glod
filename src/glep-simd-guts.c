@@ -311,62 +311,70 @@ add_pchar(unsigned char c)
 }
 
 
-#if defined __INTEL_COMPILER
-# pragma warning (disable:869)
-static size_t
-__attribute__((cpu_dispatch(core_4th_gen_avx, core_2_duo_ssse3)))
-decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz)
+/* our own cpu dispatcher */
+enum feat_e {
+	_FEAT_UNK,
+	_FEAT_POPCNT,
+	_FEAT_SSSE3,
+	_FEAT_AVX2,
+	_FEAT_AVX512F,
+};
+
+static unsigned int max;
+static uint32_t ebx[3U];
+static uint32_t ecx[3U];
+static uint32_t edx[3U];
+
+static __attribute__((const)) void
+__get_cpu_features(void)
 {
-	/* stub */
+	uint32_t dum;
+
+	if (!(max = __get_cpuid_max(0U, NULL))) {
+		max--;
+		return;
+	}
+
+	/* otherwise it's safe to call on 0x01 features */
+	__cpuid(1U/*eax*/, dum, ebx[0U], ecx[0U], edx[0U]);
+
+	if (max >= 7U) {
+		/* get extended attrs */
+		__cpuid_count(7U, 0x0U, dum, ebx[1U], ecx[1U], edx[1U]);
+	}
+
+	/* get extendeds */
+	if (__get_cpuid_max(0x80000000U, NULL) >= 0x80000001U) {
+		__cpuid(0x80000001U/*eax*/,
+			dum, ebx[2U], ecx[2U], edx[2U]);
+	}
+	return;
 }
-# pragma warning (default:869)
 
-static size_t
-#if defined __INTEL_COMPILER
-__attribute__((cpu_specific(core_4th_gen_avx)))
-#else
-__attribute__((target("avx2")))
-#endif
-decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz)
+static inline __attribute__((const)) bool
+has_cpu_feature_p(enum feat_e x)
 {
-	return _decomp256(tgt, buf, bsz, pchars, npchars);
-}
-#endif	/* __INTEL_COMPILER */
+	if (!max) {
+		/* cpuid singleton */
+		__get_cpu_features();
+	}
 
-static size_t
-#if defined __INTEL_COMPILER
-__attribute__((cpu_specific(core_2_duo_ssse3)))
-#else
-__attribute__((target("ssse3")))
-#endif
-decomp(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz)
-{
-	return _decomp128(tgt, buf, bsz, pchars, npchars);
-}
-
-/**
- * @return true if the CPU supports the SSE 4.2 POPCNT instruction
- * else false.
- * Microsoft __popcnt documentation:
- * http://msdn.microsoft.com/en-en/library/bb385231.aspx
- */
-static inline __attribute__((pure, const)) bool
-has_popcnt_p(void)
-{
-#if defined bit_POPCNT
-# define _FEAT_POPCNT	bit_POPCNT
-#else  /* !bit_POPCNT */
-# define _FEAT_POPCNT	(1U << 23U)
-#endif	/* bit_POPCNT */
-	unsigned int info_type = 0x00000001U;
-	unsigned int ax[1U], bx[1U], cx[1U], dx[1U];
-
-	if (__get_cpuid(info_type, ax, bx, cx, dx)) {
-		return (*cx & _FEAT_POPCNT);
+	switch (x) {
+	default:
+		break;
+	case _FEAT_POPCNT:
+		return ecx[0U] >> 23U & 0b1U;
+	case _FEAT_SSSE3:
+		return ecx[0U] >> 9U & 0b1U;
+	case _FEAT_AVX2:
+		return ebx[1U] >> 5U & 0b1U;
+	case _FEAT_AVX512F:
+		return ebx[1U] >> 16U & 0b1U;
 	}
 	return false;
-}
+}	
 
+
 static inline void
 dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
 {
@@ -500,6 +508,8 @@ recode(uint8_t *restrict tgt, const char *s)
 
 /* public glep API */
 static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
+static size_t(*decomp)(accu_t (*restrict tgt)[0x100U], const void *b, size_t z,
+		       const char pchars[static 0x100U], size_t npchars);
 
 glepcc_t
 glep_simd_cc(glod_pats_t g)
@@ -529,7 +539,7 @@ glep_simd_cc(glod_pats_t g)
 
 	/* while we're at it, initialise the dcount routine */
 #if defined HAVE_POPCNT_INTRINS
-	if (dcount == NULL && has_popcnt_p()) {
+	if (dcount == NULL && has_cpu_feature_p(_FEAT_POPCNT)) {
 		dcount = _dcount_intrin;
 	} else {
 		dcount = _dcount_routin;
@@ -537,6 +547,27 @@ glep_simd_cc(glod_pats_t g)
 #else  /* !HAVE_POPCNT_INTRINS */
 # define dcount	_dcount_routin
 #endif	/* HAVE_POPCNT_INTRINS */
+
+	if (0) {
+		;
+#if defined HAVE_MM512_INT_INTRINS
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_AVX512F)) {
+		decomp = _decomp512;
+#endif	/* HAVE_MM512_INT_INTRINS */
+#if defined HAVE_MM256_INT_INTRINS
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_AVX2)) {
+		decomp = _decomp256;
+#endif	/* HAVE_MM256_INT_INTRINS */
+#if defined HAVE_MM128_INT_INTRINS
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_SSSE3)) {
+		decomp = _decomp128;
+#else  /* HAVE_MM128_INT_INTRINS */
+# error compiler lacks support for decomp routine
+#endif	/* HAVE_MM128_INT_INTRINS */
+	} else {
+		/* should we abort instead? */
+		return NULL;
+	}
 	return deconst(g);
 }
 
@@ -549,7 +580,7 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 	size_t nb;
 
 	/* put bit patterns into puncs and pat */
-	nb = decomp(deco, (const void*)buf, bsz);
+	nb = decomp(deco, (const void*)buf, bsz, pchars, npchars);
 
 #if defined USE_CACHE
 	for (unsigned char i = '\1'; i < ' '; i++) {
