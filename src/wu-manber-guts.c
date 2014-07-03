@@ -402,7 +402,7 @@ wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 				if (0) {
 				match:
 					/* MATCH */
-					cnt[i]++;
+					cnt[pat.idx]++;
 					return l;
 				} else if (!s[g->m - 2U]) {
 					/* small pattern */

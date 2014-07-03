@@ -572,7 +572,7 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 		dmatch(c, deco, nb, str, len + 2U);
 
 		/* count the matches */
-		cnt[i] += dcount(c, nb);
+		cnt[pv->pats[i].idx] += dcount(c, nb);
 	}
 	return 0;
 }

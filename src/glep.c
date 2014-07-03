@@ -58,13 +58,11 @@ typedef size_t idx_t;
 static const char stdin_fn[] = "<stdin>";
 
 struct glepcc_s {
-	obarray_t oa_yld;
+	glod_pats_t orig;
 
-	size_t gs_npats;
 	glod_pats_t glep_simd;
 	glepcc_t glep_simd_cc;
 
-	size_t wm_npats;
 	glod_pats_t wu_manber;
 	glepcc_t wu_manber_cc;
 };
@@ -188,24 +186,15 @@ __lengt4(glod_pat_t p)
 static void
 pr_results(glepcc_t cc, const gcnt_t *cnt, const char *fn)
 {
-	const size_t gsnpats = cc->gs_npats;
-	const size_t totnpats = cc->gs_npats + cc->wm_npats;
 	size_t nmtch = 0U;
 
 	if (show_pats_p) {
-		for (size_t i = 0U; i < totnpats; i++) {
-			const char *p;
-
+		for (size_t i = 0U; i < cc->orig->npats; i++) {
 			if (!cnt[i]) {
 				continue;
 			}
 			/* otherwise do the printing work */
-			if (i < gsnpats) {
-				p = cc->glep_simd->pats[i].p;
-			} else {
-				p = cc->wu_manber->pats[i - gsnpats].p;
-			}
-			fputs(p, stdout);
+			fputs(cc->orig->pats[i].p, stdout);
 			if (!show_count_p) {
 				putchar('\t');
 			} else {
@@ -215,46 +204,31 @@ pr_results(glepcc_t cc, const gcnt_t *cnt, const char *fn)
 			nmtch++;
 		}
 	} else {
-		const size_t nyld = ninterns(cc->oa_yld);
+		const size_t nyld = ninterns(cc->orig->oa_yld);
 		uint_fast32_t clscnt[nyld];
 
 		memset(clscnt, 0, sizeof(clscnt));
-		for (size_t i = 0U; i < totnpats; i++) {
+		for (size_t i = 0U; i < cc->orig->npats; i++) {
 			obint_t yldi;
 
 			if (!cnt[i]) {
 				continue;
-			}
-			if (i < gsnpats) {
-				yldi = cc->glep_simd->pats[i].y;
-			} else {
-				yldi = cc->wu_manber->pats[i - gsnpats].y;
-			}
-			if (UNLIKELY(!yldi)) {
+			} else if (UNLIKELY(!(yldi = cc->orig->pats[i].y))) {
 				continue;
 			}
 			clscnt[yldi - 1U] += cnt[i];
 		}
-		for (size_t i = 0U; i < totnpats; i++) {
+		for (size_t i = 0U; i < cc->orig->npats; i++) {
 			obint_t yldi;
 			const char *rs;
 			uint_fast32_t rc;
 
-			if (i < gsnpats) {
-				yldi = cc->glep_simd->pats[i].y;
-			} else {
-				yldi = cc->wu_manber->pats[i - gsnpats].y;
-			}
-			if (UNLIKELY(!yldi)) {
+			if (UNLIKELY(!(yldi = cc->orig->pats[i].y))) {
 				rc = cnt[i];
-				if (i < gsnpats) {
-					rs = cc->glep_simd->pats[i].p;
-				} else {
-					rs = cc->wu_manber->pats[i - gsnpats].p;
-				}
+				rs = cc->orig->pats[i].p;
 			} else {
 				rc = clscnt[yldi - 1U];
-				rs = obint_name(cc->oa_yld, yldi);
+				rs = obint_name(cc->orig->oa_yld, yldi);
 				/* reset the counter */
 				clscnt[yldi - 1U] = 0U;
 			}
@@ -290,7 +264,7 @@ match0(glepcc_t cc, int fd, const char *fn)
 	int res = 0;
 	ssize_t nrd;
 	ssize_t npr;
-	gcnt_t cnt[cc->wm_npats + cc->gs_npats];
+	gcnt_t cnt[cc->orig->npats];
 
 	self = PREP();
 	snarf = START_PACK(
@@ -340,21 +314,17 @@ glep_cc(glod_pats_t g)
 
 	if ((res->glep_simd = glod_pats_filter(g, __lenle4)) != NULL) {
 		res->glep_simd_cc = glep_simd_cc(res->glep_simd);
-		res->gs_npats = res->glep_simd->npats;
 	} else {
 		res->glep_simd_cc = NULL;
-		res->gs_npats = 0U;
 	}
 
 	if ((res->wu_manber = glod_pats_filter(g, __lengt4)) != NULL) {
 		res->wu_manber_cc = wu_manber_cc(res->wu_manber);
-		res->wm_npats = res->wu_manber->npats;
 	} else {
 		res->wu_manber_cc = NULL;
-		res->wm_npats = 0U;
 	}
 
-	res->oa_yld = g->oa_yld;
+	res->orig = g;
 	return res;
 }
 
@@ -365,7 +335,7 @@ glep_gr(gcnt_t *restrict cnt, glepcc_t c, const char *buf, size_t bsz)
 		glep_simd_gr(cnt, c->glep_simd_cc, buf, bsz);
 	}
 	if (LIKELY(c->wu_manber_cc != NULL)) {
-		wu_manber_gr(cnt + c->gs_npats, c->wu_manber_cc, buf, bsz);
+		wu_manber_gr(cnt, c->wu_manber_cc, buf, bsz);
 	}
 	return 0;
 }
