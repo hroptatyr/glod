@@ -124,6 +124,8 @@ fi
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
 
+SXE_CHECK_CILK
+
 
 PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
 	have_tcbdb="yes"

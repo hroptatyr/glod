@@ -675,4 +675,49 @@ dnl Usage: SXE_CHECK_SIMD([INTRIN], [[SNIPPET], [IF-FOUND], [IF-NOT-FOUND]])
 	AC_MSG_RESULT([${ac_cv_func_$1}])
 ])dnl SXE_CHECK_SIMD
 
+AC_DEFUN([SXE_CHECK_CILK], [dnl
+dnl Usage: SXE_CHECK_CILK([ACTION-IF-FOUND], [ACTION-IF-NOT-FOUND])
+dnl defines sxe_cv_feat_cilk to "yes" if applicable, "no" otherwise
+dnl also AC_DEFINEs HAVE_CILK
+	AC_CHECK_HEADERS([cilk/cilk.h])
+
+	AC_MSG_CHECKING([whether Cilk+ keywords work])
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <stdlib.h>
+#if defined HAVE_CILK_CILK_H
+# include <cilk/cilk.h>
+#else  /* !HAVE_CILK_CILK_H */
+# define cilk_spawn	_Cilk_spawn
+# define cilk_sync	_Cilk_sync
+# define cilk_for	_Cilk_for
+#endif /* HAVE_CILK_CILK_H */
+
+static char *trick;
+
+static int pcmp(const void *x, const void *y)
+{
+	return (const char*)x - (const char*)y;
+}
+]], [
+int x = 0;
+int j;
+
+cilk_spawn qsort(trick, 1, 2, pcmp);
+qsort(trick + 4, 1, 2, pcmp);
+cilk_sync;
+
+cilk_for(j = 0; j < 8; j++) {
+	x++;
+}
+])], [
+	AC_DEFINE([HAVE_CILK], [1], [define when compiler supports Cilk+ keywords])
+	sxe_cv_feat_cilk="yes"
+	$1
+], [
+	sxe_cv_feat_cilk="no"
+	$2
+])
+	AC_MSG_RESULT([${sxe_cv_feat_cilk}])
+])dnl SXE_CHECK_CILK
+
 dnl sxe-compiler.m4 ends here
