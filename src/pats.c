@@ -94,7 +94,7 @@ snarf_word(const char *bp[static 1], const char *const ep)
 		.s = *bp,
 	};
 	/* advance BP */
-	*bp = ++wp;
+	*bp = wp + 1U;
 	return res;
 }
 
