@@ -152,7 +152,7 @@ DEFCORU(co_match, {
 static int invert_match_p;
 static int show_pats_p;
 static int show_count_p;
-static unsigned int thresh = 4U;
+static unsigned int thresh = 2U;
 
 static void
 __attribute__((format(printf, 1, 2)))
