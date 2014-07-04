@@ -12,7 +12,7 @@ da,no	1	<stdin>
 da,de,nl,no	1	<stdin>
 nl,de	1	<stdin>
 da,de,nl,no,sv	2	<stdin>
-en,fi,es	3	<stdin>
+en,fi,es	1	<stdin>
 nl,en,de,it	2	<stdin>
 nl,no,sv	1	<stdin>
 da,de,hu	2	<stdin>

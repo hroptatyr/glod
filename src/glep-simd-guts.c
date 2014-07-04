@@ -208,11 +208,6 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 #if SSEZ < 256 || __BITS == 64
 		data2 = _mmX_load_si(b + i + 1U);
 #endif
-		/* lower */
-		data1 = SSEI(ptolower)(data1);
-#if SSEZ < 256 || __BITS == 64
-		data2 = SSEI(ptolower)(data2);
-#endif
 		/* lodge */
 		tgt[0U][k] = (accu_t)SSEI(pispuncs)(data1);
 #if SSEZ < 256 || __BITS == 64
@@ -233,9 +228,6 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 		/* load */
 		data1 = _mmX_load_si(b + i + 2U);
 		data2 = _mmX_load_si(b + i + 3U);
-		/* lower */
-		data1 = SSEI(ptolower)(data1);
-		data2 = SSEI(ptolower)(data2);
 		/* lodge */
 		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
 		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);

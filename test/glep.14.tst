@@ -10,7 +10,7 @@ den	2	<stdin>
 der	1	<stdin>
 die	1	<stdin>
 er	2	<stdin>
-he	3	<stdin>
+he	1	<stdin>
 him	2	<stdin>
 ich	4	<stdin>
 im	1	<stdin>

@@ -87,13 +87,13 @@ extern void glod_free_pats(glod_pats_t p);
 extern glod_pats_t glod_pats_filter(glod_pats_t p, int(*f)(glod_pat_t));
 
 
-static inline const char*
+static __inline const char*
 glod_pats_pat(glod_pats_t p, size_t i)
 {
 	return p->pats[i].p;
 }
 
-static inline const char*
+static __inline const char*
 glod_pats_yld(glod_pats_t p, size_t i)
 {
 	glod_pat_t pat = p->pats[i];

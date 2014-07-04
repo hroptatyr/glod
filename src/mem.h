@@ -49,7 +49,7 @@ extern size_t memusa;
 # define xrealloc(_p, _x)	__xrealloc(__FILE__, __LINE__, _p, _x)
 # define xfree(_x)		__xfree(__FILE__, __LINE__, _x)
 
-static inline void*
+static __inline void*
 __xmalloc(const char *file, int line, size_t sz)
 {
 	void *res = malloc(sz);
@@ -59,7 +59,7 @@ __xmalloc(const char *file, int line, size_t sz)
 	return res;
 }
 
-static inline void*
+static __inline void*
 __xrealloc(const char *file, int line, void *p, size_t sz)
 {
 	void *res = realloc(p, sz);
@@ -70,7 +70,7 @@ __xrealloc(const char *file, int line, void *p, size_t sz)
 	return res;
 }
 
-static inline void
+static __inline void
 __xfree(const char *file, int line, void *p)
 {
 	fprintf(stderr, "free %p (%s:%i) ... total %lu\n",
@@ -94,7 +94,7 @@ __xfree(const char *file, int line, void *p)
 #define xnew_array	xnew_a
 #define xresz_a(_x, _s)	xrealloc(_x, sizeof(*(_x)) * (_s))
 
-static inline void*
+static __inline void*
 snodup(const void *in)
 {
 	union {
@@ -120,7 +120,7 @@ snodup(const void *in)
 
 # if !defined MREMAP_MAYMOVE
 # define MREMAP_MAYMOVE		1
-static inline void*
+static __inline void*
 mremap(void *old, size_t ol_sz, size_t nu_sz, int flags)
 {
 /* impl'd only for memory maps */
@@ -137,7 +137,7 @@ mremap(void *old, size_t ol_sz, size_t nu_sz, int flags)
 # endif	/* !MREMAP_MAYMOVE */
 #endif	/* MAP_FAILED */
 
-static inline bool
+static __inline bool
 mmapablep(int fd)
 {
 	struct stat st;
