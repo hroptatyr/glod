@@ -249,8 +249,7 @@ __read_pats(const char *buf, size_t bsz)
 	}
 
 	if (UNLIKELY(!res->npats)) {
-		free(res);
-		return NULL;
+		goto bugger;
 	}
 	/* materialise pattern strings */
 	for (size_t i = 0U; i < res->npats; i++) {
@@ -258,6 +257,12 @@ __read_pats(const char *buf, size_t bsz)
 		res->pats[i].idx = (unsigned int)i;
 	}
 	return res;
+
+bugger:
+	free_obarray(res->oa_pat);
+	free_obarray(res->oa_yld);
+	free(res);
+	return NULL;
 }
 
 
