@@ -325,7 +325,10 @@ glod_pats_filter(glod_pats_t pv, int(*f)(glod_pat_t))
 
 		/* otherwise the filter predicate indicated success */
 		with (obint_t x = intern(res->oa_pat, p.p, p.n)) {
-			if (UNLIKELY(x / 64U > res->npats / 64U)) {
+			if (x == 0U) {
+				/* oh god oh god */
+				break;
+			} else if (UNLIKELY(x / 64U > res->npats / 64U)) {
 				/* extend */
 				size_t nu = (x / 64U + 1U) * 64U * sizeof(p);
 				res = realloc(res, sizeof(*res) + nu);
