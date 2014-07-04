@@ -105,8 +105,9 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 {
 	nmemb_ol *= membz;
 	nmemb_nu *= membz;
-	buf = realloc(buf, nmemb_nu);
-	memset((uint8_t*)buf + nmemb_ol, 0, nmemb_nu - nmemb_ol);
+	if (LIKELY((buf = realloc(buf, nmemb_nu)) != NULL)) {
+		memset((uint8_t*)buf + nmemb_ol, 0, nmemb_nu - nmemb_ol);
+	}
 	return buf;
 }
 

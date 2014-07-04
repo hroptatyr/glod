@@ -148,7 +148,7 @@ mmap_fn(const char *fn, int flags)
 		goto fifo;
 	}
 	if ((res.fd = open(fn, flags)) < 0) {
-		;
+		goto out;
 	} else if (fstat(res.fd, &st) < 0) {
 		res.fb = (glodf_t){.z = 0U, .d = NULL};
 		goto clo;
@@ -170,8 +170,10 @@ mmap_fn(const char *fn, int flags)
 	clo:
 		close(res.fd);
 		res.fd = -1;
+		goto out;
 	}
 	posix_fadvise(res.fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+out:
 	return res;
 }
 

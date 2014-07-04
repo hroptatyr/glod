@@ -94,7 +94,7 @@ snarf_word(const char *bp[static 1], const char *const ep)
 		.s = *bp,
 	};
 	/* advance BP */
-	*bp = ++wp;
+	*bp = wp + 1U;
 	return res;
 }
 
@@ -120,8 +120,7 @@ snarf_pat(word_t w)
 		res.fl.ci = 1U;
 	}
 
-	for (const char *on; (on = memchr(w.s, '\\', w.z)) != NULL;) {
-		/* looks like a for-loop but this is looped over just once */
+	if (memchr(w.s, '\\', w.z) != NULL) {
 		static char *word;
 		static size_t worz;
 		size_t ci = 0U;
@@ -144,26 +143,30 @@ snarf_pat(word_t w)
 	return res;
 }
 
-static void
-append_pat(struct glod_pats_s *g[static 1U], wpat_t p)
+static struct glod_pats_s*
+append_pat(struct glod_pats_s *restrict g, wpat_t p)
 {
-	with (obint_t x = intern((*g)->oa_pat, p.w.s, p.w.z), y = 0U) {
-		if (UNLIKELY(x / 64U > (*g)->npats / 64U)) {
+	with (obint_t x = intern(g->oa_pat, p.w.s, p.w.z), y = 0U) {
+		if (UNLIKELY(x / 64U > g->npats / 64U)) {
 			/* extend */
-			size_t nu = (x / 64U + 1U) * 64U * sizeof(*(*g)->pats);
-			*g = realloc(*g, sizeof(**g) + nu);
-			(*g)->npats = x;
-		} else if (x > (*g)->npats) {
-			(*g)->npats = x;
+			size_t nu = (x / 64U + 1U) * 64U * sizeof(*g->pats);
+
+			g = realloc(g, sizeof(*g) + nu);
+			if (UNLIKELY(g == NULL)) {
+				break;
+			}
+			g->npats = x;
+		} else if (x > g->npats) {
+			g->npats = x;
 		}
 		if (p.y.s != NULL) {
 			/* quickly get us a yield number */
-			y = intern((*g)->oa_yld, p.y.s, p.y.z);
+			y = intern(g->oa_yld, p.y.s, p.y.z);
 		}
 		/* copy over pattern bits and bobs */
-		(*g)->pats[x - 1U] = (struct glod_pat_s){p.fl.u, p.w.z, 0U, y};
+		g->pats[x - 1U] = (struct glod_pat_s){p.fl.u, p.w.z, 0U, y};
 	}
-	return;
+	return g;
 }
 
 
@@ -177,15 +180,17 @@ __read_pats(const char *buf, size_t bsz)
 	} ctx = CTX_W;
 	struct glod_pats_s *res;
 	wpat_t cur = {0U};
+	obarray_t oa_pat;
+	obarray_t oa_yld;
 
 	/* get some resources on the way */
-	{
-		size_t iniz = 64U * sizeof(*res->pats);
-
-		res = malloc(sizeof(*res) + iniz);
+	with (const size_t iniz = 64U * sizeof(*res->pats)) {
+		if (UNLIKELY((res = malloc(sizeof(*res) + iniz)) == NULL)) {
+			return NULL;
+		}
 		res->npats = 0U;
-		res->oa_pat = make_obarray();
-		res->oa_yld = make_obarray();
+		res->oa_pat = oa_pat = make_obarray();
+		res->oa_yld = oa_yld = make_obarray();
 	}
 
 	/* now go through the buffer looking for " escapes */
@@ -236,7 +241,10 @@ __read_pats(const char *buf, size_t bsz)
 		case '\n':
 			/* switch back to W mode, and append current */
 			if (LIKELY(cur.w.z > 0UL)) {
-				append_pat(&res, cur);
+				res = append_pat(res, cur);
+				if (UNLIKELY(res == NULL)) {
+					goto bugger;
+				}
 			}
 			ctx = CTX_W;
 			cur = (wpat_t){0U};
@@ -249,15 +257,20 @@ __read_pats(const char *buf, size_t bsz)
 	}
 
 	if (UNLIKELY(!res->npats)) {
-		free(res);
-		return NULL;
+		goto bugger;
 	}
 	/* materialise pattern strings */
 	for (size_t i = 0U; i < res->npats; i++) {
-		res->pats[i].p = obint_name(res->oa_pat, i + 1U);
+		res->pats[i].p = obint_name(oa_pat, i + 1U);
 		res->pats[i].idx = (unsigned int)i;
 	}
 	return res;
+
+bugger:
+	free_obarray(oa_pat);
+	free_obarray(oa_yld);
+	free(res);
+	return NULL;
 }
 
 
@@ -305,15 +318,17 @@ glod_pats_t
 glod_pats_filter(glod_pats_t pv, int(*f)(glod_pat_t))
 {
 	struct glod_pats_s *res;
+	obarray_t oa_pat;
+	obarray_t oa_yld;
 
 	/* get some resources on the way */
-	{
-		size_t iniz = 64U * sizeof(*res->pats);
-
-		res = malloc(sizeof(*res) + iniz);
+	with (const size_t iniz = 64U * sizeof(*res->pats)) {
+		if (UNLIKELY((res = malloc(sizeof(*res) + iniz)) == NULL)) {
+			return NULL;
+		}
 		res->npats = 0U;
-		res->oa_pat = make_obarray();
-		res->oa_yld = pv->oa_yld;
+		oa_pat = make_obarray();
+		oa_yld = pv->oa_yld;
 	}
 
 	for (size_t i = 0U; i < pv->npats; i++) {
@@ -324,11 +339,18 @@ glod_pats_filter(glod_pats_t pv, int(*f)(glod_pat_t))
 		}
 
 		/* otherwise the filter predicate indicated success */
-		with (obint_t x = intern(res->oa_pat, p.p, p.n)) {
-			if (UNLIKELY(x / 64U > res->npats / 64U)) {
+		with (obint_t x = intern(oa_pat, p.p, p.n)) {
+			if (x == 0U) {
+				/* oh god oh god */
+				break;
+			} else if (UNLIKELY(x / 64U > res->npats / 64U)) {
 				/* extend */
 				size_t nu = (x / 64U + 1U) * 64U * sizeof(p);
+
 				res = realloc(res, sizeof(*res) + nu);
+				if (UNLIKELY(res == NULL)) {
+					goto bugger;
+				}
 				res->npats = x;
 			} else if (x > res->npats) {
 				res->npats = x;
@@ -339,14 +361,20 @@ glod_pats_filter(glod_pats_t pv, int(*f)(glod_pat_t))
 	}
 
 	if (UNLIKELY(!res->npats)) {
-		free(res);
-		return NULL;
+		goto bugger;
 	}
 	/* materialise pattern strings */
 	for (size_t i = 0U; i < res->npats; i++) {
-		res->pats[i].p = obint_name(res->oa_pat, i + 1U);
+		res->pats[i].p = obint_name(oa_pat, i + 1U);
 	}
+	res->oa_pat = oa_pat;
+	res->oa_yld = oa_yld;
 	return res;
+
+bugger:
+	free_obarray(oa_pat);
+	free(res);
+	return NULL;
 }
 
 /* pats.c ends here */
