@@ -59,7 +59,7 @@ extern int bitmap_close(bloom_bitmap *map);
 extern void bitmap_set_dirty(bloom_bitmap *map, idx_t i);
 
 
-static inline __attribute__((pure, always_inline)) unsigned int
+static __inline __attribute__((pure, always_inline)) unsigned int
 _uf8_getbit(uint_fast8_t *restrict arr, idx_t i)
 {
 	uint_fast8_t byte = arr[i / BITS_PER_UF8];
@@ -67,7 +67,7 @@ _uf8_getbit(uint_fast8_t *restrict arr, idx_t i)
 	return (byte >> boff) & 0x1U;
 }
 
-static inline __attribute__((always_inline)) void
+static __inline __attribute__((always_inline)) void
 _uf8_setbit(uint_fast8_t *restrict arr, idx_t i)
 {
 	uint_fast8_t byte = arr[i / BITS_PER_UF8];
@@ -80,7 +80,7 @@ _uf8_setbit(uint_fast8_t *restrict arr, idx_t i)
  * Returns the value of the bit at index idx for the
  * bloom_bitmap map
  */
-static inline unsigned int bitmap_getbit(bloom_bitmap *map, idx_t i)
+static __inline unsigned int bitmap_getbit(bloom_bitmap *map, idx_t i)
 {
 	return _uf8_getbit(map->mmap, i);
 }
@@ -89,7 +89,7 @@ static inline unsigned int bitmap_getbit(bloom_bitmap *map, idx_t i)
  * Used to set a bit in the bitmap, and as a side affect,
  * mark the page as dirty if we are in the PERSISTENT mode
  */
-static inline void bitmap_setbit(bloom_bitmap *map, idx_t i)
+static __inline void bitmap_setbit(bloom_bitmap *map, idx_t i)
 {
 	_uf8_setbit(map->mmap, i);
 

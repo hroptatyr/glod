@@ -80,7 +80,7 @@ void spooky_hash128
 );
 
 
-static inline uint64_t spooky_hash64
+static __inline uint64_t spooky_hash64
 (
 	const void *message,
 	size_t length,
@@ -92,7 +92,7 @@ static inline uint64_t spooky_hash64
 	return hash1;
 }
 
-static inline uint32_t spooky_hash32
+static __inline uint32_t spooky_hash32
 (
 	const void *message,
 	size_t length,
