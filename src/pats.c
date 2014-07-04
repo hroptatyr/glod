@@ -120,8 +120,7 @@ snarf_pat(word_t w)
 		res.fl.ci = 1U;
 	}
 
-	for (const char *on; (on = memchr(w.s, '\\', w.z)) != NULL;) {
-		/* looks like a for-loop but this is looped over just once */
+	if (memchr(w.s, '\\', w.z) != NULL) {
 		static char *word;
 		static size_t worz;
 		size_t ci = 0U;
