@@ -207,6 +207,11 @@ pr_results(glepcc_t cc, const gcnt_t *cnt, const char *fn)
 		const size_t nyld = ninterns(cc->orig->oa_yld);
 		uint_fast32_t clscnt[nyld];
 
+		if (UNLIKELY(clscnt == NULL)) {
+			/* indicate error through rc? */
+			return;
+		}
+
 		memset(clscnt, 0, sizeof(clscnt));
 		for (size_t i = 0U; i < cc->orig->npats; i++) {
 			obint_t yldi;
@@ -266,6 +271,11 @@ match0(glepcc_t cc, int fd, const char *fn)
 	ssize_t npr;
 	gcnt_t cnt[cc->orig->npats];
 
+	if (UNLIKELY(cnt == NULL)) {
+		/* return early on */
+		return -1;
+	}
+
 	self = PREP();
 	snarf = START_PACK(
 		co_snarf, .next = self,
@@ -311,6 +321,10 @@ glep_cc(glod_pats_t g)
 /* compile patterns in G, i.e. preprocessing phase for the SIMD code
  * or Wu-Manber */
 	struct glepcc_s *res = malloc(sizeof(*res));
+
+	if (UNLIKELY(res == NULL)) {
+		return NULL;
+	}
 
 	if ((res->glep_simd = glod_pats_filter(g, __lenle4)) != NULL) {
 		res->glep_simd_cc = glep_simd_cc(res->glep_simd);

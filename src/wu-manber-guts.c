@@ -260,7 +260,9 @@ wu_manber_cc(glod_pats_t g)
 	struct glepcc_s *res;
 	
 	/* get us some memory to chew on */
-	res = calloc(1, sizeof(*res));
+	if (UNLIKELY((res = calloc(1, sizeof(*res))) == NULL)) {
+		return NULL;
+	}
 	res->m = find_m(g);
 	res->B = find_B(g, res->m);
 
