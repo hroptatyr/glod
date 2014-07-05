@@ -470,9 +470,6 @@ _dcount_routin(const accu_t *src, size_t ssz)
 
 #if defined HAVE_POPCNT_INTRINS
 static uint_fast32_t
-#if defined __GNUC__ && !defined __INTEL_COMPILER
-__attribute__((target("popcnt")))
-#endif	/* GCC */
 _dcount_intrin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
