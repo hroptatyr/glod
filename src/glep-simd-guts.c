@@ -271,7 +271,7 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 #if !defined INCLUDED_glep_guts_c_
 #define INCLUDED_glep_guts_c_
 
-#define __BITS		(64U)
+#define __BITS		MWNDWZ
 typedef uint64_t accu_t;
 
 /* instantiate 128bit intrinsics */
@@ -458,7 +458,7 @@ _dcount_routin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U; i < ssz; i++) {
+	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
 #if __BITS == 64
 		cnt += _popcnt64(src[i]);
 #elif __BITS == 32U
@@ -477,7 +477,7 @@ _dcount_intrin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U; i < ssz; i++) {
+	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
 #if __BITS == 64
 		cnt += _mm_popcnt_u64(src[i]);
 #elif __BITS == 32U
