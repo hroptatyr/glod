@@ -318,7 +318,7 @@ static uint32_t ebx[3U];
 static uint32_t ecx[3U];
 static uint32_t edx[3U];
 
-static __attribute__((const)) void
+static void
 __get_cpu_features(void)
 {
 	uint32_t dum;
