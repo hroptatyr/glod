@@ -585,10 +585,6 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 		uint8_t str[256U];
 		size_t len;
 
-		if (pv->pats[i].n > 4U) {
-			continue;
-		}
-
 		/* match pattern */
 		str[0U] = '\0';
 		len = recode(str + 1U, pv->pats[i].p);
