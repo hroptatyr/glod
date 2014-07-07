@@ -137,8 +137,10 @@ DEFCORU(co_match, {
 		/* ... then grep, ... */
 		glep_gr(cnt, cc, buf, nrd);
 
-		/* we did use up all data */
-		npr = nrd;
+		/* our contract with the guts matchers is to use up
+		 * CHUNKZ - MWNDWZ bytes if nrd was CHUNKZ, and
+		 * everything otherwise */
+		npr = nrd < CHUNKZ ? nrd : CHUNKZ - MWNDWZ;
 	} while ((nrd = YIELD(npr)) > 0U);
 	return 0;
 }

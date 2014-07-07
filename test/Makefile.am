@@ -149,6 +149,14 @@ glep_TESTS += glep.17.tst
 glep_TESTS += glep.18.tst
 EXTRA_DIST += noyield.alrt
 
+## boundary fuckup
+glep_TESTS += glep.19.tst
+glep_TESTS += glep.20.tst
+glep_TESTS += glep.21.tst
+glep_TESTS += glep.22.tst
+EXTRA_DIST += words.alrt
+EXTRA_DIST += short.alrt
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst

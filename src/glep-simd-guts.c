@@ -271,7 +271,7 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 #if !defined INCLUDED_glep_guts_c_
 #define INCLUDED_glep_guts_c_
 
-#define __BITS		(64U)
+#define __BITS		MWNDWZ
 typedef uint64_t accu_t;
 
 /* instantiate 128bit intrinsics */
@@ -287,7 +287,9 @@ typedef uint64_t accu_t;
 /* the alphabet we're dealing with */
 static char pchars[0x100U];
 static size_t npchars;
+#if defined USE_CACHE
 static size_t ncchars;
+#endif	/* USE_CACHE */
 /* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
 static uint8_t offs[0x100U];
 
@@ -318,7 +320,7 @@ static uint32_t ebx[3U];
 static uint32_t ecx[3U];
 static uint32_t edx[3U];
 
-static __attribute__((const)) void
+static void
 __get_cpu_features(void)
 {
 	uint32_t dum;
@@ -378,6 +380,19 @@ dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
 	return;
 }
 
+static inline void
+shiftl(accu_t *restrict tgt, const accu_t *src, size_t ssz)
+{
+/* shift SRC left by 1 */
+	unsigned int carry = 1U;
+
+	for (size_t i = 0U; i < ssz; i++) {
+		tgt[i] = src[i] << 1U | carry;
+		carry = src[i] >> (__BITS - 1U);
+	}
+	return;
+}
+
 static inline unsigned int
 shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
 {
@@ -415,18 +430,20 @@ dmatch(accu_t *restrict tgt,
  * we say a character C matches at position I iff SRC[C] & (1U << i)
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
-	size_t i = 0U;
+	size_t i;
 
 #if defined USE_CACHE
 	if (!*s && pchars[s[1U]] >= 'a' && pchars[s[1U]] <= 'z') {
 		unsigned char c = (unsigned char)(pchars[s[1U]] - ('a' - 1));
 
+		s++;
+		z--;
 		if (offs[c]) {
 			dbang(tgt, src[offs[c]], ssz);
 		} else {
 			/* cache the first round */
-			dbang(tgt, src[*s], ssz);
-			shiftr_and(tgt, src[s[1U]], ssz, 1U);
+			shiftl(tgt, *src, ssz);
+			shiftr_and(tgt, src[s[0U]], ssz, 0U);
 
 			offs[c] = ++ncchars;
 			pchars[offs[c]] = c;
@@ -434,14 +451,26 @@ dmatch(accu_t *restrict tgt,
 			/* violate the const */
 			dbang(src[offs[c]], tgt, ssz);
 		}
-		i = 2U;
+		i = 1U;
+	} else if (!*s) {
+		shiftl(tgt, *src, ssz);
+		s++;
+		z--;
+		i = 0U;
 	} else {
 		dbang(tgt, src[*s], ssz);
 		i = 1U;
 	}
 #else  /* !USE_CACHE */
-	dbang(tgt, src[*s], ssz);
-	i = 1U;
+	if (!*s) {
+		shiftl(tgt, *src, ssz);
+		s++;
+		z--;
+		i = 0U;
+	} else {
+		dbang(tgt, src[*s], ssz);
+		i = 1U;
+	}
 #endif	/* USE_CACHE */
 
 	for (; i < z; i++) {
@@ -458,7 +487,7 @@ _dcount_routin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U; i < ssz; i++) {
+	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
 #if __BITS == 64
 		cnt += _popcnt64(src[i]);
 #elif __BITS == 32U
@@ -470,14 +499,11 @@ _dcount_routin(const accu_t *src, size_t ssz)
 
 #if defined HAVE_POPCNT_INTRINS
 static uint_fast32_t
-#if defined __GNUC__ && !defined __INTEL_COMPILER
-__attribute__((target("popcnt")))
-#endif	/* GCC */
 _dcount_intrin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U; i < ssz; i++) {
+	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
 #if __BITS == 64
 		cnt += _mm_popcnt_u64(src[i]);
 #elif __BITS == 32U
@@ -540,6 +566,7 @@ glep_simd_cc(glod_pats_t g)
 		dcount = _dcount_routin;
 	}
 #else  /* !HAVE_POPCNT_INTRINS */
+	(void)dcount;
 # define dcount	_dcount_routin
 #endif	/* HAVE_POPCNT_INTRINS */
 
@@ -587,10 +614,6 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 	for (size_t i = 0U; i < pv->npats; i++) {
 		uint8_t str[256U];
 		size_t len;
-
-		if (pv->pats[i].n > 4U) {
-			continue;
-		}
 
 		/* match pattern */
 		str[0U] = '\0';

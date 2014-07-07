@@ -347,7 +347,8 @@ int
 wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 {
 	const unsigned char *bp = (const unsigned char*)buf + g->m - 1;
-	const unsigned char *const ep = (const unsigned char*)buf + bsz;
+	const unsigned char *const ep = (const unsigned char*)buf +
+		(bsz < CHUNKZ ? bsz : CHUNKZ - MWNDWZ);
 
 	auto inline const unsigned char *prfs(const unsigned char *xp)
 	{
