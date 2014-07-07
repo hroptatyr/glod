@@ -157,6 +157,16 @@ glep_TESTS += glep.22.tst
 EXTRA_DIST += words.alrt
 EXTRA_DIST += short.alrt
 
+## xfix matching for short patterns
+glep_TESTS += glep.23.tst
+glep_TESTS += glep.24.tst
+glep_TESTS += glep.25.tst
+glep_TESTS += glep.26.tst
+EXTRA_DIST += short-xfix.txt
+EXTRA_DIST += short-prefix.alrt
+EXTRA_DIST += short-infix.alrt
+EXTRA_DIST += short-suffix.alrt
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst
