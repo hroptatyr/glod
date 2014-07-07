@@ -287,7 +287,9 @@ typedef uint64_t accu_t;
 /* the alphabet we're dealing with */
 static char pchars[0x100U];
 static size_t npchars;
+#if defined USE_CACHE
 static size_t ncchars;
+#endif	/* USE_CACHE */
 /* offs is pchars inverted mapping C == PCHARS[OFFS[C]] */
 static uint8_t offs[0x100U];
 
@@ -378,6 +380,19 @@ dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
 	return;
 }
 
+static inline void
+shiftl(accu_t *restrict tgt, const accu_t *src, size_t ssz)
+{
+/* shift SRC left by 1 */
+	unsigned int carry = 1U;
+
+	for (size_t i = 0U; i < ssz; i++) {
+		tgt[i] = src[i] << 1U | carry;
+		carry = src[i] >> (__BITS - 1U);
+	}
+	return;
+}
+
 static inline unsigned int
 shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
 {
@@ -415,18 +430,20 @@ dmatch(accu_t *restrict tgt,
  * we say a character C matches at position I iff SRC[C] & (1U << i)
  * we say a string S[] matches if all characters S[i] match
  * note the characters are offsets according to the PCHARS alphabet. */
-	size_t i = 0U;
+	size_t i;
 
 #if defined USE_CACHE
 	if (!*s && pchars[s[1U]] >= 'a' && pchars[s[1U]] <= 'z') {
 		unsigned char c = (unsigned char)(pchars[s[1U]] - ('a' - 1));
 
+		s++;
+		z--;
 		if (offs[c]) {
 			dbang(tgt, src[offs[c]], ssz);
 		} else {
 			/* cache the first round */
-			dbang(tgt, src[*s], ssz);
-			shiftr_and(tgt, src[s[1U]], ssz, 1U);
+			shiftl(tgt, *src, ssz);
+			shiftr_and(tgt, src[s[0U]], ssz, 0U);
 
 			offs[c] = ++ncchars;
 			pchars[offs[c]] = c;
@@ -434,14 +451,26 @@ dmatch(accu_t *restrict tgt,
 			/* violate the const */
 			dbang(src[offs[c]], tgt, ssz);
 		}
-		i = 2U;
+		i = 1U;
+	} else if (!*s) {
+		shiftl(tgt, *src, ssz);
+		s++;
+		z--;
+		i = 0U;
 	} else {
 		dbang(tgt, src[*s], ssz);
 		i = 1U;
 	}
 #else  /* !USE_CACHE */
-	dbang(tgt, src[*s], ssz);
-	i = 1U;
+	if (!*s) {
+		shiftl(tgt, *src, ssz);
+		s++;
+		z--;
+		i = 0U;
+	} else {
+		dbang(tgt, src[*s], ssz);
+		i = 1U;
+	}
 #endif	/* USE_CACHE */
 
 	for (; i < z; i++) {
