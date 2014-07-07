@@ -566,6 +566,7 @@ glep_simd_cc(glod_pats_t g)
 		dcount = _dcount_routin;
 	}
 #else  /* !HAVE_POPCNT_INTRINS */
+	(void)dcount;
 # define dcount	_dcount_routin
 #endif	/* HAVE_POPCNT_INTRINS */
 
