@@ -515,14 +515,22 @@ _dcount_intrin(const accu_t *src, size_t ssz)
 #endif	/* HAVE_POPCNT_INTRINS */
 
 static size_t
-recode(uint8_t *restrict tgt, const char *s)
+recode(uint8_t *restrict tgt, glod_pat_t p)
 {
-	size_t i;
+	const uint8_t *s = (const void*)p.p;
+	size_t i = 0U;
 
-	for (i = 0U; s[i]; i++) {
-		tgt[i] = offs[(unsigned char)s[i]];
+	if (!p.fl.left) {
+		/* require puncs character left of string */
+		tgt[i++] = '\0';
+		s--;
 	}
-	tgt[i] = '\0';
+	for (; s[i]; i++) {
+		tgt[i] = offs[s[i]];
+	}
+	if (!p.fl.right) {
+		tgt[i++] = '\0';
+	}
 	return i;
 }
 
@@ -616,9 +624,8 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 		size_t len;
 
 		/* match pattern */
-		str[0U] = '\0';
-		len = recode(str + 1U, pv->pats[i].p);
-		dmatch(c, deco, nb, str, len + 2U);
+		len = recode(str, pv->pats[i]);
+		dmatch(c, deco, nb, str, len);
 
 		/* count the matches */
 		cnt[pv->pats[i].idx] += dcount(c, nb);
