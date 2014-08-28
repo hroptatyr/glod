@@ -225,9 +225,10 @@ static inline hx_t
 sufh_ci(glepcc_t ctx, const unsigned char cp[static 1])
 {
 /* suffix hashing, case insensitive */
-	return sufh_c(
+	hx_t hraw = sufh_c(
 		xlcase[cp[0]], xlcase[cp[-1]],
 		(unsigned char)(ctx->B == 3U ? xlcase[cp[-2]] : 0U));
+	return hraw & (ctx->z - 1U);
 }
 
 static inline hx_t
