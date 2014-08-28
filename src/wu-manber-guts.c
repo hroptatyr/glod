@@ -321,7 +321,6 @@ wu_manber_cc(glod_pats_t g)
 		res->HASH[h]++;
 		res->SHIFT[h] = 0U;
 
-		assert(res->HASH[h] < res->z);
 		for (size_t j = res->m - 1U, d = 1U; j >= res->B; j--, d++) {
 			h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + j - 1);
 			if (d < res->SHIFT[h]) {
@@ -336,9 +335,7 @@ wu_manber_cc(glod_pats_t g)
 		hx_t pi = (!pat.fl.ci ? prfh : prfh_ci)(res, p);
 		hx_t h = (!pat.fl.ci ? sufh : sufh_ci)(res, p + res->m - 1);
 
-		assert(res->HASH[h] > 0U);
 		with (hx_t H = --res->HASH[h]) {
-			assert(H < res->z);
 			res->PATPTR[H] = patidx;
 			res->PREFIX[H] = pi;
 		}
@@ -357,7 +354,6 @@ wu_manber_cc(glod_pats_t g)
 	/* finalise (integrate) the HASH table */
 	for (size_t i = 1; i < res->z; i++) {
 		res->HASH[i] += res->HASH[i - 1];
-		assert(res->HASH[i] < res->z);
 	}
 	res->HASH[0] = 0U;
 
@@ -443,7 +439,6 @@ wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 	{
 		/* loop through all patterns that hash to P */
 		for (hx_t pi = pbeg; pi < pend; pi++) {
-			assert(pi < g->z);
 			if (p == g->PREFIX[pi]) {
 				const hx_t i = g->PATPTR[pi];
 				const glod_pat_t pat = g->p->pats[i];
@@ -522,8 +517,6 @@ wu_manber_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 		h = sufh(g, bp);
 		hci = sufh_ci(g, bp);
 
-		assert(h < g->z);
-		assert(hci < g->z);
 		/* check suffix */
 		if ((shift = g->SHIFT[h]) && (shci = g->SHIFT[hci])) {
 			if (shci < shift) {
