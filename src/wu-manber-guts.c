@@ -53,21 +53,23 @@ typedef uint_fast32_t hx_t;
 /* index type */
 typedef uint_fast8_t ix_t;
 
-#define TBLZ	(32768U)
+#define TBL_INIZ	(32768U)
 
 struct glepcc_s {
 	/** rolling hash window size (2 or 3) */
 	unsigned int B;
 	/** length of shortest pattern */
 	unsigned int m;
+	/** allocation size of the tables below */
+	size_t z;
 	/** table with shift values */
-	ix_t SHIFT[TBLZ];
+	ix_t *SHIFT;
 	/** table with pattern hashes */
-	hx_t HASH[TBLZ];
+	hx_t *HASH;
 	/** table with pattern prefixes */
-	hx_t PREFIX[TBLZ];
+	hx_t *PREFIX;
 	/** table with pointers into actual pattern array */
-	hx_t PATPTR[TBLZ];
+	hx_t *PATPTR;
 
 	/* the original pats */
 	glod_pats_t p;
@@ -206,25 +208,27 @@ sufh_c(const unsigned char c0, const unsigned char c1, const unsigned char c2)
 	res += c1;
 	res <<= 5U;
 	res += c0;
-	return res & (TBLZ - 1);
+	return res;
 }
 
 static inline hx_t
 sufh(glepcc_t ctx, const unsigned char cp[static 1])
 {
 /* suffix hashing */
-	return sufh_c(
+	hx_t hraw =  sufh_c(
 		cp[0], cp[-1],
 		(unsigned char)(ctx->B == 3U ? cp[-2] : 0U));
+	return hraw & (ctx->z - 1U);
 }
 
 static inline hx_t
 sufh_ci(glepcc_t ctx, const unsigned char cp[static 1])
 {
 /* suffix hashing, case insensitive */
-	return sufh_c(
+	hx_t hraw = sufh_c(
 		xlcase[cp[0]], xlcase[cp[-1]],
 		(unsigned char)(ctx->B == 3U ? xlcase[cp[-2]] : 0U));
+	return hraw & (ctx->z - 1U);
 }
 
 static inline hx_t
@@ -235,21 +239,32 @@ prfh_c(const unsigned char c0, const unsigned char c1)
 
 	res <<= 8U;
 	res += c1;
-	return res & (TBLZ - 1);
+	return res;
 }
 
 static inline hx_t
-prfh(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
+prfh(glepcc_t ctx, const unsigned char cp[static 1])
 {
 /* prefix hashing */
-	return prfh_c(cp[0U], cp[1U]);
+	hx_t hraw = prfh_c(cp[0U], cp[1U]);
+	return hraw & (ctx->z - 1U);
 }
 
 static inline hx_t
-prfh_ci(glepcc_t UNUSED(ctx), const unsigned char cp[static 1])
+prfh_ci(glepcc_t ctx, const unsigned char cp[static 1])
 {
 /* prefix hashing, case insensitive */
-	return prfh_c(xlcase[cp[0U]], xlcase[cp[1U]]);
+	hx_t hraw = prfh_c(xlcase[cp[0U]], xlcase[cp[1U]]);
+	return hraw & (ctx->z - 1U);
+}
+
+static inline size_t
+next_2power(size_t n)
+{
+	size_t cand;
+
+	for (cand = TBL_INIZ; cand < n; cand <<= 2U);
+	return cand;
 }
 
 
@@ -260,14 +275,39 @@ wu_manber_cc(glod_pats_t g)
 	struct glepcc_s *res;
 	
 	/* get us some memory to chew on */
-	if (UNLIKELY((res = calloc(1, sizeof(*res))) == NULL)) {
+	if (UNLIKELY((res = malloc(sizeof(*res))) == NULL)) {
 		return NULL;
 	}
 	res->m = find_m(g);
 	res->B = find_B(g, res->m);
+	res->z = next_2power(g->npats);
+	res->SHIFT = malloc(res->z * sizeof(*res->SHIFT));
+	res->HASH = calloc(res->z, sizeof(*res->HASH));
+	res->PREFIX = calloc(res->z, sizeof(*res->PREFIX));
+	res->PATPTR = calloc(res->z, sizeof(*res->PATPTR));
+
+	if (UNLIKELY(res->SHIFT == NULL) ||
+	    UNLIKELY(res->HASH == NULL) ||
+	    UNLIKELY(res->PREFIX == NULL) ||
+	    UNLIKELY(res->PATPTR == NULL)) {
+		if (res->SHIFT != NULL) {
+			free(res->SHIFT);
+		}
+		if (res->HASH == NULL) {
+			free(res->HASH);
+		}
+		if(res->PREFIX == NULL) {
+			free(res->PREFIX);
+		}
+		if (res->PATPTR == NULL) {
+			free(res->PATPTR);
+		}
+		free(res);
+		return NULL;
+	}
 
 	/* prep SHIFT table */
-	for (size_t i = 0; i < countof(res->SHIFT); i++) {
+	for (size_t i = 0; i < res->z; i++) {
 		res->SHIFT[i] = (ix_t)(res->m - res->B + 1U);
 	}
 
@@ -312,7 +352,7 @@ wu_manber_cc(glod_pats_t g)
 	}
 
 	/* finalise (integrate) the HASH table */
-	for (size_t i = 1; i < countof(res->HASH); i++) {
+	for (size_t i = 1; i < res->z; i++) {
 		res->HASH[i] += res->HASH[i - 1];
 	}
 	res->HASH[0] = 0U;
@@ -338,6 +378,10 @@ void
 wu_manber_fr(glepcc_t g)
 {
 	with (struct glepcc_s *pg = deconst(g)) {
+		free(pg->SHIFT);
+		free(pg->HASH);
+		free(pg->PREFIX);
+		free(pg->PATPTR);
 		free(pg);
 	}
 	return;

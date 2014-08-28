@@ -111,6 +111,46 @@ recalloc(void *buf, size_t nmemb_ol, size_t nmemb_nu, size_t membz)
 	return buf;
 }
 
+
+/* vector allocators */
+static inline struct vector_s*
+_make_vector(size_t n, size_t z)
+{
+	const size_t rz = n + sizeof(struct vector_s) / z;
+	struct vector_s *v;
+
+	if ((v = calloc(rz, z)) != NULL) {
+		v->obz = n;
+	}
+	return v;
+}
+
+#define make_vector(nmemb, type)	_make_vector(nmemb, sizeof(type))
+
+static inline struct vector_s*
+_resz_vector(struct vector_s *restrict v, size_t n, size_t z)
+{
+	const size_t over = sizeof(struct vector_s) / z;
+	const size_t rz = n + over;
+
+	if ((v = recalloc(v, v->obz + over, rz, z)) != NULL) {
+		v->obz = n;
+	}
+	return v;
+}
+
+#define resz_vector(v, nmemb, type)	_resz_vector(v, nmemb, sizeof(type))
+
+static inline void
+_free_vector(struct vector_s *v, size_t UNUSED(z))
+{
+	free(v);
+	return;
+}
+
+#define free_vector(v, type)		_free_vector(v, sizeof(type))
+
+
 static obint_t
 make_obint(struct vector_s *oa[static 1U], const char *str, size_t len)
 {
@@ -128,14 +168,12 @@ make_obint(struct vector_s *oa[static 1U], const char *str, size_t len)
 		size_t nuz;
 
 		for (nuz = OBAR_MINZ; pad >= nuz; nuz *= 2U);
-		*oa = calloc(nuz + xtra, sizeof(*obs));
-		obz = nuz;
+		*oa = make_vector(nuz, char);
 	} else if (UNLIKELY(obn + pad >= obz)) {
 		size_t nuz;
 
 		for (nuz = (obz * 2U); obn + pad >= nuz; nuz *= 2U);
-		*oa = recalloc(*oa, obz + xtra, nuz + xtra, sizeof(*obs));
-		obz = nuz;
+		*oa = resz_vector(*oa, nuz, char);
 	}
 	if (UNLIKELY(*oa == NULL)) {
 		return 0U;
@@ -168,12 +206,11 @@ bang_obint(struct vector_s *oa[static 1U], obint_t of)
 	if (UNLIKELY(*oa == NULL)) {
 		size_t nuz = OBCNT_MINZ;
 
-		*oa = calloc(nuz + xtra, sizeof(*obs));
-		obz = nuz;
+		*oa = make_vector(nuz, obint_t);
 	} else if (UNLIKELY(obn >= obz)) {
 		size_t nuz = obz * 2U;
 
-		*oa = recalloc(*oa, obz + xtra, nuz + xtra, sizeof(*obs));
+		*oa = resz_vector(*oa, nuz, obint_t);
 		obz = nuz;
 	}
 	if (UNLIKELY(*oa == NULL)) {
@@ -233,8 +270,7 @@ intern(obarray_t oa, const char *str, size_t len)
 	/* just try what we've got */
 	if (UNLIKELY(!oa->stk)) {
 		size_t z = SSTK_STACK;
-		oa->stk = calloc(z + 2, sizeof(*sstk));
-		zstk = z;
+		oa->stk = make_vector(z, obcell_t);
 	}
 
 	/* here's the initial probe then */
@@ -264,8 +300,7 @@ intern(obarray_t oa, const char *str, size_t len)
 
 		if (UNLIKELY(i >= zstk)) {
 			const size_t nu = i << 2U;
-			oa->stk = recalloc(oa->stk, zstk, nu, sizeof(*sstk));
-			zstk = nu;
+			oa->stk = resz_vector(oa->stk, nu, obcell_t);
 
 			if (UNLIKELY(oa->stk == NULL)) {
 				zstk = 0UL, nstk = 0UL;
@@ -332,16 +367,16 @@ clear_interns(obarray_t oa)
 	}
 #if defined ENUM_INTERNS
 	if (LIKELY(oa->cnt != NULL)) {
-		free(oa->cnt);
+		free_vector(oa->cnt, obint_t);
 	}
 	oa->cnt = NULL;
 #endif	/* ENUM_INTERNS */
 	if (LIKELY(oa->stk != NULL)) {
-		free(oa->stk);
+		free_vector(oa->stk, obcell_t);
 	}
 	oa->stk = NULL;
 	if (LIKELY(oa->str != NULL)) {
-		free(oa->str);
+		free_vector(oa->str, char);
 	}
 	oa->str = NULL;
 	return;
