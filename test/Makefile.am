@@ -167,6 +167,12 @@ EXTRA_DIST += short-prefix.alrt
 EXTRA_DIST += short-infix.alrt
 EXTRA_DIST += short-suffix.alrt
 
+## match wildcard AND igncase modifier
+glep_TESTS += glep.27.tst
+glep_TESTS += glep.28.tst
+EXTRA_DIST += modci.alrt
+EXTRA_DIST += modci.txt
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst
