@@ -103,6 +103,10 @@ snarf_pat(word_t w)
 {
 	wpat_t res = {0U};
 
+	/* check modifiers FIRST because we might change w.z */
+	if (w.s[w.z + 1U] == 'i') {
+		res.fl.ci = 1U;
+	}
 	/* check the word-boundary flags */
 	if (UNLIKELY(w.s[0U] == '*')) {
 		/* left boundary is a * */
@@ -114,10 +118,6 @@ snarf_pat(word_t w)
 		/* right boundary is a * */
 		res.fl.right = 1U;
 		w.z--;
-	}
-	/* check modifiers */
-	if (w.s[w.z + 1U] == 'i') {
-		res.fl.ci = 1U;
 	}
 
 	if (memchr(w.s, '\\', w.z) != NULL) {
