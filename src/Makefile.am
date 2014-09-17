@@ -198,8 +198,10 @@ bin_PROGRAMS += enum
 enum_SOURCES = enum.c
 enum_SOURCES += enum.yuck
 enum_SOURCES += libbloom/spooky.c libbloom/spooky.h
+enum_SOURCES += version.c version.h
 enum_CPPFLAGS = $(AM_CPPFLAGS)
 enum_CPPFLAGS += -DSTANDALONE
+enum_CPPFLAGS += -DHAVE_VERSION_H
 BUILT_SOURCES += enum.yucc
 
 noinst_PROGRAMS += glid
