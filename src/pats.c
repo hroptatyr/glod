@@ -88,6 +88,15 @@ snarf_word(const char *bp[static 1], const char *const ep)
 		warn("Error: no matching double-quote found");
 		return (word_t){0UL};
 	}
+	/* check for unescaped newlines */
+	with (const char *np = *bp) {
+		if (UNLIKELY((np = memchr(np, '\n', wp - np)) != NULL) &&
+		    UNLIKELY(np == *bp || np[-1] != '\\')) {
+			warn("Error: unescaped newline");
+			return (word_t){0UL};
+		}
+	}
+
 	/* create the result */
 	res = (word_t){
 		.z = wp - *bp,
@@ -199,6 +208,10 @@ __read_pats(const char *buf, size_t bsz)
 		case '"': {
 			/* we're inside a word */
 			word_t w = snarf_word(&bp, ep);
+
+			if (UNLIKELY(w.s == NULL)) {
+				goto bugger;
+			}
 
 			/* append the word to cch for now */
 			switch (ctx) {
