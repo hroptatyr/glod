@@ -1,4 +1,4 @@
 /* -*- c -*- */
 #include "version.h"
 
-const char glod_version_string[] = "YUCK_SCMVER_VERSION";
+const char glod_version[] = "YUCK_SCMVER_VERSION";
