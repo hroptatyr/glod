@@ -45,6 +45,10 @@
 #include "fops.h"
 #include "nifty.h"
 
+#if !defined warn
+# define warn(x...)	errno = 0, error(x)
+#endif	/* !warn */
+
 typedef struct word_s word_t;
 typedef struct wpat_s wpat_t;
 
@@ -68,7 +72,26 @@ struct wpat_s {
 	} fl/*ags*/;
 };
 
-#define warn(x...)
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <errno.h>
+
+static void
+__attribute__((format(printf, 1, 2), unused))
+error(const char *fmt, ...)
+{
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	if (errno) {
+		fputs(": ", stderr);
+		fputs(strerror(errno), stderr);
+	}
+	fputc('\n', stderr);
+	return;
+}
 
 
 /* word level */
