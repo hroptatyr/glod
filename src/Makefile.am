@@ -38,7 +38,6 @@ include $(top_builddir)/version.mk
 
 AM_CFLAGS = $(EXTRA_CFLAGS)
 AM_CPPFLAGS = -D_GNU_SOURCE -D_POSIX_C_SOURCE=201001L -D_XOPEN_SOURCE=800 -D_BSD_SOURCE
-AM_CPPFLAGS += -DHAVE_VERSION_H
 AM_LDFLAGS = $(XCCLDFLAGS)
 
 bin_PROGRAMS =
@@ -124,6 +123,7 @@ glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
 glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
+glep_CPPFLAGS += -DHAVE_VERSION_H
 glep_LDADD = libglod.la
 glep_LDADD += libcoru.la
 BUILT_SOURCES += glep.yucc
@@ -131,6 +131,8 @@ BUILT_SOURCES += glep.yucc
 bin_PROGRAMS += terms
 terms_SOURCES = terms.c
 terms_SOURCES += terms.yuck
+terms_CPPFLAGS = $(AM_CPPFLAGS)
+terms_CPPFLAGS += -DHAVE_VERSION_H
 terms_LDADD = libglod.la
 terms_LDADD += libcoru.la
 BUILT_SOURCES += terms.yucc
