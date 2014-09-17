@@ -1,12 +1,4 @@
 /* -*- c -*- */
-#if defined HAVE_CONFIG_H
-# include "config.h"
-#endif	/* HAVE_CONFIG_H */
-#if !defined TOOL_NAME && defined PACKAGE_NAME
-# define TOOL_NAME	PACKAGE_NAME
-#elif !defined TOOL_NAME
-# define TOOL_NAME	"glod"
-#endif	/* TOOL_NAME */
 #include "version.h"
 
-const char glod_version_string[] = TOOL_NAME " YUCK_SCMVER_VERSION";
+const char glod_version[] = "YUCK_SCMVER_VERSION";
