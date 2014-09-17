@@ -45,6 +45,10 @@
 #include "fops.h"
 #include "nifty.h"
 
+#if !defined warn
+# define warn(x...)	errno = 0, error(x)
+#endif	/* !warn */
+
 typedef struct word_s word_t;
 typedef struct wpat_s wpat_t;
 
@@ -68,7 +72,26 @@ struct wpat_s {
 	} fl/*ags*/;
 };
 
-#define warn(x...)
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <errno.h>
+
+static void
+__attribute__((format(printf, 1, 2), unused))
+error(const char *fmt, ...)
+{
+	va_list vap;
+	va_start(vap, fmt);
+	vfprintf(stderr, fmt, vap);
+	va_end(vap);
+	if (errno) {
+		fputs(": ", stderr);
+		fputs(strerror(errno), stderr);
+	}
+	fputc('\n', stderr);
+	return;
+}
 
 
 /* word level */
@@ -88,6 +111,15 @@ snarf_word(const char *bp[static 1], const char *const ep)
 		warn("Error: no matching double-quote found");
 		return (word_t){0UL};
 	}
+	/* check for unescaped newlines */
+	with (const char *np = *bp) {
+		if (UNLIKELY((np = memchr(np, '\n', wp - np)) != NULL) &&
+		    UNLIKELY(np == *bp || np[-1] != '\\')) {
+			warn("Error: unescaped newline");
+			return (word_t){0UL};
+		}
+	}
+
 	/* create the result */
 	res = (word_t){
 		.z = wp - *bp,
@@ -199,6 +231,10 @@ __read_pats(const char *buf, size_t bsz)
 		case '"': {
 			/* we're inside a word */
 			word_t w = snarf_word(&bp, ep);
+
+			if (UNLIKELY(w.s == NULL)) {
+				goto bugger;
+			}
 
 			/* append the word to cch for now */
 			switch (ctx) {
