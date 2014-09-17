@@ -173,6 +173,11 @@ glep_TESTS += glep.28.tst
 EXTRA_DIST += modci.alrt
 EXTRA_DIST += modci.txt
 
+## tk discovered this one
+glep_TESTS += glep.29.tst
+EXTRA_DIST += tk.alrt
+EXTRA_DIST += tk.news
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst
