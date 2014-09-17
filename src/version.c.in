@@ -1,4 +1,7 @@
 /* -*- c -*- */
+#if defined HAVE_CONFIG_H
+# include "config.h"
+#endif	/* HAVE_CONFIG_H */
 #include "version.h"
 
-const char glod_version_string[] = "YUCK_SCMVER_VERSION";
+const char glod_version_string[] = PACKAGE_NAME " YUCK_SCMVER_VERSION";
