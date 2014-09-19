@@ -346,13 +346,8 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	(*" -O"[0-9])
 		;;
 	(*)
-		## for icc's only go for -xHost
-		SXE_CHECK_COMPILER_FLAG([-xHost], [
-			optiflags="${optiflags} -xHost"], [
-			## non-icc, try -O3 then
-			SXE_CHECK_COMPILER_FLAG([-O3], [
-				optiflags="${optiflags} -O3"])
-			])
+		SXE_CHECK_COMPILER_FLAG([-O3], [
+			optiflags="${optiflags} -O3"])
 		;;
 	esac
 
@@ -388,8 +383,12 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 		## don't bother
 		;;
 	(*)
-		SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
-			optiflags="${optiflags} -mtune=native -march=native"])
+		SXE_CHECK_COMPILER_FLAG([-xHost], [
+			optiflags="${optiflags} -xHost"], [
+			## non-icc
+			SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
+				optiflags="${optiflags} -mtune=native -march=native"])
+		])
 		;;
 	esac
 ])dnl SXE_OPTIFLAGS
