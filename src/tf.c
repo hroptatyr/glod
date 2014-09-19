@@ -411,7 +411,7 @@ DEFCORU(co_prnt_idfs, {
 	if (top) {
 		free(idfs);
 	}
-	return NULL;
+	return (intptr_t)NULL;
 }
 
 static void
@@ -443,9 +443,9 @@ cmd_addget(const yuck_t argi[static 1U])
 
 	/* initialise the freq vector */
 	if (addp) {
-		ctx->reslv = corpus_add_term;
+		CORU_CLOSUR(reslv) = corpus_add_term;
 	} else {
-		ctx->reslv = corpus_get_term;
+		CORU_CLOSUR(reslv) = corpus_get_term;
 	}
 
 	if (addp || argi->calc.idf_flag) {
@@ -454,7 +454,7 @@ cmd_addget(const yuck_t argi[static 1U])
 		oflags = O_RDONLY;
 	}
 
-	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+	if (UNLIKELY((CORU_CLOSUR(c) = make_corpus(db, oflags)) == NULL)) {
 		/* shell exit codes here */
 		error("Error: cannot open corpus file `%s'", db);
 		return 1;
@@ -466,9 +466,9 @@ cmd_addget(const yuck_t argi[static 1U])
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
-	for (gl_doc_t d; (d = NEXT(snarf)) != NULL;) {
+	for (gl_doc_t d; (d = (gl_doc_t)NEXT(snarf)) != NULL;) {
 		if (argi->calc.idf_flag) {
-			upd_idf(ctx->c, d);
+			upd_idf(CORU_CLOSUR(c), d);
 		}
 		if (argi->verbose_flag) {
 			print(d);
@@ -476,7 +476,7 @@ cmd_addget(const yuck_t argi[static 1U])
 	}
 
 	UNPREP();
-	free_corpus(ctx->c);
+	free_corpus(CORU_CLOSUR(c));
 	return 0;
 }
 
@@ -492,7 +492,7 @@ cmd_list(const struct yuck_cmd_list_s argi[static 1U])
 		db = argi->corpus_arg;
 	}
 
-	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+	if (UNLIKELY((CORU_CLOSUR(c) = make_corpus(db, oflags)) == NULL)) {
 		/* shell exit codes here */
 		error("Error: cannot open corpus file `%s'", db);
 		return 1;
@@ -500,13 +500,13 @@ cmd_list(const struct yuck_cmd_list_s argi[static 1U])
 
 	/* get the correct listing fun */
 	if (!argi->idf_flag && !argi->reverse_flag) {
-		ctx->reslv = __corpus_list;
+		CORU_CLOSUR(reslv) = __corpus_list;
 	} else if (!argi->idf_flag) {
-		ctx->reslv = __corpus_list_r;
+		CORU_CLOSUR(reslv) = __corpus_list_r;
 	} else if (!argi->reverse_flag) {
-		ctx->reslv = __corpus_lidf;
+		CORU_CLOSUR(reslv) = __corpus_lidf;
 	} else {
-		ctx->reslv = __corpus_lidf_r;
+		CORU_CLOSUR(reslv) = __corpus_lidf_r;
 	}
 
 	ctx->next = PREP();
@@ -515,24 +515,25 @@ cmd_list(const struct yuck_cmd_list_s argi[static 1U])
 	if (argi->nargs) {
 		/* list the ones on the command line */
 		for (size_t i = 0U; i < argi->nargs; i++) {
-			ctx->reslv(ctx->c, argi->args[i]);
+			CORU_CLOSUR(reslv)(CORU_CLOSUR(c), argi->args[i]);
 		}
 	} else if (!isatty(STDIN_FILENO)) {
 		/* list terms from stdin */
-		while (NEXT(snarf) != NULL);
+		while ((gl_doc_t)NEXT(snarf) != NULL);
 	} else {
 		/* list everything, only without --idf */
-		gl_crpiter_t i = corpus_init_iter(ctx->c);
+		gl_crpiter_t i = corpus_init_iter(CORU_CLOSUR(c));
 
-		for (gl_crpitit_t v; (v = corpus_iter_next(ctx->c, i)).tid;) {
+		for (gl_crpitit_t v;
+		     (v = corpus_iter_next(CORU_CLOSUR(c), i)).tid;) {
 			printf("%u\t%s\n", v.tid, v.term);
 		}
 
-		corpus_fini_iter(ctx->c, i);
+		corpus_fini_iter(CORU_CLOSUR(c), i);
 	}
 
 	UNPREP();
-	free_corpus(ctx->c);
+	free_corpus(CORU_CLOSUR(c));
 	return 0;
 }
 
@@ -549,14 +550,14 @@ cmd_idf(const struct yuck_cmd_idf_s argi[static 1U])
 		db = argi->corpus_arg;
 	}
 
-	if (UNLIKELY((ctx->c = make_corpus(db, oflags)) == NULL)) {
+	if (UNLIKELY((CORU_CLOSUR(c) = make_corpus(db, oflags)) == NULL)) {
 		/* shell exit codes here */
 		error("Error: cannot open corpus file `%s'", db);
 		return 1;
 	}
 
 	/* initialise the freq vector */
-	ctx->reslv = corpus_get_term;
+	CORU_CLOSUR(reslv) = corpus_get_term;
 
 	/* coroutine allocation */
 	ctx->next = PREP();
@@ -566,23 +567,24 @@ cmd_idf(const struct yuck_cmd_idf_s argi[static 1U])
 	pridf = START_PACK(
 		co_prnt_idfs,
 		.next = ctx->next,
-		.c = ctx->c,
-		.augp = argi->augmented_flag,
-		.revp = argi->reverse_flag,
-		.topN = argi->top_arg ? atoi(argi->top_arg) : 0,
-		);
+		.clo = {
+			.c = CORU_CLOSUR(c),
+			.augp = argi->augmented_flag,
+			.revp = argi->reverse_flag,
+			.topN = argi->top_arg ? atoi(argi->top_arg) : 0,
+		});
 
 	/* this is the main loop, for one document the loop is traversed
 	 * once, for multiple documents (sep'd by \f\n the snarfer will
 	 * yield (r > 0) and we print and prep and then snarf again */
-	for (gl_doc_t d; (d = NEXT(snarf));) {
+	for (gl_doc_t d; (d = (gl_doc_t)NEXT(snarf));) {
 		NEXT1(pridf, d);
 	}
 	/* finalise printer resources */
 	NEXT(pridf);
 
 	UNPREP();
-	free_corpus(ctx->c);
+	free_corpus(CORU_CLOSUR(c));
 	return 0;
 }
 

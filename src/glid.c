@@ -326,8 +326,10 @@ glangify1(const char *fn)
 	}
 
 	self = PREP();
-	snarf = START_PACK(co_snarf, .next = self, .buf = buf, .fd = fd);
-	glang = START_PACK(co_glang, .next = self, .buf = buf);
+	snarf = START_PACK(
+		co_snarf, .next = self, .clo = {.buf = buf, .fd = fd});
+	glang = START_PACK(
+		co_glang, .next = self, .clo = {.buf = buf});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */

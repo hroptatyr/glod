@@ -563,7 +563,6 @@ DEFCORU(co_class, {
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const size_t bsz = CORU_CLOSUR(bsz);
-	const unsigned int n = CORU_CLOSUR(n);
 	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 	accu_t accu_alnum[bsz / __BITS];
@@ -611,10 +610,10 @@ classify0(int fd, unsigned int n)
 	self = PREP();
 	snarf = START_PACK(
 		co_snarf, .next = self,
-		.buf = buf, .bsz = sizeof(buf), .fd = fd);
+		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	class = START_PACK(
 		co_class, .next = self,
-		.buf = buf, .bsz = sizeof(buf), .n = n);
+		.clo = {.buf = buf, .bsz = sizeof(buf), .n = n});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */

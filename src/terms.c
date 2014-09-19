@@ -633,8 +633,12 @@ classify0(int fd, unsigned int n)
 	ssize_t npr;
 
 	self = PREP();
-	snarf = START_PACK(co_snarf, .next = self, .buf = buf, .fd = fd);
-	class = START_PACK(co_class, .next = self, .buf = buf, .n = n);
+	snarf = START_PACK(
+		co_snarf, .next = self,
+		.clo = {.buf = buf, .fd = fd});
+	class = START_PACK(
+		co_class, .next = self,
+		.clo = {.buf = buf, .n = n});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
