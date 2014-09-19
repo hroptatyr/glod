@@ -38,6 +38,7 @@ include $(top_builddir)/version.mk
 
 AM_CFLAGS = $(EXTRA_CFLAGS)
 AM_CPPFLAGS = -D_GNU_SOURCE -D_POSIX_C_SOURCE=201001L -D_XOPEN_SOURCE=800 -D_BSD_SOURCE
+AM_CPPFLAGS += -DHAVE_VERSION_H
 AM_LDFLAGS = $(XCCLDFLAGS)
 
 bin_PROGRAMS =
@@ -55,6 +56,9 @@ SUFFIXES =
 CLEANFILES += version.c
 EXTRA_DIST += version.c.in
 
+noinst_LIBRARIES = libversion.a
+libversion_a_SOURCES = version.c version.h
+
 noinst_LTLIBRARIES += libglod.la
 libglod_la_SOURCES =
 libglod_la_SOURCES += nifty.h
@@ -65,7 +69,6 @@ libglod_la_SOURCES += intern.c intern.h
 libglod_la_SOURCES += enum.c enum.h
 libglod_la_SOURCES += pats.c pats.h
 libglod_la_SOURCES += levenshtein.c levenshtein.h
-libglod_la_SOURCES += version.c version.h
 libglod_la_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_la_CPPFLAGS += -DENUM_INTERNS
 
@@ -108,12 +111,14 @@ bin_PROGRAMS += glod-charstat
 glod_charstat_SOURCES = glod-charstat.c
 glod_charstat_SOURCES += glod-charstat.yuck
 glod_charstat_LDADD = libglod.la
+glod_charstat_LDADD += libversion.a
 BUILT_SOURCES += glod-charstat.yucc
 
 bin_PROGRAMS += glod-classify
 glod_classify_SOURCES = glod-classify.c
 glod_classify_SOURCES += glod-classify.yuck
 glod_classify_LDADD = libglod.la
+glod_classify_LDADD += libversion.a
 BUILT_SOURCES += glod-classify.yucc
 
 bin_PROGRAMS += glep
@@ -123,18 +128,18 @@ glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
 glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
-glep_CPPFLAGS += -DHAVE_VERSION_H
 glep_LDADD = libglod.la
 glep_LDADD += libcoru.la
+glep_LDADD += libversion.a
 BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
 terms_SOURCES = terms.c
 terms_SOURCES += terms.yuck
 terms_CPPFLAGS = $(AM_CPPFLAGS)
-terms_CPPFLAGS += -DHAVE_VERSION_H
 terms_LDADD = libglod.la
 terms_LDADD += libcoru.la
+terms_LDADD += libversion.a
 BUILT_SOURCES += terms.yucc
 EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += unicode.bf
@@ -149,6 +154,7 @@ tf_CPPFLAGS += -D_GNU_SOURCE
 tf_LDADD = libglod.la
 tf_LDADD += libcorpus.la
 tf_LDADD += libcoru.la
+tf_LDADD += libversion.a
 BUILT_SOURCES += tf.yucc
 endif  HAVE_TCBDB
 
@@ -161,6 +167,7 @@ gencls_SOURCES = gencls.c
 gencls_SOURCES += gencls.yuck
 gencls_CPPFLAGS = $(AM_CPPFLAGS)
 gencls_CPPFLAGS += -D_GNU_SOURCE
+gencls_LDADD = libversion.a
 BUILT_SOURCES += gencls.yucc
 
 noinst_PROGRAMS += ldmatrix
@@ -169,6 +176,7 @@ ldmatrix_SOURCES += ldmatrix.yuck
 ldmatrix_CPPFLAGS = $(AM_CPPFLAGS)
 ldmatrix_CPPFLAGS += -D_GNU_SOURCE
 ldmatrix_LDADD = libglod.la
+ldmatrix_LDADD += libversion.a
 BUILT_SOURCES += ldmatrix.yucc
 
 bin_PROGRAMS += unwrap
@@ -176,6 +184,7 @@ unwrap_SOURCES = unwrap.c
 unwrap_SOURCES += unwrap.yuck
 unwrap_CPPFLAGS = $(AM_CPPFLAGS)
 unwrap_CPPFLAGS += -D_GNU_SOURCE
+unwrap_LDADD = libversion.a
 BUILT_SOURCES += unwrap.yucc
 
 bin_PROGRAMS += unpgbrk
@@ -183,27 +192,26 @@ unpgbrk_SOURCES = unpgbrk.c
 unpgbrk_SOURCES += unpgbrk.yuck
 unpgbrk_CPPFLAGS = $(AM_CPPFLAGS)
 unpgbrk_CPPFLAGS += -D_GNU_SOURCE
+unpgbrk_LDADD = libversion.a
 BUILT_SOURCES += unpgbrk.yucc
 
 bin_PROGRAMS += gloom
 gloom_SOURCES = gloom.c
 gloom_SOURCES += gloom.yuck
-gloom_SOURCES += version.c version.h
 gloom_CPPFLAGS = $(AM_CPPFLAGS)
 gloom_CPPFLAGS += -D_GNU_SOURCE
-gloom_CPPFLAGS += -DHAVE_VERSION_H
 gloom_LDADD = libcoru.la
 gloom_LDADD += libbloom.la -lm
+gloom_LDADD += libversion.a
 BUILT_SOURCES += gloom.yucc
 
 bin_PROGRAMS += enum
 enum_SOURCES = enum.c
 enum_SOURCES += enum.yuck
 enum_SOURCES += libbloom/spooky.c libbloom/spooky.h
-enum_SOURCES += version.c version.h
 enum_CPPFLAGS = $(AM_CPPFLAGS)
 enum_CPPFLAGS += -DSTANDALONE
-enum_CPPFLAGS += -DHAVE_VERSION_H
+enum_LDADD = libversion.a
 BUILT_SOURCES += enum.yucc
 
 noinst_PROGRAMS += glid
@@ -212,6 +220,7 @@ glid_SOURCES += glid.yuck
 glid_CPPFLAGS = $(AM_CPPFLAGS)
 glid_CPPFLAGS += -D_GNU_SOURCE
 glid_LDADD = libcoru.la
+glid_LDADD += libversion.a
 BUILT_SOURCES += glid.yucc
 
 if HAVE_INTRIN
@@ -222,6 +231,7 @@ fastterms_CFLAGS = $(AM_CFLAGS)
 fastterms_CFLAGS += -msse2
 fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
+fastterms_LDADD += libversion.a
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
 
