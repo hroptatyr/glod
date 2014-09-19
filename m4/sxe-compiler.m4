@@ -340,8 +340,16 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 ])dnl SXE_WARNFLAGS
 
 AC_DEFUN([SXE_OPTIFLAGS], [dnl
-	SXE_CHECK_COMPILER_FLAG([-O3], [
-		optiflags="${optiflags} -O3"])
+	AC_REQUIRE([SXE_USER_CFLAGS])
+
+	case " ${CFLAGS} ${EXTRA_CFLAGS}" in
+	(*" -O"[0-9])
+		;;
+	(*)
+		SXE_CHECK_COMPILER_FLAG([-O3], [
+			optiflags="${optiflags} -O3"])
+		;;
+	esac
 
 	SXE_CHECK_COMPILER_FLAG([-ipo256], [
 		optiflags="${optiflags} -ipo256"])
@@ -352,18 +360,37 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	SXE_CHECK_COMPILER_FLAG([-no-prec-div], [
 		optiflags="${optiflags} -no-prec-div"])
 
-	SXE_CHECK_COMPILER_FLAG([-xHost], [
-		optiflags="${optiflags} -xHost"])
-
+	## -fast implies -static which is a dream but
+	## packager prefer dynamic binaries
 	dnl SXE_CHECK_COMPILER_FLAG([-fast], [
 	dnl 	optiflags="${optiflags} -fast"])
 
+	## auto-vectorisation
 	dnl SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
 	dnl 	optiflags="${optiflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
 
-	SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
-		optiflags="${optiflags} -mtune=native -march=native"])
-
+	case " ${CFLAGS} ${EXTRA_CFLAGS}" in
+	(*" -mtune"*)
+		## don't tune
+		;;
+	(*" -march"*)
+		## don't set march
+		;;
+	(*" -m32 "*)
+		## don't bother
+		;;
+	(*" -m64 "*)
+		## don't bother
+		;;
+	(*)
+		SXE_CHECK_COMPILER_FLAG([-xHost], [
+			optiflags="${optiflags} -xHost"], [
+			## non-icc
+			SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
+				optiflags="${optiflags} -mtune=native -march=native"])
+		])
+		;;
+	esac
 ])dnl SXE_OPTIFLAGS
 
 AC_DEFUN([SXE_FEATFLAGS], [dnl
@@ -408,31 +435,44 @@ AC_DEFUN([SXE_CHECK_COMPILER_XFLAG], [dnl
 	AC_SUBST([XFLAG])
 ])dnl SXE_CHECK_COMPILER_XFLAG
 
+AC_DEFUN([SXE_USER_CFLAGS], [dnl
+	AC_MSG_CHECKING([for user provided CFLAGS/EXTRA_CFLAGS])
+
+	CFLAGS="${ac_cv_env_CFLAGS_value}"
+	AC_MSG_RESULT([${CFLAGS} ${EXTRA_CFLAGS}])
+])dnl SXE_USER_CFLAGS
+
 
 AC_DEFUN([SXE_CHECK_CFLAGS], [dnl
 	dnl #### This may need to be overhauled so that all of SXEMACS_CC's flags
 	dnl are handled separately, not just the xe_cflags_warning stuff.
+	AC_ARG_VAR([EXTRA_CFLAGS], [C compiler flags to be APPENDED.])
 
+	## check for user provided flags
+	AC_REQUIRE([SXE_USER_CFLAGS])
 	## Use either command line flag, environment var, or autodetection
-	CFLAGS=""
 	SXE_DEBUGFLAGS
 	SXE_WARNFLAGS
 	SXE_OPTIFLAGS
-	SXE_CFLAGS="$SXE_CFLAGS $debugflags $optiflags $warnflags"
+	SXE_CFLAGS="${SXE_CFLAGS} ${debugflags} ${optiflags} ${warnflags}"
 
 	SXE_FEATFLAGS
-	SXE_CFLAGS="$SXE_CFLAGS $featflags"
+	SXE_CFLAGS="${SXE_CFLAGS} ${featflags}"
 
 	save_ac_c_werror_flag="${ac_c_werror_flag}"
 
-	CFLAGS="${SXE_CFLAGS} ${ac_cv_env_CFLAGS_value}"
+	CFLAGS="${CFLAGS} ${SXE_CFLAGS} ${EXTRA_CFLAGS}"
 	AC_MSG_CHECKING([for preferred CFLAGS])
 	AC_MSG_RESULT([${CFLAGS}])
 
 	AC_MSG_NOTICE([
-If you wish to ADD your own flags you want to stop here and rerun the
+If you wish to APPEND your own flags you want to stop here and rerun the
 configure script like so:
-  configure CFLAGS=<to-be-added-flags>
+  configure EXTRA_CFLAGS=<to-be-added-flags>
+
+If you wish to OVERRIDE these flags you want to stop here too and rerun
+the configure script like this:
+  configure CFLAGS=<the-definitive-flags-I-want>
 
 You can always override the determined CFLAGS, partially or totally,
 using
