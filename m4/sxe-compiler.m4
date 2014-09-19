@@ -340,8 +340,21 @@ AC_DEFUN([SXE_WARNFLAGS], [dnl
 ])dnl SXE_WARNFLAGS
 
 AC_DEFUN([SXE_OPTIFLAGS], [dnl
-	SXE_CHECK_COMPILER_FLAG([-O3], [
-		optiflags="${optiflags} -O3"])
+	AC_REQUIRE([SXE_USER_CFLAGS])
+
+	case " ${CFLAGS} ${EXTRA_CFLAGS}" in
+	(*" -O"[0-9])
+		;;
+	(*)
+		## for icc's only go for -xHost
+		SXE_CHECK_COMPILER_FLAG([-xHost], [
+			optiflags="${optiflags} -xHost"], [
+			## non-icc, try -O3 then
+			SXE_CHECK_COMPILER_FLAG([-O3], [
+				optiflags="${optiflags} -O3"])
+			])
+		;;
+	esac
 
 	SXE_CHECK_COMPILER_FLAG([-ipo256], [
 		optiflags="${optiflags} -ipo256"])
@@ -352,18 +365,27 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	SXE_CHECK_COMPILER_FLAG([-no-prec-div], [
 		optiflags="${optiflags} -no-prec-div"])
 
-	SXE_CHECK_COMPILER_FLAG([-xHost], [
-		optiflags="${optiflags} -xHost"])
-
+	## -fast implies -static which is a dream but
+	## packager prefer dynamic binaries
 	dnl SXE_CHECK_COMPILER_FLAG([-fast], [
 	dnl 	optiflags="${optiflags} -fast"])
 
+	## auto-vectorisation
 	dnl SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
 	dnl 	optiflags="${optiflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
 
-	SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
-		optiflags="${optiflags} -mtune=native -march=native"])
-
+	case " ${CFLAGS} ${EXTRA_CFLAGS}" in
+	(*" -mtune"*)
+		## don't tune
+		;;
+	(*" -march"*)
+		## don't set march
+		;;
+	(*)
+		SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
+			optiflags="${optiflags} -mtune=native -march=native"])
+		;;
+	esac
 ])dnl SXE_OPTIFLAGS
 
 AC_DEFUN([SXE_FEATFLAGS], [dnl
