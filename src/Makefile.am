@@ -124,7 +124,9 @@ BUILT_SOURCES += glod-classify.yucc
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c glep.h
 glep_SOURCES += wu-manber-guts.c wu-manber-guts.h
+if TGT_LP64
 glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
+endif  TGT_LP64
 glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
 glep_CPPFLAGS += -DSTANDALONE
