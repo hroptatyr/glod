@@ -454,14 +454,14 @@ AC_DEFUN([SXE_CHECK_CFLAGS], [dnl
 	SXE_DEBUGFLAGS
 	SXE_WARNFLAGS
 	SXE_OPTIFLAGS
-	SXE_CFLAGS="$SXE_CFLAGS $debugflags $optiflags $warnflags"
+	SXE_CFLAGS="${SXE_CFLAGS} ${debugflags} ${optiflags} ${warnflags}"
 
 	SXE_FEATFLAGS
-	SXE_CFLAGS="$SXE_CFLAGS $featflags"
+	SXE_CFLAGS="${SXE_CFLAGS} ${featflags}"
 
 	save_ac_c_werror_flag="${ac_c_werror_flag}"
 
-	CFLAGS="${SXE_CFLAGS} ${EXTRA_CFLAGS}"
+	CFLAGS="${CFLAGS} ${SXE_CFLAGS} ${EXTRA_CFLAGS}"
 	AC_MSG_CHECKING([for preferred CFLAGS])
 	AC_MSG_RESULT([${CFLAGS}])
 
