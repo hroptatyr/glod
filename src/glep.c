@@ -280,11 +280,11 @@ match0(glepcc_t cc, int fd, const char *fn)
 
 	self = PREP();
 	snarf = START_PACK(
-		co_snarf, .next = self,
-		.buf = buf, .bsz = sizeof(buf), .fd = fd);
+		co_snarf, .next = self, .clo = {
+			.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	match = START_PACK(
-		co_match, .next = self,
-		.buf = buf, .bsz = sizeof(buf), .cnt = cnt, .cc = cc);
+		co_match, .next = self, .clo = {
+			.buf = buf, .bsz = sizeof(buf), .cnt = cnt, .cc = cc});
 
 	/* rinse */
 	memset(cnt, 0, sizeof(cnt));
