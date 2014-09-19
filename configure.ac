@@ -126,6 +126,14 @@ AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_
 
 SXE_CHECK_CILK
 
+## certain parts would only work on 64bit systems, check if we've got one
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if !defined _LP64
+# error nope
+#endif
+]], [[]])], [sxe_cv_tgt_lp64="yes"], [sxe_cv_tgt_lp64="no"])
+AM_CONDITIONAL([TGT_LP64], [test "${sxe_cv_tgt_lp64}" = "yes"])
+
 
 PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
 	have_tcbdb="yes"
