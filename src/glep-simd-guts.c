@@ -488,10 +488,12 @@ _dcount_routin(const accu_t *src, size_t ssz)
 	uint_fast32_t cnt = 0U;
 
 	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
-#if __BITS == 64
+#if __BITS == 64 && defined HAVE__POPCNT64
 		cnt += _popcnt64(src[i]);
-#elif __BITS == 32U
+#elif __BITS == 32U && defined HAVE__POPCNT32
 		cnt += _popcnt32(src[i]);
+#else
+# error no _popcntXX support for your bit size
 #endif
 	}
 	return cnt;
@@ -504,10 +506,12 @@ _dcount_intrin(const accu_t *src, size_t ssz)
 	uint_fast32_t cnt = 0U;
 
 	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
-#if __BITS == 64
+#if __BITS == 64 && defined HAVE__MM_POPCNT_U64
 		cnt += _mm_popcnt_u64(src[i]);
-#elif __BITS == 32U
+#elif __BITS == 32U && defined HAVE__MM_POPCNT_U32
 		cnt += _mm_popcnt_u32(src[i]);
+#else
+# error no _mm_popcnt_uXX support for your bit size
 #endif
 	}
 	return cnt;
