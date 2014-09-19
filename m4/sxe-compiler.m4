@@ -381,6 +381,12 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	(*" -march"*)
 		## don't set march
 		;;
+	(*" -m32 "*)
+		## don't bother
+		;;
+	(*" -m64 "*)
+		## don't bother
+		;;
 	(*)
 		SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
 			optiflags="${optiflags} -mtune=native -march=native"])
