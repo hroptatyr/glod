@@ -124,6 +124,9 @@ fi
 
 AM_CONDITIONAL([HAVE_INTRIN], [test "${ac_cv_type___m256i}" = "yes" -a "${ac_cv_func__tzcnt_u32}" = "yes"])
 
+## record whether popcnt is there, one way or the other
+AM_CONDITIONAL([HAVE_POPCNT], [test "${ac_cv_func__mm_popcnt_u32}" = "yes" -o "${ac_cv_func__mm_popcnt_u64}" = "yes" -o "${ac_cv_func__popcnt32}" = "yes" -o "${ac_cv_func__popcnt64}" = "yes"])
+
 SXE_CHECK_CILK
 
 ## certain parts would only work on 64bit systems, check if we've got one

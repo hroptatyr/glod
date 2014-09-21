@@ -125,7 +125,9 @@ bin_PROGRAMS += glep
 glep_SOURCES = glep.c glep.h
 glep_SOURCES += wu-manber-guts.c wu-manber-guts.h
 if TGT_LP64
+if HAVE_POPCNT
 glep_SOURCES += glep-simd-guts.c glep-simd-guts.h
+endif  HAVE_POPCNT
 endif  TGT_LP64
 glep_SOURCES += glep.yuck
 glep_CPPFLAGS = $(AM_CPPFLAGS)
