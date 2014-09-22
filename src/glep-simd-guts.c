@@ -77,7 +77,6 @@
 #elif SSEZ == 128
 # define __mXi			__m128i
 # define _mmX_load_si(x)	_mm_load_si128(x)
-# define _mmX_loadu_si(x)	_mm_loadu_si128(x)
 # define _mmX_set1_epi8(x)	_mm_set1_epi8(x)
 # define _mmX_setzero_si()	_mm_setzero_si128()
 # define _mmX_cmpeq_epi8(x, y)	_mm_cmpeq_epi8(x, y)
@@ -90,7 +89,6 @@
 #elif SSEZ == 256
 # define __mXi			__m256i
 # define _mmX_load_si(x)	_mm256_load_si256(x)
-# define _mmX_loadu_si(x)	_mm256_loadu_si256(x)
 # define _mmX_set1_epi8(x)	_mm256_set1_epi8(x)
 # define _mmX_setzero_si()	_mm256_setzero_si256()
 # define _mmX_cmpeq_epi8(x, y)	_mm256_cmpeq_epi8(x, y)
@@ -103,7 +101,6 @@
 #elif SSEZ == 512
 # define __mXi			__m512i
 # define _mmX_load_si(x)	_mm512_load_si512(x)
-# define _mmX_loadu_si(x)	_mm512_loadu_si512(x)
 # define _mmX_set1_epi8(x)	_mm512_set1_epi8(x)
 # define _mmX_setzero_si()	_mm512_setzero_si512()
 # define _mmX_cmpeq_epi8(x, y)	_mm512_cmpeq_epi8(x, y)
@@ -648,7 +645,6 @@ glep_simd_fr(glepcc_t UNUSED(g))
 /* prepare for the next inclusion */
 #undef __mXi
 #undef _mmX_load_si
-#undef _mmX_loadu_si
 #undef _mmX_set1_epi8
 #undef _mmX_setzero_si
 #undef _mmX_cmpeq_epi8
