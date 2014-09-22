@@ -328,13 +328,11 @@ glep_cc(glod_pats_t g)
 		return NULL;
 	}
 
-#if defined _LP64
 	if ((res->glep_simd = glod_pats_filter(g, __lenle4)) != NULL) {
 		res->glep_simd_cc = glep_simd_cc(res->glep_simd);
 	} else {
 		res->glep_simd_cc = NULL;
 	}
-#endif	/* _LP64 */
 
 	if ((res->wu_manber = glod_pats_filter(g, __lengt4)) != NULL) {
 		res->wu_manber_cc = wu_manber_cc(res->wu_manber);
@@ -349,11 +347,9 @@ glep_cc(glod_pats_t g)
 int
 glep_gr(gcnt_t *restrict cnt, glepcc_t c, const char *buf, size_t bsz)
 {
-#if defined _LP64
 	if (LIKELY(c->glep_simd_cc != NULL)) {
 		glep_simd_gr(cnt, c->glep_simd_cc, buf, bsz);
 	}
-#endif	/* _LP64 */
 	if (LIKELY(c->wu_manber_cc != NULL)) {
 		wu_manber_gr(cnt, c->wu_manber_cc, buf, bsz);
 	}
@@ -369,11 +365,9 @@ glep_fr(glepcc_t g)
 	if (g->wu_manber_cc != NULL) {
 		wu_manber_fr(g->wu_manber_cc);
 	}
-#if defined _LP64
 	if (g->glep_simd_cc != NULL) {
 		glep_simd_fr(g->glep_simd_cc);
 	}
-#endif	/* _LP64 */
 
 	/* since we shared the oa_yld slot, free our references there */
 	with (struct glod_pats_s *pg = deconst(g->wu_manber)) {
@@ -381,21 +375,17 @@ glep_fr(glepcc_t g)
 			pg->oa_yld = NULL;
 		}
 	}
-#if defined _LP64
 	with (struct glod_pats_s *pg = deconst(g->glep_simd)) {
 		if (pg != NULL) {
 			pg->oa_yld = NULL;
 		}
 	}
-#endif	/* _LP64 */
 	if (g->wu_manber != NULL) {
 		glod_free_pats(g->wu_manber);
 	}
-#if defined _LP64
 	if (g->glep_simd != NULL) {
 		glod_free_pats(g->glep_simd);
 	}
-#endif	/* _LP64 */
 	return;
 }
 
