@@ -76,40 +76,40 @@
 #if 0
 #elif SSEZ == 128
 # define __mXi			__m128i
-# define _mmX_load_si(x)	_mm_load_si128(x)
-# define _mmX_set1_epi8(x)	_mm_set1_epi8(x)
-# define _mmX_setzero_si()	_mm_setzero_si128()
-# define _mmX_cmpeq_epi8(x, y)	_mm_cmpeq_epi8(x, y)
-# define _mmX_cmpgt_epi8(x, y)	_mm_cmpgt_epi8(x, y)
-# define _mmX_cmplt_epi8(x, y)	_mm_cmplt_epi8(x, y)
-# define _mmX_add_epi8(x, y)	_mm_add_epi8(x, y)
-# define _mmX_and_si(x, y)	_mm_and_si128(x, y)
-# define _mmX_xor_si(x, y)	_mm_xor_si128(x, y)
-# define _mmX_movemask_epi8(x)	_mm_movemask_epi8(x)
+# define _mmX_load(x)		_mm_load_si128(x)
+# define _mmX_set1(x)		_mm_set1_epi8(x)
+# define _mmX_setzero()		_mm_setzero_si128()
+# define _mmX_cmpeq(x, y)	_mm_cmpeq_epi8(x, y)
+# define _mmX_cmpgt(x, y)	_mm_cmpgt_epi8(x, y)
+# define _mmX_cmplt(x, y)	_mm_cmplt_epi8(x, y)
+# define _mmX_add(x, y)		_mm_add_epi8(x, y)
+# define _mmX_and(x, y)		_mm_and_si128(x, y)
+# define _mmX_xor(x, y)		_mm_xor_si128(x, y)
+# define _mmX_movemask(x)	_mm_movemask_epi8(x)
 #elif SSEZ == 256
 # define __mXi			__m256i
-# define _mmX_load_si(x)	_mm256_load_si256(x)
-# define _mmX_set1_epi8(x)	_mm256_set1_epi8(x)
-# define _mmX_setzero_si()	_mm256_setzero_si256()
-# define _mmX_cmpeq_epi8(x, y)	_mm256_cmpeq_epi8(x, y)
-# define _mmX_cmpgt_epi8(x, y)	_mm256_cmpgt_epi8(x, y)
-# define _mmX_cmplt_epi8(x, y)	_mm256_cmpgt_epi8(y, x)
-# define _mmX_add_epi8(x, y)	_mm256_add_epi8(x, y)
-# define _mmX_and_si(x, y)	_mm256_and_si256(x, y)
-# define _mmX_xor_si(x, y)	_mm256_xor_si256(x, y)
-# define _mmX_movemask_epi8(x)	_mm256_movemask_epi8(x)
+# define _mmX_load(x)		_mm256_load_si256(x)
+# define _mmX_set1(x)		_mm256_set1_epi8(x)
+# define _mmX_setzero()		_mm256_setzero_si256()
+# define _mmX_cmpeq(x, y)	_mm256_cmpeq_epi8(x, y)
+# define _mmX_cmpgt(x, y)	_mm256_cmpgt_epi8(x, y)
+# define _mmX_cmplt(x, y)	_mm256_cmpgt_epi8(y, x)
+# define _mmX_add(x, y)		_mm256_add_epi8(x, y)
+# define _mmX_and(x, y)		_mm256_and_si256(x, y)
+# define _mmX_xor(x, y)		_mm256_xor_si256(x, y)
+# define _mmX_movemask(x)	_mm256_movemask_epi8(x)
 #elif SSEZ == 512
 # define __mXi			__m512i
-# define _mmX_load_si(x)	_mm512_load_si512(x)
-# define _mmX_set1_epi8(x)	_mm512_set1_epi8(x)
-# define _mmX_setzero_si()	_mm512_setzero_si512()
-# define _mmX_cmpeq_epi8(x, y)	_mm512_cmpeq_epi8(x, y)
-# define _mmX_cmpgt_epi8(x, y)	_mm512_cmpgt_epi8(x, y)
-# define _mmX_cmplt_epi8(x, y)	_mm512_cmpgt_epi8(y, x)
-# define _mmX_add_epi8(x, y)	_mm512_add_epi8(x, y)
-# define _mmX_and_si(x, y)	_mm512_and_si512(x, y)
-# define _mmX_xor_si(x, y)	_mm512_xor_si512(x, y)
-# define _mmX_movemask_epi8(x)	_mm512_movemask_epi8(x)
+# define _mmX_load(x)		_mm512_load_si512(x)
+# define _mmX_set1(x)		_mm512_set1_epi8(x)
+# define _mmX_setzero()		_mm512_setzero_si512()
+# define _mmX_cmpeq(x, y)	_mm512_cmpeq_epi8(x, y)
+# define _mmX_cmpgt(x, y)	_mm512_cmpgt_epi8(x, y)
+# define _mmX_cmplt(x, y)	_mm512_cmpgt_epi8(y, x)
+# define _mmX_add(x, y)		_mm512_add_epi8(x, y)
+# define _mmX_and(x, y)		_mm512_and_si512(x, y)
+# define _mmX_xor(x, y)		_mm512_xor_si512(x, y)
+# define _mmX_movemask(x)	_mm512_movemask_epi8(x)
 #else
 # error SSE level not supported
 #endif
@@ -127,35 +127,35 @@ SSEI(pispuncs)(register __mXi data)
 	register __mXi y1;
 
 	/* check for <=SPC, !, " */
-	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\0' - 1));
-	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('"' + 1));
-	y0 = _mmX_and_si(x0, x1);
+	x0 = _mmX_cmpgt(data, _mmX_set1('\0' - 1));
+	x1 = _mmX_cmplt(data, _mmX_set1('"' + 1));
+	y0 = _mmX_and(x0, x1);
 
 	/* check for '() */
-	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('\'' - 1));
-	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8(')' + 1));
-	y1 = _mmX_and_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
+	x0 = _mmX_cmpgt(data, _mmX_set1('\'' - 1));
+	x1 = _mmX_cmplt(data, _mmX_set1(')' + 1));
+	y1 = _mmX_and(x0, x1);
+	y0 = _mmX_xor(y0, y1);
 
 	/* check for ,-. */
-	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8(',' - 1));
-	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('.' + 1));
-	y1 = _mmX_and_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
+	x0 = _mmX_cmpgt(data, _mmX_set1(',' - 1));
+	x1 = _mmX_cmplt(data, _mmX_set1('.' + 1));
+	y1 = _mmX_and(x0, x1);
+	y0 = _mmX_xor(y0, y1);
 
 	/* check for :; */
-	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(':'));
-	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8(';'));
-	y1 = _mmX_xor_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
+	x0 = _mmX_cmpeq(data, _mmX_set1(':'));
+	x1 = _mmX_cmpeq(data, _mmX_set1(';'));
+	y1 = _mmX_xor(x0, x1);
+	y0 = _mmX_xor(y0, y1);
 
 	/* check for ?` */
-	x0 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('?'));
-	x1 = _mmX_cmpeq_epi8(data, _mmX_set1_epi8('`'));
-	y1 = _mmX_xor_si(x0, x1);
-	y0 = _mmX_xor_si(y0, y1);
+	x0 = _mmX_cmpeq(data, _mmX_set1('?'));
+	x1 = _mmX_cmpeq(data, _mmX_set1('`'));
+	y1 = _mmX_xor(x0, x1);
+	y0 = _mmX_xor(y0, y1);
 
-	return _mmX_movemask_epi8(y0);
+	return _mmX_movemask(y0);
 }
 
 static inline __attribute__((pure, const)) __mXi
@@ -168,21 +168,21 @@ SSEI(ptolower)(register __mXi data)
 	register __mXi y1;
 
 	/* check for ALPHA */
-	x0 = _mmX_cmpgt_epi8(data, _mmX_set1_epi8('A' - 1));
-	x1 = _mmX_cmplt_epi8(data, _mmX_set1_epi8('Z' + 1));
-	y0 = _mmX_and_si(x0, x1);
-	y1 = _mmX_set1_epi8(32U);
-	y0 = _mmX_and_si(y0, y1);
+	x0 = _mmX_cmpgt(data, _mmX_set1('A' - 1));
+	x1 = _mmX_cmplt(data, _mmX_set1('Z' + 1));
+	y0 = _mmX_and(x0, x1);
+	y1 = _mmX_set1(32U);
+	y0 = _mmX_and(y0, y1);
 
-	return _mmX_add_epi8(data, y0);
+	return _mmX_add(data, y0);
 }
 
 static inline __attribute__((pure, const)) unsigned int
 SSEI(pmatch)(register __mXi data, const uint8_t c)
 {
-	register __mXi p = _mmX_set1_epi8(c);
-	register __mXi x = _mmX_cmpeq_epi8(data, p);
-	return _mmX_movemask_epi8(x);
+	register __mXi p = _mmX_set1(c);
+	register __mXi x = _mmX_cmpeq(data, p);
+	return _mmX_movemask(x);
 }
 
 #if defined __BITS
@@ -201,9 +201,9 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 #endif
 
 		/* load */
-		data1 = _mmX_load_si(b + i + 0U);
+		data1 = _mmX_load(b + i + 0U);
 #if SSEZ < 256 || __BITS == 64
-		data2 = _mmX_load_si(b + i + 1U);
+		data2 = _mmX_load(b + i + 1U);
 #endif
 		/* lodge */
 		tgt[0U][k] = (accu_t)SSEI(pispuncs)(data1);
@@ -223,8 +223,8 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 #if SSEZ < 256 && __BITS == 64
 		/* load */
-		data1 = _mmX_load_si(b + i + 2U);
-		data2 = _mmX_load_si(b + i + 3U);
+		data1 = _mmX_load(b + i + 2U);
+		data2 = _mmX_load(b + i + 3U);
 		/* lodge */
 		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
 		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
@@ -644,15 +644,15 @@ glep_simd_fr(glepcc_t UNUSED(g))
 
 /* prepare for the next inclusion */
 #undef __mXi
-#undef _mmX_load_si
-#undef _mmX_set1_epi8
-#undef _mmX_setzero_si
-#undef _mmX_cmpeq_epi8
-#undef _mmX_cmpgt_epi8
-#undef _mmX_cmplt_epi8
-#undef _mmX_add_epi8
-#undef _mmX_and_si
-#undef _mmX_xor_si
-#undef _mmX_movemask_epi8
+#undef _mmX_load
+#undef _mmX_set1
+#undef _mmX_setzero
+#undef _mmX_cmpeq
+#undef _mmX_cmpgt
+#undef _mmX_cmplt
+#undef _mmX_add
+#undef _mmX_and
+#undef _mmX_xor
+#undef _mmX_movemask
 #undef SSEZ
 #undef SSEI
