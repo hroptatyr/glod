@@ -47,11 +47,7 @@ typedef struct glepcc_s *glepcc_t;
 /* maximum buffer size presented to grepping routines */
 #define CHUNKZ		(4U * 4096U)
 /* desired mini window size */
-#if defined _LP64
-# define MWNDWZ		(64U)
-#else  /* !_LP64 */
-# define MWNDWZ		(32U)
-#endif	/* _LP64 */
+#define MWNDWZ		(64U)
 
 
 /* to be implemented by engines: */
