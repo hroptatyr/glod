@@ -445,6 +445,15 @@ _decomp_seq(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	}
 	return bsz / ACCU_BITS + ((bsz % ACCU_BITS) > 0U);
 }
+
+static inline __attribute__((pure, const)) uint32_t
+popcnt32_seq(uint32_t v)
+{
+	v = v - ((v >> 1U) & 0x55555555U);
+	v = (v & 0x33333333U) + ((v >> 2U) & 0x33333333U);
+	/* count */
+	return ((v + (v >> 4U) & 0xF0F0F0FU) * 0x1010101U) >> 24U;
+}
 #endif	/* SSEZ > 0 */
 #endif  /* SSEI */
 
@@ -692,8 +701,9 @@ _dcount_routin(const accu_t *src, size_t ssz)
 		cnt += _popcnt32((uint32_t)(src[i] >> 32U));
 #elif ACCU_BITS == 32U && defined HAVE__POPCNT32
 		cnt += _popcnt32(src[i]);
-#else
-# error no _popcntXX support for your bit size
+#else  /* no _popcntX() */
+		cnt += popcnt32_seq((uint32_t)src[i]);
+		cnt += popcnt32_seq((uint32_t)(src[i] >> 32U));
 #endif
 	}
 	return cnt;
