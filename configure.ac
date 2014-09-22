@@ -43,6 +43,8 @@ AX_CHECK_YUCK
 AC_CHECK_HEADERS([pty.h])
 AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
 
+## check for intrinsic support
+AC_CHECK_HEADERS([mmintrin.h])
 ## check for intrinsics
 SXE_CHECK_SIMD([_tzcnt_u32])
 SXE_CHECK_SIMD([_tzcnt_u64])
