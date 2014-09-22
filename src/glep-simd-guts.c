@@ -157,18 +157,19 @@ _m64_movemask_pi8(register __m64 x)
 	int lo = _mm_cvtsi64_si32(x);
 	int hi = _mm_cvtsi64_si32(_mm_unpackhi_pi32(x, x));
 
-	lo &= 0x80808080;
-	lo ^= lo >> 0U + 7U;
-	lo ^= lo >> 8U + 6U;
-	lo ^= lo >> 16U + 5U;
-	lo ^= lo >> 24U + 4U;
+	lo &= 0x80808080U;
+	lo = lo >> (0U + 7U)
+		^ lo >> (8U + 6U)
+		^ lo >> (16U + 5U)
+		^ lo >> (24U + 4U);
 
-	hi &= 0x80808080;
-	hi ^= hi >> 0U + 7U;
-	hi ^= hi >> 8U + 6U;
-	hi ^= hi >> 16U + 5U;
-	hi ^= hi >> 24U + 4U;
-	return lo & 0xfU ^ (hi & 0xfU) << 4U;
+	hi &= 0x80808080U;
+	hi = hi >> (0U + 4U)
+		^ hi >> (8U + 3U)
+		^ hi >> (16U + 2U)
+		^ hi >> (24U + 1U);
+
+	return (lo & 0x0fU) ^ ((hi << 1U) & 0xf0U);
 }
 #endif	/* SSEZ && SSEZ == 64 */
 
