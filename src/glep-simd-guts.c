@@ -594,7 +594,8 @@ _dcount_routin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
+	for (size_t i = 0U,
+		     ei = ssz - !(ssz < CHUNKZ / ACCU_BITS); i < ei; i++) {
 #if ACCU_BITS == 64 && defined HAVE__POPCNT64
 		cnt += _popcnt64(src[i]);
 #elif ACCU_BITS == 32U && defined HAVE__POPCNT32
@@ -612,7 +613,8 @@ _dcount_intrin(const accu_t *src, size_t ssz)
 {
 	uint_fast32_t cnt = 0U;
 
-	for (size_t i = 0U, ei = ssz - !(ssz < CHUNKZ / MWNDWZ); i < ei; i++) {
+	for (size_t i = 0U,
+		     ei = ssz - !(ssz < CHUNKZ / ACCU_BITS); i < ei; i++) {
 #if ACCU_BITS == 64 && defined HAVE__MM_POPCNT_U64
 		cnt += _mm_popcnt_u64(src[i]);
 #elif ACCU_BITS == 32U && defined HAVE__MM_POPCNT_U32
