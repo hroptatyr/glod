@@ -253,18 +253,18 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	assert(bsz > 0);
 	for (size_t i = 0U, k = 0U; i <= eoi; k++) {
 		register __mXi data1;
-#if SSEZ < 256 || ACCU_BITS == 64
+#if SSEZ <= 128 || ACCU_BITS == 64
 		register __mXi data2;
 #endif
 
 		/* load */
 		data1 = _mmX_load(b + i++);
-#if SSEZ < 256 || ACCU_BITS == 64
+#if SSEZ <= 128 || ACCU_BITS == 64
 		data2 = _mmX_load(b + i++);
 #endif
 		/* lodge */
 		tgt[0U][k] = (accu_t)SSEI(pispuncs)(data1);
-#if SSEZ < 256 || ACCU_BITS == 64
+#if SSEZ <= 128 || ACCU_BITS == 64
 		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data2) << sizeof(__mXi);
 #endif
 
@@ -272,13 +272,13 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 			const char p = pchars[j];
 
 			tgt[j][k] = (accu_t)SSEI(pmatch)(data1, p);
-#if SSEZ < 256 || ACCU_BITS == 64
+#if SSEZ <= 128 || ACCU_BITS == 64
 			tgt[j][k] |=
 				(accu_t)SSEI(pmatch)(data2, p) << sizeof(__mXi);
 #endif
 		}
 
-#if SSEZ < 256 && ACCU_BITS == 64
+#if SSEZ <= 128 && ACCU_BITS == 64
 		/* load */
 		data1 = _mmX_load(b + i++);
 		data2 = _mmX_load(b + i++);
@@ -298,8 +298,8 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 				(accu_t)SSEI(pmatch)(data2, p)
 				<< 3U * sizeof(__mXi);
 		}
-#endif	/* SSEZ < 256 && ACCU_BITS == 64 */
-#if SSEZ < 128 && ACCU_BITS == 64
+#endif	/* SSEZ <= 128 && ACCU_BITS == 64 */
+#if SSEZ == 64 && ACCU_BITS == 64
 		/* load */
 		data1 = _mmX_load(b + i++);
 		data2 = _mmX_load(b + i++);
@@ -339,7 +339,7 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 				(accu_t)SSEI(pmatch)(data2, p)
 				<< 7U * sizeof(__mXi);
 		}
-#endif	/* SSEZ < 128 && ACCU_BITS == 64 */
+#endif	/* SSEZ == 64 && ACCU_BITS == 64 */
 	}
 	/* the last puncs/pat cell probably needs masking */
 	if ((bsz % ACCU_BITS)) {
