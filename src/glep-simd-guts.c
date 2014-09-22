@@ -77,6 +77,7 @@
 #endif
 
 #if 0
+#elif SSEZ == 0
 #elif SSEZ == 64
 # define __mXi			__m64
 # define _mmX_load(x)		_m64_load_si(x)
@@ -132,11 +133,15 @@
 #else
 # error SSE level not supported
 #endif
+
+#if !defined ACCU_BITS
+# error size of accu type in bits undefined
+#endif	/* !ACCU_BITS */
 #endif	/* SSEZ */
 
 
 /* helpers for MMX */
-#if defined SSEZ && SSEZ == 64
+#if defined SSEZ && SSEZ == 64 && defined __MMX__
 static inline __m64
 _m64_load_si(const __m64 *p)
 {
@@ -175,6 +180,7 @@ _m64_movemask_pi8(register __m64 x)
 
 
 #if defined SSEI
+#if SSEZ > 0
 static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
@@ -243,7 +249,6 @@ SSEI(pmatch)(register __mXi data, const uint8_t c)
 	return _mmX_movemask(x);
 }
 
-#if defined ACCU_BITS
 static inline __attribute__((always_inline)) size_t
 SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	      const char pchars[static 0x100U], size_t npchars)
@@ -362,7 +367,94 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	_mmX_empty();
 	return bsz / ACCU_BITS + ((bsz % ACCU_BITS) > 0U);
 }
-#endif	/* ACCU_BITS */
+
+#else  /* SSEZ == 0U */
+static inline __attribute__((pure, const)) unsigned int
+ispuncs(register uint8_t data)
+{
+/* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`', '-' */
+
+	/* check for <=SPC, !, " */
+	if (data <= '"') {
+		return 1U;
+	}
+
+	/* check for '() */
+	if (data >= '\'' && data <= ')') {
+		return 1U;
+	}
+
+	/* check for ,-. */
+	if (data >= ',' && data <= '.') {
+		return 1U;
+	}
+
+	/* check for :; */
+	if (data == ':' || data == ';') {
+		return 1U;
+	}
+
+	/* check for ?` */
+	if (data == '?' || data == '`') {
+		return 1U;
+	}
+
+	/* otherwise it's nothing */
+	return 0U;
+}
+
+static inline __attribute__((always_inline)) size_t
+_decomp_seq(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
+	    const char pchars[static 0x100U], size_t npchars)
+{
+	const uint8_t *b = buf;
+	const size_t eoi = (bsz - 1U) / ACCU_BITS;
+
+	assert(bsz > 0);
+	for (size_t i = 0U; i <= eoi; i++) {
+		tgt[0U][i] = 0U;
+		for (size_t sh = 0U; sh < ACCU_BITS; sh++) {
+			const uint8_t data = b[i * ACCU_BITS + sh];
+
+			/* lodge */
+			tgt[0U][i] |= (accu_t)ispuncs(data) << sh;
+
+			for (size_t j = 1U; j <= npchars; j++) {
+				const uint8_t p = ((const uint8_t*)pchars)[j];
+
+				tgt[j][i] |= (accu_t)(data == p) << sh;
+			}
+		}
+	}
+	/* the last puncs/pat cell probably needs masking */
+	if ((bsz % ACCU_BITS)) {
+		const size_t k = bsz / ACCU_BITS;
+		accu_t msk = ((accu_t)1U << (bsz % ACCU_BITS)) - 1U;
+
+		/* patterns need 0-masking, i.e. set bits under the mask
+		 * have to be cleared */
+		for (size_t j = 1U; j <= npchars; j++) {
+			tgt[j][k] &= msk;
+		}
+
+		/* puncs need 1-masking, i.e. treat the portion outside
+		 * the mask as though there were \0 bytes in the buffer
+		 * and seeing as a \nul is a puncs according to pispuncs()
+		 * we have to set the bits not under the mask */
+		tgt[0U][k] |= ~msk;
+	}
+	return bsz / ACCU_BITS + ((bsz % ACCU_BITS) > 0U);
+}
+
+static inline __attribute__((pure, const)) uint32_t
+popcnt32_seq(uint32_t v)
+{
+	v = v - ((v >> 1U) & 0x55555555U);
+	v = (v & 0x33333333U) + ((v >> 2U) & 0x33333333U);
+	/* count */
+	return ((v + (v >> 4U) & 0xF0F0F0FU) * 0x1010101U) >> 24U;
+}
+#endif	/* SSEZ > 0 */
 #endif  /* SSEI */
 
 
@@ -373,9 +465,15 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 typedef uint64_t accu_t;
 #define ACCU_BITS	64
 
+/* instantiate sequential macros */
+#define SSEZ	0
+#include __FILE__
+
 /* instantiate MMX intrinsics */
+#if defined __MMX__
 #define SSEZ	64
 #include __FILE__
+#endif	/* __MMX__ */
 
 /* instantiate 128bit intrinsics */
 #define SSEZ	128
@@ -603,8 +701,9 @@ _dcount_routin(const accu_t *src, size_t ssz)
 		cnt += _popcnt32((uint32_t)(src[i] >> 32U));
 #elif ACCU_BITS == 32U && defined HAVE__POPCNT32
 		cnt += _popcnt32(src[i]);
-#else
-# error no _popcntXX support for your bit size
+#else  /* no _popcntX() */
+		cnt += popcnt32_seq((uint32_t)src[i]);
+		cnt += popcnt32_seq((uint32_t)(src[i] >> 32U));
 #endif
 	}
 	return cnt;
@@ -714,12 +813,10 @@ glep_simd_cc(glod_pats_t g)
 #if defined __MMX__
 	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_MMX)) {
 		decomp = _decomp64;
-#else  /* !MMX */
-# error compiler lacks support for decomp routine
 #endif	/* MMX */
 	} else {
 		/* should we abort instead? */
-		return NULL;
+		decomp = _decomp_seq;
 	}
 	return deconst(g);
 }
