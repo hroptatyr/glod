@@ -67,6 +67,8 @@ struct glepcc_s {
 	glepcc_t wu_manber_cc;
 };
 
+bool non_ascii_wordsep_p = false;
+
 
 /* our coroutines */
 DEFCORU(co_snarf, {
@@ -422,6 +424,9 @@ main(int argc, char *argv[])
 	}
 	if (argi->count_flag) {
 		show_count_p = 1;
+	}
+	if (argi->non_ascii_wordsep_flag) {
+		non_ascii_wordsep_p = true;
 	}
 
 	/* compile the patterns (opaquely) */

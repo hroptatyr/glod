@@ -191,9 +191,13 @@ SSEI(pispuncs)(register __mXi data)
 	register __mXi y1;
 
 	/* check for <=SPC, !, " */
-	x0 = _mmX_cmpgt(data, _mmX_set1('\0' - 1));
-	x1 = _mmX_cmplt(data, _mmX_set1('"' + 1));
-	y0 = _mmX_and(x0, x1);
+	if (!non_ascii_wordsep_p) {
+		x0 = _mmX_cmpgt(data, _mmX_set1('\0' - 1));
+		x1 = _mmX_cmplt(data, _mmX_set1('"' + 1));
+		y0 = _mmX_and(x0, x1);
+	} else {
+		y0 = _mmX_cmplt(data, _mmX_set1('"' + 1));
+	}
 
 	/* check for '() */
 	x0 = _mmX_cmpgt(data, _mmX_set1('\'' - 1));
@@ -370,12 +374,12 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 #else  /* SSEZ == 0U */
 static inline __attribute__((pure, const)) unsigned int
-ispuncs(register uint8_t data)
+ispuncs(register int8_t data)
 {
 /* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`', '-' */
 
 	/* check for <=SPC, !, " */
-	if (data <= '"') {
+	if ((non_ascii_wordsep_p || data >= '\0') && data <= '"') {
 		return 1U;
 	}
 
@@ -407,33 +411,33 @@ static inline __attribute__((always_inline)) size_t
 _decomp_seq(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	    const char pchars[static 0x100U], size_t npchars)
 {
-	const uint8_t *b = buf;
+	const char *b = buf;
 	const size_t eoi = (bsz - 1U) / ACCU_BITS;
 
 	assert(bsz > 0);
 	for (size_t i = 0U; i <= eoi; i++) {
 		/* initialiser round */
-		with (const uint8_t data = b[i * ACCU_BITS]) {
+		with (const char data = b[i * ACCU_BITS]) {
 			/* naught-th slot has the punctuation info */
 			tgt[0U][i] = (accu_t)ispuncs(data);
 
 			/* actual character occurrences */
 			for (size_t j = 1U; j <= npchars; j++) {
-				const uint8_t p = ((const uint8_t*)pchars)[j];
+				const char p = pchars[j];
 
 				tgt[j][i] = (accu_t)(data == p);
 			}
 		}
 
 		for (size_t sh = 1U; sh < ACCU_BITS; sh++) {
-			const uint8_t data = b[i * ACCU_BITS + sh];
+			const char data = b[i * ACCU_BITS + sh];
 
 			/* naught-th slot has the punctuation info */
 			tgt[0U][i] |= (accu_t)ispuncs(data) << sh;
 
 			/* actual character occurrences */
 			for (size_t j = 1U; j <= npchars; j++) {
-				const uint8_t p = ((const uint8_t*)pchars)[j];
+				const char p = pchars[j];
 
 				tgt[j][i] |= (accu_t)(data == p) << sh;
 			}

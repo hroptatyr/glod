@@ -37,12 +37,15 @@
 #if !defined INCLUDED_glep_h_
 #define INCLUDED_glep_h_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "pats.h"
 
 typedef uint_fast32_t gcnt_t;
 typedef struct glepcc_s *glepcc_t;
+
+extern bool non_ascii_wordsep_p;
 
 /* maximum buffer size presented to grepping routines */
 #define CHUNKZ		(4U * 4096U)

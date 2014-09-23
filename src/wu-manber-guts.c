@@ -98,27 +98,37 @@ static uint_fast8_t xlcase[] = {
 };
 
 static inline bool
-xpuncsp(const unsigned char c)
+xpuncsp(const char c)
 {
 /* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`' */
-	switch (c) {
-	case '\0' ... ' ':
-	case '!':
-	case '"':
-	case ',':
-	case '.':
-	case ':':
-	case ';':
-	case '?':
-	case '\'':
-	case '`':
-	case '-':
-	case '(':
-	case ')':
+/* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`', '-' */
+
+	/* check for <=SPC, !, " */
+	if ((non_ascii_wordsep_p || c >= '\0') && c <= '"') {
 		return true;
-	default:
-		break;
 	}
+
+	/* check for '() */
+	if (c >= '\'' && c <= ')') {
+		return true;
+	}
+
+	/* check for ,-. */
+	if (c >= ',' && c <= '.') {
+		return true;
+	}
+
+	/* check for :; */
+	if (c == ':' || c == ';') {
+		return true;
+	}
+
+	/* check for ?` */
+	if (c == '?' || c == '`') {
+		return true;
+	}
+
+	/* otherwise it's nothing */
 	return false;
 }
 
