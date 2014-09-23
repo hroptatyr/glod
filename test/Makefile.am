@@ -180,8 +180,8 @@ EXTRA_DIST += tk.news
 
 ## tk discovered this one
 glep_TESTS += glep.30.tst
-EXTRA_DIST += tk.alrt
-EXTRA_DIST += tk.news
+EXTRA_DIST += tk2.pats
+EXTRA_DIST += tk2.news
 
 enum_TESTS =
 TESTS += $(enum_TESTS)
