@@ -413,6 +413,10 @@ _decomp_seq(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	assert(bsz > 0);
 	for (size_t i = 0U; i <= eoi; i++) {
 		tgt[0U][i] = 0U;
+		for (size_t j = 1U; j <= npchars; j++) {
+			tgt[j][i] = 0U;
+		}
+
 		for (size_t sh = 0U; sh < ACCU_BITS; sh++) {
 			const uint8_t data = b[i * ACCU_BITS + sh];
 
