@@ -412,12 +412,26 @@ _decomp_seq(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 	assert(bsz > 0);
 	for (size_t i = 0U; i <= eoi; i++) {
-		for (size_t sh = 0U; sh < ACCU_BITS; sh++) {
+		/* initialiser round */
+		with (const uint8_t data = b[i * ACCU_BITS]) {
+			/* naught-th slot has the punctuation info */
+			tgt[0U][i] = (accu_t)ispuncs(data);
+
+			/* actual character occurrences */
+			for (size_t j = 1U; j <= npchars; j++) {
+				const uint8_t p = ((const uint8_t*)pchars)[j];
+
+				tgt[j][i] = (accu_t)(data == p);
+			}
+		}
+
+		for (size_t sh = 1U; sh < ACCU_BITS; sh++) {
 			const uint8_t data = b[i * ACCU_BITS + sh];
 
-			/* lodge */
+			/* naught-th slot has the punctuation info */
 			tgt[0U][i] |= (accu_t)ispuncs(data) << sh;
 
+			/* actual character occurrences */
 			for (size_t j = 1U; j <= npchars; j++) {
 				const uint8_t p = ((const uint8_t*)pchars)[j];
 
