@@ -67,6 +67,8 @@ struct glepcc_s {
 	glepcc_t wu_manber_cc;
 };
 
+bool non_ascii_wordsep_p = false;
+
 
 /* our coroutines */
 DEFCORU(co_snarf, {
