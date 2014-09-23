@@ -425,6 +425,9 @@ main(int argc, char *argv[])
 	if (argi->count_flag) {
 		show_count_p = 1;
 	}
+	if (argi->non_ascii_wordsep_flag) {
+		non_ascii_wordsep_p = true;
+	}
 
 	/* compile the patterns (opaquely) */
 	if (UNLIKELY((cc = glep_cc(pf)) == NULL)) {
