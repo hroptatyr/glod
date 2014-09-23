@@ -412,11 +412,6 @@ _decomp_seq(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 
 	assert(bsz > 0);
 	for (size_t i = 0U; i <= eoi; i++) {
-		tgt[0U][i] = 0U;
-		for (size_t j = 1U; j <= npchars; j++) {
-			tgt[j][i] = 0U;
-		}
-
 		for (size_t sh = 0U; sh < ACCU_BITS; sh++) {
 			const uint8_t data = b[i * ACCU_BITS + sh];
 
@@ -832,6 +827,9 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 	accu_t deco[0x100U][CHUNKZ / ACCU_BITS];
 	accu_t c[CHUNKZ / ACCU_BITS];
 	size_t nb;
+
+	/* rinse deco array */
+	memset(deco, 0, sizeof(deco));
 
 	/* put bit patterns into puncs and pat */
 	nb = decomp(deco, (const void*)buf, bsz, pchars, npchars);
