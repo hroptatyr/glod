@@ -842,9 +842,6 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 	accu_t c[CHUNKZ / ACCU_BITS];
 	size_t nb;
 
-	/* rinse deco array */
-	memset(deco, 0, sizeof(deco));
-
 	/* put bit patterns into puncs and pat */
 	nb = decomp(deco, (const void*)buf, bsz, pchars, npchars);
 
