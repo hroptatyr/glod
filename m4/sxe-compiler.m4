@@ -698,6 +698,13 @@ AC_DEFUN([SXE_CHECK_INTRINS], [dnl
 # include <immintrin.h>
 #endif
 ]])
+	AC_CHECK_TYPES([__mmask64], [], [], [[
+#if defined HAVE_X86INTRIN_H
+# include <x86intrin.h>
+#elif defined HAVE_IMMINTRIN_H
+# include <immintrin.h>
+#endif
+]])
 ])dnl SXE_CHECK_INTRINS
 
 AC_DEFUN([SXE_CHECK_SIMD], [dnl
