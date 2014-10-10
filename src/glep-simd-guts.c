@@ -122,9 +122,15 @@
 # define _mmX_load(x)		_mm512_load_si512(x)
 # define _mmX_set1(x)		_mm512_set1_epi8(x)
 # define _mmX_setzero()		_mm512_setzero_si512()
-# define _mmX_cmpeq(x, y)	_mm512_cmpeq_epi8(x, y)
-# define _mmX_cmpgt(x, y)	_mm512_cmpgt_epi8(x, y)
-# define _mmX_cmplt(x, y)	_mm512_cmpgt_epi8(y, x)
+# if defined HAVE__MM512_CMPEQ_EPI8_MASK
+#  define _mmX_cmpeq(x, y)	_mm512_cmpeq_epi8_mask(x, y)
+#  define _mmX_cmpgt(x, y)	_mm512_cmpgt_epi8_mask(x, y)
+#  define _mmX_cmplt(x, y)	_mm512_cmpgt_epi8_mask(y, x)
+# elif defined HAVE__MM512_CMP_EPI8_MASK
+#  define _mmX_cmpeq(x, y)	_mm512_cmp_epi8_mask(x, y, 0)
+#  define _mmX_cmpgt(x, y)	_mm512_cmp_epi8_mask(y, x, 2)
+#  define _mmX_cmplt(x, y)	_mm512_cmp_epi8_mask(x, y, 1)
+# endif	 /* __MM512_CMPEQ_EPI8_MASK || __MM512_CMP_EPI8_MASK */
 # define _mmX_add(x, y)		_mm512_add_epi8(x, y)
 # define _mmX_and(x, y)		_mm512_and_si512(x, y)
 # define _mmX_xor(x, y)		_mm512_xor_si512(x, y)
@@ -180,7 +186,7 @@ _m64_movemask_pi8(register __m64 x)
 
 
 #if defined SSEI
-#if SSEZ > 0
+#if SSEZ > 0 && SSEZ < 512
 static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
