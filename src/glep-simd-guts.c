@@ -869,7 +869,7 @@ glep_simd_cc(glod_pats_t g)
 	return deconst(g);
 }
 
-int
+__attribute__((noinline)) int
 glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 {
 	glod_pats_t pv = (const void*)g;
