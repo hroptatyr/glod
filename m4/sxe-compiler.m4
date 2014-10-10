@@ -359,6 +359,13 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 
 	SXE_CHECK_COMPILER_FLAG([-no-prec-div], [
 		optiflags="${optiflags} -no-prec-div"])
+])dnl SXE_OPTIFLAGS
+
+AC_DEFUN([SXE_CC_NATIVE], [dnl
+dnl Usage: SXE_CC_NATIVE([enable_native="yes|no"])
+	AC_ARG_ENABLE([native], [dnl
+AS_HELP_STRING([--enable-native], [
+Use code native to the build machine.])], [enable_native="${withval}"], [$1])
 
 	## -fast implies -static which is a dream but
 	## packager prefer dynamic binaries
@@ -391,7 +398,7 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 		])
 		;;
 	esac
-])dnl SXE_OPTIFLAGS
+])dnl SXE_CC_NATIVE
 
 AC_DEFUN([SXE_FEATFLAGS], [dnl
 	## default flags for needed features
@@ -444,8 +451,11 @@ AC_DEFUN([SXE_USER_CFLAGS], [dnl
 
 
 AC_DEFUN([SXE_CHECK_CFLAGS], [dnl
-	dnl #### This may need to be overhauled so that all of SXEMACS_CC's flags
-	dnl are handled separately, not just the xe_cflags_warning stuff.
+dnl Usage: SXE_CHECK_CFLAGS([option ...])
+dnl valid options include:
+dnl + native[=yes|no]  Emit the --enable-native flag
+
+	## those are passed on to our determined CFLAGS
 	AC_ARG_VAR([EXTRA_CFLAGS], [C compiler flags to be APPENDED.])
 
 	## check for user provided flags
@@ -454,6 +464,9 @@ AC_DEFUN([SXE_CHECK_CFLAGS], [dnl
 	SXE_DEBUGFLAGS
 	SXE_WARNFLAGS
 	SXE_OPTIFLAGS
+	m4_foreach_w([opt], [$1], [dnl
+		m4_case(opt, [native], [SXE_CC_NATIVE])
+	])
 	SXE_CFLAGS="${SXE_CFLAGS} ${debugflags} ${optiflags} ${warnflags}"
 
 	SXE_FEATFLAGS
