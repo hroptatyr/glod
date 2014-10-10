@@ -465,7 +465,10 @@ dnl + native[=yes|no]  Emit the --enable-native flag
 	SXE_WARNFLAGS
 	SXE_OPTIFLAGS
 	m4_foreach_w([opt], [$1], [dnl
-		m4_case(opt, [native], [SXE_CC_NATIVE])
+		m4_case(opt,
+			[native], [SXE_CC_NATIVE],
+			[native=yes], [SXE_CC_NATIVE([enable_native="yes"])],
+			[native=no], [SXE_CC_NATIVE([enable_native="no"])])
 	])
 	SXE_CFLAGS="${SXE_CFLAGS} ${debugflags} ${optiflags} ${warnflags}"
 
