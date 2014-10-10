@@ -92,13 +92,9 @@ SXE_CHECK_SIMD([_mm512_add_epi8], [dnl
 	__m512i x, y = _mm512_setzero_si512();
 	_mm512_add_epi8(x, y)
 ])
-SXE_CHECK_SIMD([_mm512_cmpeq_epi8], [dnl
+SXE_CHECK_SIMD([_mm512_cmp_epi8_mask], [dnl
 	__m512i x, y = _mm512_setzero_si512();
-	_mm512_cmpeq_epi8(x, y)
-])
-SXE_CHECK_SIMD([_mm512_movemask_epi8], [dnl
-	__m512i x;
-	_mm512_movemask_epi8(x)
+	_mm512_cmp_epi8_mask(x, y, 0)
 ])
 
 if test "${ac_cv_func__mm_cmpeq_epi8}" = "yes" -a \
