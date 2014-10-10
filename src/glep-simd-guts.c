@@ -930,12 +930,18 @@ glep_simd_dsptch_nfo(void)
 
 	if (0) {
 		;
+#if defined HAVE_MM512_INT_INTRINS
 	} else if (has_cpu_feature_p(_FEAT_AVX512BW)) {
 		puts("decomp\tintrin\tAVX512BW");
+#endif	/* HAVE_MM512_INT_INTRINS */
+#if defined HAVE_MM256_INT_INTRINS
 	} else if (has_cpu_feature_p(_FEAT_AVX2)) {
 		puts("decomp\tintrin\tAVX2");
+#endif	/* HAVE_MM256_INT_INTRINS */
+#if defined HAVE_MM128_INT_INTRINS
 	} else if (has_cpu_feature_p(_FEAT_SSE2)) {
 		puts("decomp\tintrin\tSSE2");
+#endif	/* HAVE_MM128_INT_INTRINS */
 	} else if (has_cpu_feature_p(_FEAT_MMX)) {
 		puts("decomp\tintrin\tMMX");
 	} else {
