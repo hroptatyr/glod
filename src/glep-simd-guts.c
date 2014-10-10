@@ -730,17 +730,21 @@ _dcount_routin(const accu_t *src, size_t ssz)
 
 	for (size_t i = 0U,
 		     ei = ssz - !(ssz < CHUNKZ / ACCU_BITS); i < ei; i++) {
-#if ACCU_BITS == 64U && defined HAVE__POPCNT64
+#if defined __INTEL_COMPILER
+# if ACCU_BITS == 64U && defined HAVE__POPCNT64
 		cnt += _popcnt64(src[i]);
-#elif ACCU_BITS == 64U && defined HAVE__POPCNT32
+# elif ACCU_BITS == 64U && defined HAVE__POPCNT32
 		cnt += _popcnt32((uint32_t)src[i]);
 		cnt += _popcnt32((uint32_t)(src[i] >> 32U));
-#elif ACCU_BITS == 32U && defined HAVE__POPCNT32
+# elif ACCU_BITS == 32U && defined HAVE__POPCNT32
 		cnt += _popcnt32(src[i]);
-#else  /* no _popcntX() */
+# else
+#  error compiler seems odd, it ought to provide _popcnt32() and/or _popcnt64()
+# endif	 /* ACCU_BITS */
+#else  /* !__INTEL_COMPILER */
 		cnt += popcnt32_seq((uint32_t)src[i]);
 		cnt += popcnt32_seq((uint32_t)(src[i] >> 32U));
-#endif
+#endif	/* __INTEL_COMPILER */
 	}
 	return cnt;
 }
@@ -915,9 +919,13 @@ glep_simd_dsptch_nfo(void)
 	} else if (has_cpu_feature_p(_FEAT_ABM)) {
 		puts("popcnt\tintrin\tABM");
 	} else if (dcount == _dcount_routin) {
+#if defined __INTEL_COMPILER
 		puts("popcnt\troutin\tcompiler");
-	} else {
+#else  /* !__INTEL_COMPILER */
 		puts("popcnt\troutin\thand-crafted");
+#endif	/* __INTEL_COMPILER */
+	} else {
+		puts("popcnt\tnothin");
 	}
 
 	if (0) {
