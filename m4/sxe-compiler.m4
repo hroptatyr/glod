@@ -362,10 +362,11 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 ])dnl SXE_OPTIFLAGS
 
 AC_DEFUN([SXE_CC_NATIVE], [dnl
-dnl Usage: SXE_CC_NATIVE([enable_native="yes|no"])
+dnl Usage: SXE_CC_NATIVE([yes|no])
 	AC_ARG_ENABLE([native], [dnl
-AS_HELP_STRING([--enable-native], [
-Use code native to the build machine.])], [enable_native="${withval}"], [$1])
+AS_HELP_STRING(m4_case([$1], [yes], [--disable-native], [--enable-native]), [
+Use code native to the build machine.])],
+		[enable_native="${enableval}"], [enable_native="$1"])
 
 	## -fast implies -static which is a dream but
 	## packager prefer dynamic binaries
@@ -376,28 +377,30 @@ Use code native to the build machine.])], [enable_native="${withval}"], [$1])
 	dnl SXE_CHECK_COMPILER_FLAG([-axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3], [
 	dnl 	optiflags="${optiflags} -axMIC-AVX512,CORE-AVX2,CORE-AVX-I,AVX,SSSE3"])
 
-	case " ${CFLAGS} ${EXTRA_CFLAGS}" in
-	(*" -mtune"*)
-		## don't tune
-		;;
-	(*" -march"*)
-		## don't set march
-		;;
-	(*" -m32 "*)
-		## don't bother
-		;;
-	(*" -m64 "*)
-		## don't bother
-		;;
-	(*)
-		SXE_CHECK_COMPILER_FLAG([-xHost], [
-			optiflags="${optiflags} -xHost"], [
-			## non-icc
-			SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
-				optiflags="${optiflags} -mtune=native -march=native"])
-		])
-		;;
-	esac
+	if test "${enable_native}" = "yes"; then
+		case " ${CFLAGS} ${EXTRA_CFLAGS}" in
+		(*" -mtune"*)
+			## don't tune
+			;;
+		(*" -march"*)
+			## don't set march
+			;;
+		(*" -m32 "*)
+			## don't bother
+			;;
+		(*" -m64 "*)
+			## don't bother
+			;;
+		(*)
+			SXE_CHECK_COMPILER_FLAG([-xHost], [
+				optiflags="${optiflags} -xHost"], [
+				## non-icc
+				SXE_CHECK_COMPILER_FLAG([-mtune=native -march=native], [
+					optiflags="${optiflags} -mtune=native -march=native"])
+			])
+			;;
+		esac
+	fi
 ])dnl SXE_CC_NATIVE
 
 AC_DEFUN([SXE_FEATFLAGS], [dnl
@@ -467,8 +470,8 @@ dnl + native[=yes|no]  Emit the --enable-native flag
 	m4_foreach_w([opt], [$1], [dnl
 		m4_case(opt,
 			[native], [SXE_CC_NATIVE],
-			[native=yes], [SXE_CC_NATIVE([enable_native="yes"])],
-			[native=no], [SXE_CC_NATIVE([enable_native="no"])])
+			[native=yes], [SXE_CC_NATIVE([yes])],
+			[native=no], [SXE_CC_NATIVE([no])])
 	])
 	SXE_CFLAGS="${SXE_CFLAGS} ${debugflags} ${optiflags} ${warnflags}"
 
