@@ -172,7 +172,28 @@ echo
 echo "Build summary"
 echo "============="
 echo
-echo "Everything will be built"
+echo "[[x]] enum"
+echo "[[x]] gloom"
+echo "[[x]] glid  (will not be installed)"
+echo "[[x]] ldmatrix  (will not be installed)"
+echo "[[x]] unpgbrk"
+echo "[[x]] unwrap"
+echo "[[x]] terms"
+if test "${HAVE_INTRIN_FALSE}" = "#"; then
+	echo "[[x]] fastterms"
+else
+	echo "[[ ]] fastterms"
+fi
+if test "${build_cpu}" = "x86_64"; then
+	echo "[[x]] glep"
+else
+	echo "[[ ]] glep"
+fi
+if test "${HAVE_TCBDB_FALSE}" = "#"; then
+	echo "[[x]] tf"
+else
+	echo "[[ ]] tf"
+fi
 echo
 
 ## configure ends here
