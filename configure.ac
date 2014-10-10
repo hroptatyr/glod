@@ -109,7 +109,7 @@ if test "${ac_cv_func__mm256_cmpeq_epi8}" = "yes" -a \
 	"${ac_cv_func__mm256_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are usable])
 fi
-if test "${ac_cv_func__mm512_cmpeq_epi8}" = "yes" -a \
+if test "${ac_cv_func__mm512_cmp_epi8_mask}" = "yes" -a \
 	"${ac_cv_func__mm512_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM512_INT_INTRINS], [1], [define if _mm512_* integer intrinsics are usable])
 fi
@@ -172,7 +172,28 @@ echo
 echo "Build summary"
 echo "============="
 echo
-echo "Everything will be built"
+echo "[[x]] enum"
+echo "[[x]] gloom"
+echo "[[x]] glid  (will not be installed)"
+echo "[[x]] ldmatrix  (will not be installed)"
+echo "[[x]] unpgbrk"
+echo "[[x]] unwrap"
+echo "[[x]] terms"
+if test "${HAVE_INTRIN_FALSE}" = "#"; then
+	echo "[[x]] fastterms"
+else
+	echo "[[ ]] fastterms"
+fi
+if test "${build_cpu}" = "x86_64"; then
+	echo "[[x]] glep"
+else
+	echo "[[ ]] glep"
+fi
+if test "${HAVE_TCBDB_FALSE}" = "#"; then
+	echo "[[x]] tf"
+else
+	echo "[[ ]] tf"
+fi
 echo
 
 ## configure ends here
