@@ -924,11 +924,11 @@ glep_simd_dsptch_nfo(void)
 		;
 	} else if (has_cpu_feature_p(_FEAT_AVX512BW)) {
 		puts("decomp\tintrin\tAVX512BW");
-	} else if (decomp == _decomp256) {
+	} else if (has_cpu_feature_p(_FEAT_AVX2)) {
 		puts("decomp\tintrin\tAVX2");
-	} else if (decomp == _decomp128) {
+	} else if (has_cpu_feature_p(_FEAT_SSE2)) {
 		puts("decomp\tintrin\tSSE2");
-	} else if (decomp == _decomp64) {
+	} else if (has_cpu_feature_p(_FEAT_MMX)) {
 		puts("decomp\tintrin\tMMX");
 	} else {
 		puts("decomp\troutin\thand-crafted");
