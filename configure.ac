@@ -109,7 +109,7 @@ if test "${ac_cv_func__mm256_cmpeq_epi8}" = "yes" -a \
 	"${ac_cv_func__mm256_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM256_INT_INTRINS], [1], [define if _mm256_* integer intrinsics are usable])
 fi
-if test "${ac_cv_func__mm512_cmpeq_epi8}" = "yes" -a \
+if test "${ac_cv_func__mm512_cmp_epi8_mask}" = "yes" -a \
 	"${ac_cv_func__mm512_add_epi8}" = "yes"; then
 	AC_DEFINE([HAVE_MM512_INT_INTRINS], [1], [define if _mm512_* integer intrinsics are usable])
 fi
