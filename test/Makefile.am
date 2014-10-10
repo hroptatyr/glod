@@ -162,10 +162,13 @@ glep_TESTS += glep.23.tst
 glep_TESTS += glep.24.tst
 glep_TESTS += glep.25.tst
 glep_TESTS += glep.26.tst
+glep_TESTS += small.tst
 EXTRA_DIST += short-xfix.txt
 EXTRA_DIST += short-prefix.alrt
 EXTRA_DIST += short-infix.alrt
 EXTRA_DIST += short-suffix.alrt
+EXTRA_DIST += small.pats
+EXTRA_DIST += small.txt
 
 ## match wildcard AND igncase modifier
 glep_TESTS += glep.27.tst
