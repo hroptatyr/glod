@@ -39,6 +39,7 @@
 #endif	/* HAVE_CONFIG_H */
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
 #include <assert.h>
 #if defined HAVE_MMINTRIN_H
 # include <mmintrin.h>
@@ -122,9 +123,15 @@
 # define _mmX_load(x)		_mm512_load_si512(x)
 # define _mmX_set1(x)		_mm512_set1_epi8(x)
 # define _mmX_setzero()		_mm512_setzero_si512()
-# define _mmX_cmpeq(x, y)	_mm512_cmpeq_epi8(x, y)
-# define _mmX_cmpgt(x, y)	_mm512_cmpgt_epi8(x, y)
-# define _mmX_cmplt(x, y)	_mm512_cmpgt_epi8(y, x)
+# if defined HAVE__MM512_CMPEQ_EPI8_MASK
+#  define _mmX_cmpeq(x, y)	_mm512_cmpeq_epi8_mask(x, y)
+#  define _mmX_cmpgt(x, y)	_mm512_cmpgt_epi8_mask(x, y)
+#  define _mmX_cmplt(x, y)	_mm512_cmpgt_epi8_mask(y, x)
+# elif defined HAVE__MM512_CMP_EPI8_MASK
+#  define _mmX_cmpeq(x, y)	_mm512_cmp_epi8_mask(x, y, 0)
+#  define _mmX_cmpgt(x, y)	_mm512_cmp_epi8_mask(y, x, 2)
+#  define _mmX_cmplt(x, y)	_mm512_cmp_epi8_mask(x, y, 1)
+# endif	 /* __MM512_CMPEQ_EPI8_MASK || __MM512_CMP_EPI8_MASK */
 # define _mmX_add(x, y)		_mm512_add_epi8(x, y)
 # define _mmX_and(x, y)		_mm512_and_si512(x, y)
 # define _mmX_xor(x, y)		_mm512_xor_si512(x, y)
@@ -180,7 +187,7 @@ _m64_movemask_pi8(register __m64 x)
 
 
 #if defined SSEI
-#if SSEZ > 0
+#if SSEZ > 0 && SSEZ < 512
 static inline __attribute__((pure, const)) unsigned int
 SSEI(pispuncs)(register __mXi data)
 {
@@ -532,6 +539,10 @@ enum feat_e {
 	_FEAT_SSSE3,
 	_FEAT_AVX2,
 	_FEAT_AVX512F,
+	_FEAT_AVX512BW,
+	_FEAT_ABM,
+	_FEAT_BMI1,
+	_FEAT_BMI2,
 };
 
 static unsigned int max;
@@ -588,6 +599,14 @@ has_cpu_feature_p(enum feat_e x)
 		return ebx[1U] >> 5U & 0x1U;
 	case _FEAT_AVX512F:
 		return ebx[1U] >> 16U & 0x1U;
+	case _FEAT_AVX512BW:
+		return ebx[1U] >> 30U & 0x1U;
+	case _FEAT_ABM:
+		return ecx[2U] >> 5U & 0x1U;
+	case _FEAT_BMI1:
+		return ebx[1U] >> 3U & 0x1U;
+	case _FEAT_BMI2:
+		return ebx[1U] >> 8U & 0x1U;
 	}
 	return false;
 }	
@@ -775,6 +794,46 @@ static uint_fast32_t(*dcount)(const accu_t *src, size_t ssz);
 static size_t(*decomp)(accu_t (*restrict tgt)[0x100U], const void *b, size_t z,
 		       const char pchars[static 0x100U], size_t npchars);
 
+static void
+glep_simd_dispatch(void)
+{
+#if defined HAVE_POPCNT_INTRINS
+	if (dcount == NULL &&
+	    (has_cpu_feature_p(_FEAT_POPCNT) || has_cpu_feature_p(_FEAT_ABM))) {
+		dcount = _dcount_intrin;
+	} else {
+		dcount = _dcount_routin;
+	}
+#else  /* !HAVE_POPCNT_INTRINS */
+	(void)dcount;
+# define dcount	_dcount_routin
+#endif	/* HAVE_POPCNT_INTRINS */
+
+	if (0) {
+		;
+#if defined HAVE_MM512_INT_INTRINS
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_AVX512BW)) {
+		decomp = _decomp512;
+#endif	/* HAVE_MM512_INT_INTRINS */
+#if defined HAVE_MM256_INT_INTRINS
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_AVX2)) {
+		decomp = _decomp256;
+#endif	/* HAVE_MM256_INT_INTRINS */
+#if defined HAVE_MM128_INT_INTRINS
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_SSE2)) {
+		decomp = _decomp128;
+#endif  /* HAVE_MM128_INT_INTRINS */
+#if defined __MMX__
+	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_MMX)) {
+		decomp = _decomp64;
+#endif	/* MMX */
+	} else {
+		/* should we abort instead? */
+		decomp = _decomp_seq;
+	}
+	return;
+}
+
 glepcc_t
 glep_simd_cc(glod_pats_t g)
 {
@@ -801,40 +860,8 @@ glep_simd_cc(glod_pats_t g)
 		}
 	}
 
-	/* while we're at it, initialise the dcount routine */
-#if defined HAVE_POPCNT_INTRINS
-	if (dcount == NULL && has_cpu_feature_p(_FEAT_POPCNT)) {
-		dcount = _dcount_intrin;
-	} else {
-		dcount = _dcount_routin;
-	}
-#else  /* !HAVE_POPCNT_INTRINS */
-	(void)dcount;
-# define dcount	_dcount_routin
-#endif	/* HAVE_POPCNT_INTRINS */
-
-	if (0) {
-		;
-#if defined HAVE_MM512_INT_INTRINS
-	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_AVX512F)) {
-		decomp = _decomp512;
-#endif	/* HAVE_MM512_INT_INTRINS */
-#if defined HAVE_MM256_INT_INTRINS
-	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_AVX2)) {
-		decomp = _decomp256;
-#endif	/* HAVE_MM256_INT_INTRINS */
-#if defined HAVE_MM128_INT_INTRINS
-	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_SSE2)) {
-		decomp = _decomp128;
-#endif  /* HAVE_MM128_INT_INTRINS */
-#if defined __MMX__
-	} else if (decomp == NULL && has_cpu_feature_p(_FEAT_MMX)) {
-		decomp = _decomp64;
-#endif	/* MMX */
-	} else {
-		/* should we abort instead? */
-		decomp = _decomp_seq;
-	}
+	/* while we're at it, initialise our routines and intrinsics */
+	glep_simd_dispatch();
 	return deconst(g);
 }
 
@@ -873,6 +900,55 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 void
 glep_simd_fr(glepcc_t UNUSED(g))
 {
+	return;
+}
+
+void
+glep_simd_dsptch_nfo(void)
+{
+	glep_simd_dispatch();
+
+	if (0) {
+		;
+	} else if (has_cpu_feature_p(_FEAT_POPCNT)) {
+		puts("popcnt\tintrin\tPOPCNT");
+	} else if (has_cpu_feature_p(_FEAT_ABM)) {
+		puts("popcnt\tintrin\tABM");
+	} else if (dcount == _dcount_routin) {
+		puts("popcnt\troutin\tcompiler");
+	} else {
+		puts("popcnt\troutin\thand-crafted");
+	}
+
+	if (0) {
+		;
+	} else if (has_cpu_feature_p(_FEAT_AVX512BW)) {
+		puts("decomp\tintrin\tAVX512BW");
+	} else if (decomp == _decomp256) {
+		puts("decomp\tintrin\tAVX2");
+	} else if (decomp == _decomp128) {
+		puts("decomp\tintrin\tSSE2");
+	} else if (decomp == _decomp64) {
+		puts("decomp\tintrin\tMMX");
+	} else {
+		puts("decomp\troutin\thand-crafted");
+	}
+
+	if (0) {
+		;
+	} else if (has_cpu_feature_p(_FEAT_BMI1)) {
+		puts("tzcnt\tintrin\tBMI1");
+	} else {
+		puts("tzcnt\tnothin");
+	}
+
+	if (0) {
+		;
+	} else if (has_cpu_feature_p(_FEAT_ABM)) {
+		puts("lzcnt\tintrin\tABM");
+	} else {
+		puts("lzcnt\tnothin");
+	}
 	return;
 }
 #endif	/* INCLUDED_glep_guts_c_ */

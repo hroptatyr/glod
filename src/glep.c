@@ -392,7 +392,18 @@ glep_fr(glepcc_t g)
 }
 
 
+#define yuck_post_help		glep_dsptch_nfo
+#define yuck_post_version	glep_dsptch_nfo
 #include "glep.yucc"
+
+static void
+glep_dsptch_nfo(const yuck_t *x)
+{
+	(void)x;
+	puts("Table of used intrinsics or routines and where they come from:");
+	glep_simd_dsptch_nfo();
+	return;
+}
 
 int
 main(int argc, char *argv[])
