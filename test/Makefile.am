@@ -108,8 +108,11 @@ unpgbrk_TESTS += unpgbrk_test_01.tst
 unpgbrk_TESTS += unpgbrk_test_02.tst
 EXTRA_DIST += xetra.txt
 
-glep_TESTS =
+if HAVE_GLEP_REQS
 TESTS += $(glep_TESTS)
+endif  HAVE_GLEP_REQS
+
+glep_TESTS =
 glep_TESTS += glep.01.tst
 glep_TESTS += glep.02.tst
 glep_TESTS += glep.03.tst
