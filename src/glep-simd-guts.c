@@ -612,11 +612,45 @@ has_cpu_feature_p(enum feat_e x)
 }	
 
 
+static inline char
+ucase(char x)
+{
+	return (char)(x & ~0x20);
+}
+
+static inline char
+lcase(char x)
+{
+	return (char)(x | 0x20);
+}
+
+static inline uint8_t
+u8ucase(uint8_t x)
+{
+	return (uint8_t)(x & ~0x20);
+}
+
+static inline uint8_t
+u8lcase(uint8_t x)
+{
+	return (uint8_t)(x | 0x20);
+}
+
 static inline void
 dbang(accu_t *restrict tgt, const accu_t *src, size_t ssz)
 {
 /* populate TGT with SRC */
 	memcpy(tgt, src, ssz * sizeof(*src));
+	return;
+}
+
+static inline void
+dbngor(accu_t *restrict tgt, const accu_t *src, size_t ssz)
+{
+/* calc TGT |= SRC */
+	for (size_t i = 0U; i < ssz; i++) {
+		tgt[i] |= src[i];
+	}
 	return;
 }
 
@@ -641,7 +675,6 @@ shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
 	unsigned int j = 0U;
 	unsigned int res = 0U;
 
-	/* otherwise do it the hard way */
 	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
 	     i < ssz - 1U; i++, j++) {
 		if (!tgt[j]) {
@@ -654,6 +687,39 @@ shiftr_and(accu_t *restrict tgt, const accu_t *src, size_t ssz, size_t n)
 		}
 	}
 	if (tgt[j] && (tgt[j] &= src[i] >> sh)) {
+		res++;
+	}
+	for (j++; j < ssz; j++) {
+		tgt[j] = 0U;
+	}
+	return res;
+}
+
+static inline unsigned int
+shiftr_and_ci(
+	accu_t *restrict tgt, const accu_t *s1, const accu_t *s2,
+	size_t ssz, size_t n)
+{
+	unsigned int i = n / ACCU_BITS;
+	unsigned int sh = n % ACCU_BITS;
+	unsigned int j = 0U;
+	unsigned int res = 0U;
+
+	for (const accu_t msk = ((accu_t)1U << sh) - 1U;
+	     i < ssz - 1U; i++, j++) {
+		if (!tgt[j]) {
+			continue;
+		}
+		tgt[j] &=
+			(s1[i] >> sh |
+			 ((s1[i + 1U] & msk) << (ACCU_BITS - sh))) |
+			(s2[i] >> sh |
+			 ((s2[i + 1U] & msk) << (ACCU_BITS - sh)));
+		if (tgt[j]) {
+			res++;
+		}
+	}
+	if (tgt[j] && (tgt[j] &= (s1[i] >> sh) | (s2[i] >> sh))) {
 		res++;
 	}
 	for (j++; j < ssz; j++) {
@@ -718,6 +784,48 @@ dmatch(accu_t *restrict tgt,
 		/* SRC >>= i, TGT &= SRC */
 		if (!shiftr_and(tgt, src[s[i]], ssz, i)) {
 			break;
+		}
+	}
+	return;
+}
+
+static void
+dmatchci(accu_t *restrict tgt,
+       accu_t (*const src)[0x100U], size_t ssz,
+       const uint8_t s[], size_t z)
+{
+/* like dmatch() but for case-insensitive characters s... */
+	size_t i;
+
+	if (!*s) {
+		shiftl(tgt, *src, ssz);
+		s++;
+		z--;
+		i = 0U;
+	} else if ((*s | 0x20) >= 'a' && (*s | 0x20) <= 'z') {
+		dbang(tgt, src[u8ucase(*s)], ssz);
+		dbngor(tgt, src[u8lcase(*s)], ssz);
+		i = 1U;
+	} else {
+		dbang(tgt, src[*s], ssz);
+		i = 1U;
+	}
+
+	for (; i < z; i++) {
+		if ((pchars[s[i]] | 0x20) >= 'a' &&
+		    (pchars[s[i]] | 0x20) <= 'z') {
+			/* SRC >>= i, TGT &= ucase(SRC) | lcase(SRC) */
+			const uint8_t us = offs[u8ucase(pchars[s[i]])];
+			const uint8_t ls = offs[u8lcase(pchars[s[i]])];
+
+			if (!shiftr_and_ci(tgt, src[us], src[ls], ssz, i)) {
+				break;
+			}
+		} else {
+			/* TGT &= SRC >>= i */
+			if (!shiftr_and(tgt, src[s[i]], ssz, i)) {
+				break;
+			}
 		}
 	}
 	return;
@@ -845,22 +953,63 @@ glep_simd_cc(glod_pats_t g)
 	for (size_t i = 0U; i < g->npats; i++) {
 		const char *p = g->pats[i].p;
 		const size_t z = g->pats[i].n;
+		const bool ci = g->pats[i].fl.ci;
 
 		if (z > 4U) {
 			continue;
 		}
-		switch (z) {
-		case 4U:
-			add_pchar(p[3U]);
-		case 3U:
-			add_pchar(p[2U]);
-		case 2U:
-			add_pchar(p[1U]);
-		case 1U:
-			add_pchar(p[0U]);
-		default:
-		case 0U:
-			break;
+		if (LIKELY(!ci)) {
+			switch (z) {
+			case 4U:
+				add_pchar(p[3U]);
+			case 3U:
+				add_pchar(p[2U]);
+			case 2U:
+				add_pchar(p[1U]);
+			case 1U:
+				add_pchar(p[0U]);
+			default:
+			case 0U:
+				break;
+			}
+		} else {
+			switch (z) {
+			case 4U:
+				if ((p[3U] | 0x20) >= 0x61 &&
+				    (p[3U] | 0x20) <= 0x7a) {
+					add_pchar(ucase(p[3U]));
+					add_pchar(lcase(p[3U]));
+				} else {
+					add_pchar(p[3U]);
+				}
+			case 3U:
+				if ((p[2U] | 0x20) >= 0x61 &&
+				    (p[2U] | 0x20) <= 0x7a) {
+					add_pchar(ucase(p[2U]));
+					add_pchar(lcase(p[2U]));
+				} else {
+					add_pchar(p[2U]);
+				}
+			case 2U:
+				if ((p[1U] | 0x20) >= 0x61 &&
+				    (p[1U] | 0x20) <= 0x7a) {
+					add_pchar(ucase(p[1U]));
+					add_pchar(lcase(p[1U]));
+				} else {
+					add_pchar(p[1U]);
+				}
+			case 1U:
+				if ((p[0U] | 0x20) >= 0x61 &&
+				    (p[0U] | 0x20) <= 0x7a) {
+					add_pchar(ucase(p[0U]));
+					add_pchar(lcase(p[0U]));
+				} else {
+					add_pchar(p[0U]);
+				}
+			default:
+			case 0U:
+				break;
+			}
 		}
 	}
 
@@ -893,7 +1042,11 @@ glep_simd_gr(gcnt_t *restrict cnt, glepcc_t g, const char *buf, size_t bsz)
 
 		/* match pattern */
 		len = recode(str, pv->pats[i]);
-		dmatch(c, deco, nb, str, len);
+		if (LIKELY(!pv->pats[i].fl.ci)) {
+			dmatch(c, deco, nb, str, len);
+		} else {
+			dmatchci(c, deco, nb, str, len);
+		}
 
 		/* count the matches */
 		cnt[pv->pats[i].idx] += dcount(c, nb);
