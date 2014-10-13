@@ -154,6 +154,7 @@ Disable binaries that make use of the tokyocabinet key/value store.])],
 	[enable_tokyocabinet="${enableval}"], [enable_tokyocabinet="yes"])
 AM_CONDITIONAL([HAVE_TCBDB], [test "${have_tcbdb}" = "yes" -a "${enable_tokyocabinet}" = "yes"])
 
+AM_CONDITIONAL([HAVE_GLEP_REQS], [test "${build_cpu}" = "x86_64"])
 
 ## libtool goddess^Wgoodness
 ## has to be down here as we're turning -Werror'ing off
@@ -184,7 +185,7 @@ if test "${HAVE_INTRIN_FALSE}" = "#"; then
 else
 	echo "[[ ]] fastterms"
 fi
-if test "${build_cpu}" = "x86_64"; then
+if test "${HAVE_GLEP_REQS_FALSE}" = "#"; then
 	echo "[[x]] glep"
 else
 	echo "[[ ]] glep"

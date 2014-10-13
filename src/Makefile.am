@@ -121,6 +121,7 @@ glod_classify_LDADD = libglod.la
 glod_classify_LDADD += libversion.a
 BUILT_SOURCES += glod-classify.yucc
 
+if HAVE_GLEP_REQS
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c glep.h
 glep_SOURCES += wu-manber-guts.c wu-manber-guts.h
@@ -131,6 +132,7 @@ glep_CPPFLAGS += -DSTANDALONE
 glep_LDADD = libglod.la
 glep_LDADD += libcoru.la
 glep_LDADD += libversion.a
+endif  HAVE_GLEP_REQS
 BUILT_SOURCES += glep.yucc
 
 bin_PROGRAMS += terms
