@@ -58,37 +58,6 @@ fastterms_TESTS += fastterms.02.tst
 fastterms_TESTS += fastterms.03.tst
 EXTRA_DIST += ft_bug_01.txt
 
-if HAVE_TCBDB
-tf_TESTS =
-TESTS += $(tf_TESTS)
-tf_TESTS += tf.01.tst
-tf_TESTS += tf.02.tst
-tf_TESTS += tf.03.tst
-tf_TESTS += tf.04.tst
-tf_TESTS += tf.05.tst
-tf_TESTS += tf.06.tst
-tf_TESTS += tf.07.tst
-tf_TESTS += tf.08.tst
-tf_TESTS += tf.09.tst
-tf_TESTS += tf.10.tst
-tf_TESTS += tf.11.tst
-tf_TESTS += tf.12.tst
-tf_TESTS += tf.13.tst
-tf_TESTS += tf.14.tst
-tf_TESTS += tf.15.tst
-tf_TESTS += tf.16.tst
-tf_TESTS += tf.17.tst
-tf_TESTS += tf.18.tst
-tf_TESTS += tf.19.tst
-tf_TESTS += tf.20.tst
-tf_TESTS += tf.21.tst
-tf_TESTS += tf.22.tst
-tf_TESTS += tf.23.tst
-tf_TESTS += tf.24.tst
-tf_TESTS += tf.25.tst
-tf_TESTS += tf.xx.tst
-endif  HAVE_TCBDB
-
 ldmatrix_TESTS =
 TESTS += $(ldmatrix_TESTS)
 ldmatrix_TESTS += ldmatrix.01.tst
