@@ -140,20 +140,6 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 ]], [[]])], [sxe_cv_tgt_lp64="yes"], [sxe_cv_tgt_lp64="no"])
 AM_CONDITIONAL([TGT_LP64], [test "${sxe_cv_tgt_lp64}" = "yes"])
 
-
-PKG_CHECK_MODULES([tokyocabinet], [tokyocabinet], [
-	have_tcbdb="yes"
-	AC_DEFINE([USE_TCBDB], [1], [define when tokyocabinet shall be db backend])
-	with_database="tcbdb"
-], [
-	have_tcbdb="no"
-])
-AC_ARG_ENABLE([tokyocabinet], [dnl
-AS_HELP_STRING([--disable-tokyocabinet], [
-Disable binaries that make use of the tokyocabinet key/value store.])],
-	[enable_tokyocabinet="${enableval}"], [enable_tokyocabinet="yes"])
-AM_CONDITIONAL([HAVE_TCBDB], [test "${have_tcbdb}" = "yes" -a "${enable_tokyocabinet}" = "yes"])
-
 AM_CONDITIONAL([HAVE_GLEP_REQS], [test "${build_cpu}" = "x86_64"])
 
 ## libtool goddess^Wgoodness
@@ -189,11 +175,6 @@ if test "${HAVE_GLEP_REQS_FALSE}" = "#"; then
 	echo "[[x]] glep"
 else
 	echo "[[ ]] glep"
-fi
-if test "${HAVE_TCBDB_FALSE}" = "#"; then
-	echo "[[x]] tf"
-else
-	echo "[[ ]] tf"
 fi
 echo
 
