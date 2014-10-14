@@ -192,7 +192,6 @@ noinst_PROGRAMS += fastterms
 fastterms_SOURCES = fastterms.c
 fastterms_SOURCES += fastterms.yuck
 fastterms_CFLAGS = $(AM_CFLAGS)
-fastterms_CFLAGS += -msse2
 fastterms_CPPFLAGS = $(AM_CPPFLAGS)
 fastterms_LDADD = libcoru.la
 fastterms_LDADD += libversion.a
