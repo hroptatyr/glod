@@ -96,20 +96,6 @@ libbloom_la_CPPFLAGS = $(AM_CPPFLAGS)
 libbloom_la_CPPFLAGS += -I$(srcdir)/libbloom
 
 
-bin_PROGRAMS += glod-charstat
-glod_charstat_SOURCES = glod-charstat.c
-glod_charstat_SOURCES += glod-charstat.yuck
-glod_charstat_LDADD = libglod.la
-glod_charstat_LDADD += libversion.a
-BUILT_SOURCES += glod-charstat.yucc
-
-bin_PROGRAMS += glod-classify
-glod_classify_SOURCES = glod-classify.c
-glod_classify_SOURCES += glod-classify.yuck
-glod_classify_LDADD = libglod.la
-glod_classify_LDADD += libversion.a
-BUILT_SOURCES += glod-classify.yucc
-
 if HAVE_GLEP_REQS
 bin_PROGRAMS += glep
 glep_SOURCES = glep.c glep.h
