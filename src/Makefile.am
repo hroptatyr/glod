@@ -72,17 +72,6 @@ libglod_la_SOURCES += levenshtein.c levenshtein.h
 libglod_la_CPPFLAGS = $(AM_CPPFLAGS)
 libglod_la_CPPFLAGS += -DENUM_INTERNS
 
-if HAVE_TCBDB
-noinst_LTLIBRARIES += libcorpus.la
-libcorpus_la_SOURCES =
-libcorpus_la_SOURCES += corpus.c corpus.h
-libcorpus_la_SOURCES += doc.c doc.h
-libcorpus_la_CPPFLAGS = $(AM_CPPFLAGS)
-libcorpus_la_CPPFLAGS += $(tokyocabinet_CFLAGS)
-libcorpus_la_LDFLAGS = $(AM_LDFLAGS)
-libcorpus_la_LDFLAGS += $(tokyocabinet_LIBS)
-endif  HAVE_TCBDB
-
 noinst_LTLIBRARIES += libcoru.la
 libcoru_la_SOURCES =
 EXTRA_libcoru_la_SOURCES =
@@ -146,19 +135,6 @@ BUILT_SOURCES += terms.yucc
 EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += unicode.bf
 EXTRA_terms_SOURCES += unicode.cm
-
-if HAVE_TCBDB
-bin_PROGRAMS += tf
-tf_SOURCES = tf.c
-tf_SOURCES += tf.yuck
-tf_CPPFLAGS = $(AM_CPPFLAGS)
-tf_CPPFLAGS += -D_GNU_SOURCE
-tf_LDADD = libglod.la
-tf_LDADD += libcorpus.la
-tf_LDADD += libcoru.la
-tf_LDADD += libversion.a
-BUILT_SOURCES += tf.yucc
-endif  HAVE_TCBDB
 
 noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
