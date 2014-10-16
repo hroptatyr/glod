@@ -1,0 +1,3 @@
+Usage: glueck [OPTIONS...] [FILE]...
+
+Reencode FILEs.
