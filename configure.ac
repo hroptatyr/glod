@@ -141,8 +141,7 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 AM_CONDITIONAL([TGT_LP64], [test "${sxe_cv_tgt_lp64}" = "yes"])
 
 AM_CONDITIONAL([HAVE_GLEP_REQS],
-	[test "${ac_cv_func__mm_popcnt_u32}" = "yes" -a \
-		"${ac_cv_type___m128i}" = "yes" -a \
+	[test 	"${ac_cv_type___m128i}" = "yes" -a \
 		"${ac_cv_func__mm_add_epi8}" = "yes" -a \
 		"${ac_cv_func__mm_cmpeq_epi8}" = "yes" -a \
 		"${ac_cv_func__mm_movemask_epi8}" = "yes"])
