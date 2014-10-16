@@ -198,6 +198,17 @@ fastterms_LDADD += libversion.a
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
 
+noinst_PROGRAMS += glueck
+glueck_SOURCES = glueck.c
+glueck_SOURCES += glueck.yuck
+glueck_LDADD = libglod.la
+glueck_LDADD += libcoru.la
+glueck_LDADD += libversion.a
+BUILT_SOURCES += glueck.yucc
+EXTRA_glueck_SOURCES =
+EXTRA_glueck_SOURCES += unicode.bf
+EXTRA_glueck_SOURCES += unicode.cm
+
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
