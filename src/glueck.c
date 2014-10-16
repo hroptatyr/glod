@@ -184,26 +184,37 @@ _hexc(uint_fast8_t c)
 }
 
 static void
-pr_uni(const uint_fast32_t c)
+pr_uni(const struct wc_s x)
 {
-	if (UNLIKELY(strk_i + 5U > sizeof(strk_buf))) {
+	if (UNLIKELY(strk_i + 4U > sizeof(strk_buf))) {
+		pr_flsh();
+	}
+	xwctomb(strk_buf + strk_i, x.cod);
+	strk_i += x.len;
+	return;
+}
+
+static void
+pr_cod(const struct wc_s x)
+{
+	if (UNLIKELY(strk_i + 10U > sizeof(strk_buf))) {
 		pr_flsh();
 	}
 	strk_buf[strk_i++] = 'U';
 	strk_buf[strk_i++] = '+';
 
-	if (UNLIKELY(c > 0xffffU)) {
-		strk_buf[strk_i++] = _hexc(c >> 28U & 0xfU);
-		strk_buf[strk_i++] = _hexc(c >> 24U & 0xfU);
-		strk_buf[strk_i++] = _hexc(c >> 20U & 0xfU);
-		strk_buf[strk_i++] = _hexc(c >> 16U & 0xfU);
+	if (UNLIKELY(x.cod > 0xffffU)) {
+		strk_buf[strk_i++] = _hexc(x.cod >> 28U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 24U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 20U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 16U & 0xfU);
 	}
-	if (UNLIKELY(c > 0xffU)) {
-		strk_buf[strk_i++] = _hexc(c >> 12U & 0xfU);
-		strk_buf[strk_i++] = _hexc(c >> 8U & 0xfU);
+	if (UNLIKELY(x.cod > 0xffU)) {
+		strk_buf[strk_i++] = _hexc(x.cod >> 12U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 8U & 0xfU);
 	}
-	strk_buf[strk_i++] = _hexc(c >> 4U & 0xfU);
-	strk_buf[strk_i++] = _hexc(c >> 0U & 0xfU);
+	strk_buf[strk_i++] = _hexc(x.cod >> 4U & 0xfU);
+	strk_buf[strk_i++] = _hexc(x.cod >> 0U & 0xfU);
 	return;
 }
 
@@ -269,7 +280,7 @@ classify_buf(const char *const buf, size_t bsz)
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
-			pr_uni(wc.cod);
+			pr_uni(wc);
 			bp += wc.len ?: 1U;
 		}
 	}
