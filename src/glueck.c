@@ -86,17 +86,16 @@ struct clw_s {
 	cls_t cls;
 };
 
-/* utf8 seq ranges */
-static const long unsigned int lohi[4U] = {
-	16U * (1U << (4U - 1U)),
-	16U * (1U << (8U - 1U)),
-	16U * (1U << (13U - 1U)),
-	16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
-};
-
 static size_t
 xwctomb(char *restrict s, uint_fast32_t c)
 {
+	/* utf8 seq ranges */
+	static const long unsigned int lohi[4U] = {
+		16U * (1U << (4U - 1U)),
+		16U * (1U << (8U - 1U)),
+		16U * (1U << (13U - 1U)),
+		16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
+	};
 	size_t n = 0U;
 
 	if (c < lohi[0U]) {
@@ -122,24 +121,30 @@ static struct wc_s {
 	const uint_fast8_t c = (uint_fast8_t)*s;
 
 	if (c < 0x80U) {
-		return (struct wc_s){c, 1U};
+		;
 	} else if (UNLIKELY(c < 0xc2U)) {
 		/* illegal */
 		;
 	} else if (c < 0xe0U) {
 		/* 110x xxxx  10xx xxxx */
-		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
-		return (struct wc_s){
-			(c & 0b11111U) << 6U | (nx1 & 0b111111U), 2U};
+		const int_fast8_t nx1 = s[1U];
+		if (LIKELY(nx1 < (int_fast8_t)0xc0)) {
+			return (struct wc_s){
+				(c & 0b11111U) << 6U | (nx1 & 0b111111U), 2U};
+		}
 	} else if (c < 0xf0U) {
 		/* 1110 xxxx  10xx xxxx  10xx xxxx */
-		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
-		const uint_fast8_t nx2 = (uint_fast8_t)s[2U];
-		return (struct wc_s){
-			((c & 0b1111U) << 6U | (nx1 & 0b111111U)) << 6U |
-				(nx2 & 0b111111U), 3U};
+		const int_fast8_t nx1 = s[1U];
+		const int_fast8_t nx2 = s[2U];
+		if (LIKELY(nx1 < (int_fast8_t)0xc0 &&
+			   nx2 < (int_fast8_t)0xc0)) {
+			return (struct wc_s){
+				((c & 0b1111U) << 6U |
+				 (nx1 & 0b111111U)) << 6U |
+					(nx2 & 0b111111U), 3U};
+		}
 	}
-	return (struct wc_s){0U, 0U};
+	return (struct wc_s){c, 1U};
 }
 
 
@@ -189,8 +194,9 @@ pr_uni(const struct wc_s x)
 	if (UNLIKELY(strk_i + 4U > sizeof(strk_buf))) {
 		pr_flsh();
 	}
-	xwctomb(strk_buf + strk_i, x.cod);
-	strk_i += x.len;
+	with (size_t z = xwctomb(strk_buf + strk_i, x.cod)) {
+		strk_i += z;
+	}
 	return;
 }
 
@@ -281,7 +287,7 @@ unicodify_buf(const char *const buf, size_t bsz)
 			}
 			/* now we've got a single encoded char (hopefully) */
 			pr_uni(wc);
-			bp += wc.len ?: 1U;
+			bp += wc.len;
 		}
 	}
 	return bp - buf;
