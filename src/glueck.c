@@ -86,17 +86,16 @@ struct clw_s {
 	cls_t cls;
 };
 
-/* utf8 seq ranges */
-static const long unsigned int lohi[4U] = {
-	16U * (1U << (4U - 1U)),
-	16U * (1U << (8U - 1U)),
-	16U * (1U << (13U - 1U)),
-	16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
-};
-
 static size_t
 xwctomb(char *restrict s, uint_fast32_t c)
 {
+	/* utf8 seq ranges */
+	static const long unsigned int lohi[4U] = {
+		16U * (1U << (4U - 1U)),
+		16U * (1U << (8U - 1U)),
+		16U * (1U << (13U - 1U)),
+		16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
+	};
 	size_t n = 0U;
 
 	if (c < lohi[0U]) {
@@ -122,24 +121,30 @@ static struct wc_s {
 	const uint_fast8_t c = (uint_fast8_t)*s;
 
 	if (c < 0x80U) {
-		return (struct wc_s){c, 1U};
+		;
 	} else if (UNLIKELY(c < 0xc2U)) {
 		/* illegal */
 		;
 	} else if (c < 0xe0U) {
 		/* 110x xxxx  10xx xxxx */
-		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
-		return (struct wc_s){
-			(c & 0b11111U) << 6U | (nx1 & 0b111111U), 2U};
+		const int_fast8_t nx1 = s[1U];
+		if (LIKELY(nx1 < (int_fast8_t)0xc0)) {
+			return (struct wc_s){
+				(c & 0b11111U) << 6U | (nx1 & 0b111111U), 2U};
+		}
 	} else if (c < 0xf0U) {
 		/* 1110 xxxx  10xx xxxx  10xx xxxx */
-		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
-		const uint_fast8_t nx2 = (uint_fast8_t)s[2U];
-		return (struct wc_s){
-			((c & 0b1111U) << 6U | (nx1 & 0b111111U)) << 6U |
-				(nx2 & 0b111111U), 3U};
+		const int_fast8_t nx1 = s[1U];
+		const int_fast8_t nx2 = s[2U];
+		if (LIKELY(nx1 < (int_fast8_t)0xc0 &&
+			   nx2 < (int_fast8_t)0xc0)) {
+			return (struct wc_s){
+				((c & 0b1111U) << 6U |
+				 (nx1 & 0b111111U)) << 6U |
+					(nx2 & 0b111111U), 3U};
+		}
 	}
-	return (struct wc_s){0U, 0U};
+	return (struct wc_s){c, 1U};
 }
 
 
@@ -189,8 +194,9 @@ pr_uni(const struct wc_s x)
 	if (UNLIKELY(strk_i + 4U > sizeof(strk_buf))) {
 		pr_flsh();
 	}
-	xwctomb(strk_buf + strk_i, x.cod);
-	strk_i += x.len;
+	with (size_t z = xwctomb(strk_buf + strk_i, x.cod)) {
+		strk_i += z;
+	}
 	return;
 }
 
@@ -258,7 +264,7 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 }
 
 static ssize_t
-classify_buf(const char *const buf, size_t bsz)
+unicodify_buf(const char *const buf, size_t bsz)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -281,6 +287,36 @@ classify_buf(const char *const buf, size_t bsz)
 			}
 			/* now we've got a single encoded char (hopefully) */
 			pr_uni(wc);
+			bp += wc.len;
+		}
+	}
+	return bp - buf;
+}
+
+static ssize_t
+asciify_buf(const char *const buf, size_t bsz)
+{
+/* turn BUF's characters into pure ASCII. */
+	const char *bp = buf;
+	const char *const ep = buf + bsz;
+
+	while (bp < ep) {
+		if (LIKELY(*bp >= '\0')) {
+			pr_asc(*bp++);
+		} else {
+			/* great, big turd coming up */
+			struct wc_s wc = xmbtowc(bp);
+
+			if (UNLIKELY(bp + wc.len >= ep)) {
+				/* have to do this in a second run */
+				break;
+			}
+			/* re-examine the whole shebang */
+			if (!(wc = _examine(wc, bp, ep)).len) {
+				break;
+			}
+			/* now we've got a single encoded char (hopefully) */
+			pr_cod(wc);
 			bp += wc.len ?: 1U;
 		}
 	}
@@ -329,6 +365,7 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_class, {
 		char *buf;
+		bool asciip;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
@@ -338,18 +375,27 @@ DEFCORU(co_class, {
 	size_t nrd = bsz;
 	ssize_t npr;
 
-	/* enter the main snarf loop */
-	do {
-		if ((npr = classify_buf(buf, nrd)) < 0) {
-			return -1;
-		}
-	} while ((nrd = YIELD(npr)) > 0U);
+	if (!CORU_CLOSUR(asciip)) {
+		/* enter the main snarf loop */
+		do {
+			if ((npr = unicodify_buf(buf, nrd)) < 0) {
+				return -1;
+			}
+		} while ((nrd = YIELD(npr)) > 0U);
+	} else {
+		/* enter the main snarf loop */
+		do {
+			if ((npr = asciify_buf(buf, nrd)) < 0) {
+				return -1;
+			}
+		} while ((nrd = YIELD(npr)) > 0U);
+	}
 	return 0;
 }
 
 
 static int
-classify0(int fd)
+classify0(int fd, bool asciip)
 {
 	char buf[4U * 4096U];
 	struct cocore *snarf;
@@ -365,7 +411,7 @@ classify0(int fd)
 		.clo = {.buf = buf, .fd = fd});
 	class = START_PACK(
 		co_class, .next = self,
-		.clo = {.buf = buf});
+		.clo = {.buf = buf, .asciip = asciip});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -414,7 +460,7 @@ main(int argc, char *argv[])
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0(STDIN_FILENO) < 0) {
+		if (classify0(STDIN_FILENO, argi->ascii_flag) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -430,7 +476,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (classify0(fd) < 0) {
+		} else if (classify0(fd, argi->ascii_flag) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
