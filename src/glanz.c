@@ -51,6 +51,16 @@
 #include "nifty.h"
 #include "coru.h"
 
+typedef enum {
+	CLS_UNK = 0x0U,
+	CLS_PUNCT = 0x1U,
+	CLS_ALPHA = 0x2U,
+	CLS_NUMBR = 0x3U,
+} cls_t;
+
+#include "unicode.cm"
+#include "unicode.bf"
+
 
 static void
 __attribute__((format(printf, 1, 2)))
@@ -71,21 +81,6 @@ error(const char *fmt, ...)
 
 
 /* utf8 live decoding and classifying */
-typedef struct clw_s clw_t;
-typedef enum {
-	CLS_UNK,
-	CLS_PUNCT,
-	CLS_ALPHA,
-	CLS_NUMBR,
-} cls_t;
-
-struct clw_s {
-	/** width of the character in bytes, or 0 upon failure */
-	unsigned int wid;
-	/** class of the character in question */
-	cls_t cls;
-};
-
 static size_t
 xwctomb(char *restrict s, uint_fast32_t c)
 {
@@ -179,13 +174,54 @@ pr_asc(const char c)
 }
 
 static inline char
-_hexc(uint_fast8_t c)
+_hexc(uint_fast8_t c, uint_fast8_t cas)
 {
 	if (LIKELY(c < 10)) {
 		return (char)(c ^ '0');
 	}
 	/* no check for the upper bound of c */
-	return (char)(c + 'W');
+	return (char)((c + 'W') ^ (cas << 5U));
+}
+
+static cls_t
+cod2cls(uint_fast32_t c)
+{
+	if (c < 0x80U) {
+		size_t off = c / 0x40U;
+		size_t val = c % 0x40U;
+		return (cls_t)gencls1[off][val];
+	} else if (c < 0x800U) {
+		size_t off = (c - 0x80U) / 0x40U;
+		size_t val = (c - 0x80U) % 0x40U;
+		return (cls_t)gencls2[off][val];
+	} else if (c < 0x10000U) {
+		size_t off = (c - 0x800U) / 0x40U;
+		size_t val = (c - 0x800U) % 0x40U;
+		return (cls_t)gencls3[off][val];
+	}
+	return CLS_UNK;
+}
+
+static uint_fast32_t
+cod2low(uint_fast32_t c)
+{
+	if (c < 0x80U) {
+		size_t off = c / 0x40U;
+		size_t val = c % 0x40U;
+		uint_fast8_t k = genmof1[off];
+		return k ? genmap1[k][val] : c;
+	} else if (c < 0x800U) {
+		size_t off = (c - 0x80U) / 0x40U;
+		size_t val = (c - 0x80U) % 0x40U;
+		uint_fast8_t k = genmof2[off];
+		return k ? genmap2[k][val] : c;
+	} else if (c < 0x10000U) {
+		size_t off = (c - 0x800U) / 0x40U;
+		size_t val = (c - 0x800U) % 0x40U;
+		uint_fast8_t k = genmof3[off];
+		return k ? genmap3[k][val] : c;
+	}
+	return c;
 }
 
 static void
@@ -203,24 +239,56 @@ pr_uni(const struct wc_s x)
 static void
 pr_cod(const struct wc_s x)
 {
-	if (UNLIKELY(strk_i + 10U > sizeof(strk_buf))) {
+	if (UNLIKELY(strk_i + 11U > sizeof(strk_buf))) {
 		pr_flsh();
 	}
 	strk_buf[strk_i++] = 'U';
 	strk_buf[strk_i++] = '+';
 
 	if (UNLIKELY(x.cod > 0xffffU)) {
-		strk_buf[strk_i++] = _hexc(x.cod >> 28U & 0xfU);
-		strk_buf[strk_i++] = _hexc(x.cod >> 24U & 0xfU);
-		strk_buf[strk_i++] = _hexc(x.cod >> 20U & 0xfU);
-		strk_buf[strk_i++] = _hexc(x.cod >> 16U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 28U & 0xfU, 0U);
+		strk_buf[strk_i++] = _hexc(x.cod >> 24U & 0xfU, 0U);
+		strk_buf[strk_i++] = _hexc(x.cod >> 20U & 0xfU, 0U);
+		strk_buf[strk_i++] = _hexc(x.cod >> 16U & 0xfU, 0U);
 	}
 	if (UNLIKELY(x.cod > 0xffU)) {
-		strk_buf[strk_i++] = _hexc(x.cod >> 12U & 0xfU);
-		strk_buf[strk_i++] = _hexc(x.cod >> 8U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 12U & 0xfU, 0U);
+		strk_buf[strk_i++] = _hexc(x.cod >> 8U & 0xfU, 0U);
 	}
-	strk_buf[strk_i++] = _hexc(x.cod >> 4U & 0xfU);
-	strk_buf[strk_i++] = _hexc(x.cod >> 0U & 0xfU);
+	strk_buf[strk_i++] = _hexc(x.cod >> 4U & 0xfU, 0U);
+	strk_buf[strk_i++] = _hexc(x.cod >> 0U & 0xfU, 0U);
+	strk_buf[strk_i++] = 'U';
+	return;
+}
+
+static void
+pr_cod_faithful(const struct wc_s x)
+{
+	static const char _clsc[] = "?.UU";
+	const cls_t cls = cod2cls(x.cod);
+	const char clsc = _clsc[cls];
+	uint_fast32_t equc = LIKELY(cls == CLS_ALPHA) ? cod2low(x.cod) : x.cod;
+	const uint_fast8_t casv = UNLIKELY(equc != x.cod);
+
+	if (UNLIKELY(strk_i + 11U > sizeof(strk_buf))) {
+		pr_flsh();
+	}
+	strk_buf[strk_i++] = clsc;
+	strk_buf[strk_i++] = '+';
+
+	if (UNLIKELY(equc > 0xffffU)) {
+		strk_buf[strk_i++] = _hexc(equc >> 28U & 0xfU, casv);
+		strk_buf[strk_i++] = _hexc(equc >> 24U & 0xfU, casv);
+		strk_buf[strk_i++] = _hexc(equc >> 20U & 0xfU, casv);
+		strk_buf[strk_i++] = _hexc(equc >> 16U & 0xfU, casv);
+	}
+	if (UNLIKELY(x.cod > 0xffU)) {
+		strk_buf[strk_i++] = _hexc(equc >> 12U & 0xfU, casv);
+		strk_buf[strk_i++] = _hexc(equc >> 8U & 0xfU, casv);
+	}
+	strk_buf[strk_i++] = _hexc(equc >> 4U & 0xfU, casv);
+	strk_buf[strk_i++] = _hexc(equc >> 0U & 0xfU, casv);
+	strk_buf[strk_i++] = clsc;
 	return;
 }
 
@@ -263,7 +331,7 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 	return (struct wc_s){x.cod, x.len * 2U};
 }
 
-static ssize_t
+static __attribute__((noinline)) ssize_t
 unicodify_buf(const char *const buf, size_t bsz)
 {
 /* turn BUF's characters into pure ASCII. */
@@ -293,7 +361,7 @@ unicodify_buf(const char *const buf, size_t bsz)
 	return bp - buf;
 }
 
-static ssize_t
+static __attribute__((noinline)) ssize_t
 asciify_buf(const char *const buf, size_t bsz)
 {
 /* turn BUF's characters into pure ASCII. */
@@ -317,6 +385,36 @@ asciify_buf(const char *const buf, size_t bsz)
 			}
 			/* now we've got a single encoded char (hopefully) */
 			pr_cod(wc);
+			bp += wc.len ?: 1U;
+		}
+	}
+	return bp - buf;
+}
+
+static __attribute__((noinline)) ssize_t
+faithify_buf(const char *const buf, size_t bsz)
+{
+/* turn BUF's characters into pure ASCII. */
+	const char *bp = buf;
+	const char *const ep = buf + bsz;
+
+	while (bp < ep) {
+		if (LIKELY(*bp >= '\0')) {
+			pr_asc(*bp++);
+		} else {
+			/* great, big turd coming up */
+			struct wc_s wc = xmbtowc(bp);
+
+			if (UNLIKELY(bp + wc.len >= ep)) {
+				/* have to do this in a second run */
+				break;
+			}
+			/* re-examine the whole shebang */
+			if (!(wc = _examine(wc, bp, ep)).len) {
+				break;
+			}
+			/* now we've got a single encoded char (hopefully) */
+			pr_cod_faithful(wc);
 			bp += wc.len ?: 1U;
 		}
 	}
@@ -366,6 +464,7 @@ DEFCORU(co_snarf, {
 DEFCORU(co_class, {
 		char *buf;
 		bool asciip;
+		bool faithp;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
@@ -382,10 +481,17 @@ DEFCORU(co_class, {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
-	} else {
+	} else if (!CORU_CLOSUR(faithp)) {
 		/* enter the main snarf loop */
 		do {
 			if ((npr = asciify_buf(buf, nrd)) < 0) {
+				return -1;
+			}
+		} while ((nrd = YIELD(npr)) > 0U);
+	} else {
+		/* enter the main snarf loop */
+		do {
+			if ((npr = faithify_buf(buf, nrd)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
@@ -395,7 +501,7 @@ DEFCORU(co_class, {
 
 
 static int
-classify0(int fd, bool asciip)
+classify0(int fd, bool asciip, bool faithp)
 {
 	char buf[4U * 4096U];
 	struct cocore *snarf;
@@ -411,7 +517,7 @@ classify0(int fd, bool asciip)
 		.clo = {.buf = buf, .fd = fd});
 	class = START_PACK(
 		co_class, .next = self,
-		.clo = {.buf = buf, .asciip = asciip});
+		.clo = {.buf = buf, .asciip = asciip, .faithp = faithp});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -449,18 +555,23 @@ main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
 	int rc = 0;
+	bool asciip;
+	bool faithp;
 
 	if (yuck_parse(argi, argc, argv)) {
 		rc = 1;
 		goto out;
 	}
 
+	asciip = argi->ascii_flag;
+	faithp = argi->faithful_flag;
+
 	/* get the coroutines going */
 	initialise_cocore();
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0(STDIN_FILENO, argi->ascii_flag) < 0) {
+		if (classify0(STDIN_FILENO, asciip, faithp) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -476,7 +587,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (classify0(fd, argi->ascii_flag) < 0) {
+		} else if (classify0(fd, asciip, faithp) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}

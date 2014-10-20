@@ -3,3 +3,4 @@ Usage: glueck [OPTIONS...] [FILE]...
 Reencode FILEs in uniform unicode.
 
   -c, --ascii           Replace unicode characters by code sequences.
+      --faithful        Emit case and class preserving sequences.
