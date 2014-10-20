@@ -224,6 +224,54 @@ cod2low(uint_fast32_t c)
 	return c;
 }
 
+static uint_fast32_t
+cod2upc(uint_fast32_t c)
+{
+	if (c < 0x80U) {
+		for (size_t i = 0U; i < countof(genmof1); i++) {
+			const uint_fast32_t base = 0x0U + 0x40U * i;
+			const uint_fast8_t k = genmof1[i];
+			if (!k) {
+				continue;
+			}
+			for (size_t j = 0U; j < 0x40U; j++) {
+				if (genmap1[k][j] == c && c != base + j) {
+					return base + j;
+				}
+			}
+		}
+	} else if (c < 0x800U) {
+		for (size_t i = 0U; i < countof(genmof2); i++) {
+			const uint_fast32_t base = 0x80U + 0x40U * i;
+			const uint_fast8_t k = genmof2[i];
+
+			if (!k) {
+				continue;
+			}
+			for (size_t j = 0U; j < 0x40U; j++) {
+				if (genmap2[k][j] == c && c != base + j) {
+					return base + j;
+				}
+			}
+		}
+	} else if (c < 0x10000U) {
+		for (size_t i = 0U; i < countof(genmof3); i++) {
+			const uint_fast32_t base = 0x800U + 0x40U * i;
+			const uint_fast8_t k = genmof3[i];
+
+			if (!k) {
+				continue;
+			}
+			for (size_t j = 0U; j < 0x40U; j++) {
+				if (genmap3[k][j] == c && c != base + j) {
+					return base + j;
+				}
+			}
+		}
+	}
+	return c;
+}
+
 static void
 pr_uni(const struct wc_s x)
 {
@@ -381,6 +429,7 @@ chk:
 		break;
 	case 'u':
 		/* is a downcased char, find its upcase */
+		res.cod = cod2upc(res.cod);
 		break;
 	}
 	return res;
