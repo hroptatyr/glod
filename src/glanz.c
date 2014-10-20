@@ -271,50 +271,9 @@ pr_cod_faithful(const struct wc_s x)
 		[CLS_NUMBR] = 'O',
 	};
 	const cls_t cls = cod2cls(x.cod);
-	char clsc = _clsc[cls];
-	uint_fast32_t equc;
-
-	if (LIKELY(cls == CLS_ALPHA)) {
-		if ((equc = cod2low(x.cod)) > x.cod) {
-			/* encode to difference,
-			 * here is the stats:
-			 * sed 's@0x\([0-9a-f]*\).*\u\([0-9a-f]*\).*@0x\1 0x\2@' \
-			 * src/unicode.cm | \
-			 * awk --non-decimal-data '(NF == 2){print $1 - $2}' | \
-			 * sort | uniq -c | sort -n
-			 * diff 1: 518 times
-			 * diff 32: 140 times
-			 * diff 48: 85 times */
-			switch (equc - x.cod) {
-			case 1:
-				clsc = 'W';
-				break;
-			case 32:
-				clsc = 'M';
-				break;
-			case 48:
-				clsc = 'G';
-				break;
-			case 7264:
-				clsc = 'E';
-				break;
-			default:
-				equc = x.cod;
-				break;
-			}
-		} else if (equc < x.cod) {
-			switch (x.cod - equc) {
-			case 8:
-				clsc = '_';
-				break;
-			default:
-				equc = x.cod;
-				break;
-			}
-		}
-	} else {
-		equc = x.cod;
-	}
+	const uint_fast32_t equc = LIKELY(cls == CLS_ALPHA)
+		? cod2low(x.cod) : x.cod;
+	const char clsc = _clsc[cls] ^ (UNLIKELY(equc != x.cod) << 5U);
 
 	if (UNLIKELY(strk_i + 11U > sizeof(strk_buf))) {
 		pr_flsh();
@@ -420,17 +379,8 @@ chk:
 	default:
 	case 'U':
 		break;
-	case 'M':
-		res.cod -= 32U;
-		break;
-	case 'W':
-		res.cod -= 1U;
-		break;
-	case 'G':
-		res.cod -= 48U;
-		break;
-	case 'E':
-		res.cod -= 7264;
+	case 'u':
+		/* is a downcased char, find its upcase */
 		break;
 	}
 	return res;
@@ -540,7 +490,7 @@ decode_buf(const char *const buf, size_t bsz)
 		}
 		/* one of O or U (also E G M, W, \, _)
 		 * or . or ?  (also / and >) */
-		if ((*bp | 0x1a) == '_' || (*bp | 0x11) == '?') {
+		if ((*bp | 0x3a) == '\x7f' || (*bp | 0x11) == '?') {
 			const struct wc_s wc = _try_decod(bp, ep);
 
 			switch (wc.len) {
