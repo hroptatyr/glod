@@ -1,5 +1,0 @@
-Usage: glueck [OPTIONS...] [FILE]...
-
-Reencode FILEs in uniform unicode.
-
-  -A, --ascii           Replace unicode characters by code sequences
