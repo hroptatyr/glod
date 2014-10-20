@@ -264,7 +264,12 @@ pr_cod(const struct wc_s x)
 static void
 pr_cod_faithful(const struct wc_s x)
 {
-	static const char _clsc[] = "?.UU";
+	static const char _clsc[] = {
+		[CLS_UNK] = '?',
+		[CLS_PUNCT] = '.',
+		[CLS_ALPHA] = 'U',
+		[CLS_NUMBR] = 'O',
+	};
 	const cls_t cls = cod2cls(x.cod);
 	const char clsc = _clsc[cls];
 	uint_fast32_t equc = LIKELY(cls == CLS_ALPHA) ? cod2low(x.cod) : x.cod;
@@ -329,6 +334,45 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 	x = xmbtowc(tmp);
 	/* ... but fiddle with its length */
 	return (struct wc_s){x.cod, x.len * 2U};
+}
+
+static struct wc_s
+_try_decod(const char *bp, const char *const ep)
+{
+	const char cid = *bp;
+	struct wc_s res = {0U, 3U};
+
+	if (UNLIKELY(bp + 1U/*+*/ + 2U/*min hex digits*/ + 1U/*CID*/ >= ep)) {
+		/* no chance, we'd be beyond the buffer */
+		return (struct wc_s){0U, 0U};
+	} else if (LIKELY(bp[1U] != '+')) {
+		goto nop;
+	}
+	/* otherwise it's 2, 4, or 8 hex digits and CID again */
+	do {
+		uint_fast8_t d/*igit*/;
+
+		if ((d = (unsigned char)(bp[2U] ^ '0')) >= 10U &&
+		    (d = (unsigned char)((bp[2U] | 0x20U) - 'W')) >= 16U) {
+			break;
+		}
+		res.cod <<= 4U;
+		res.cod |= d;
+		if ((d = (unsigned char)(bp[3U] ^ '0')) >= 10U &&
+		    (d = (unsigned char)((bp[3U] | 0x20U) - 'W')) >= 16U) {
+			break;
+		}
+		res.cod <<= 4U;
+		res.cod |= d;
+		res.len += 2U;
+		if (bp[4U] == cid) {
+			return res;
+		}
+		/* maybe more digits then */
+	} while (res.len < 11U &&
+		 (bp += 2U) + 2U/*more digits*/ + 1U/*CID*/ < ep);
+nop:
+	return (struct wc_s){0U, 1U};
 }
 
 static __attribute__((noinline)) ssize_t
@@ -421,6 +465,43 @@ faithify_buf(const char *const buf, size_t bsz)
 	return bp - buf;
 }
 
+static __attribute__((noinline)) ssize_t
+decode_buf(const char *const buf, size_t bsz)
+{
+/* turn BUF's characters into pure ASCII. */
+	const char *bp = buf;
+	const char *const ep = buf + bsz;
+
+	while (bp < ep) {
+		if (UNLIKELY(*bp < '\0')) {
+			/* can't decode a non-ascii stream */
+			return -1;
+		}
+		/* one of O or U (also E G L, W, \, _)
+		 * or . or ?  (also / and >) */
+		if ((*bp | 0x1a) == '_' || (*bp | 0x11) == '?') {
+			const struct wc_s wc = _try_decod(bp, ep);
+
+			switch (wc.len) {
+			case 0U:
+				/* not enough data to examine */
+				goto out;
+			case 1U:
+				/* just an ascii char */
+				break;
+			default:
+				/* got the code, print as unicode */
+				pr_uni(wc);
+				bp += wc.len;
+				continue;
+			}
+		}
+		pr_asc(*bp++);
+	}
+out:
+	return bp - buf;
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -465,6 +546,7 @@ DEFCORU(co_class, {
 		char *buf;
 		bool asciip;
 		bool faithp;
+		bool decodp;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
@@ -474,7 +556,14 @@ DEFCORU(co_class, {
 	size_t nrd = bsz;
 	ssize_t npr;
 
-	if (!CORU_CLOSUR(asciip)) {
+	if (UNLIKELY(CORU_CLOSUR(decodp))) {
+		/* enter the main snarf loop */
+		do {
+			if ((npr = decode_buf(buf, nrd)) < 0) {
+				return -1;
+			}
+		} while ((nrd = YIELD(npr)) > 0U);
+	} else if (!CORU_CLOSUR(asciip)) {
 		/* enter the main snarf loop */
 		do {
 			if ((npr = unicodify_buf(buf, nrd)) < 0) {
@@ -501,7 +590,7 @@ DEFCORU(co_class, {
 
 
 static int
-classify0(int fd, bool asciip, bool faithp)
+classify0(int fd, bool asciip, bool faithp, bool decodp)
 {
 	char buf[4U * 4096U];
 	struct cocore *snarf;
@@ -517,7 +606,11 @@ classify0(int fd, bool asciip, bool faithp)
 		.clo = {.buf = buf, .fd = fd});
 	class = START_PACK(
 		co_class, .next = self,
-		.clo = {.buf = buf, .asciip = asciip, .faithp = faithp});
+		.clo = {
+			.buf = buf,
+			.asciip = asciip, .faithp = faithp,
+			.decodp = decodp
+		});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -557,6 +650,7 @@ main(int argc, char *argv[])
 	int rc = 0;
 	bool asciip;
 	bool faithp;
+	bool decodp;
 
 	if (yuck_parse(argi, argc, argv)) {
 		rc = 1;
@@ -565,13 +659,14 @@ main(int argc, char *argv[])
 
 	asciip = argi->ascii_flag;
 	faithp = argi->faithful_flag;
+	decodp = argi->decode_flag;
 
 	/* get the coroutines going */
 	initialise_cocore();
 
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (classify0(STDIN_FILENO, asciip, faithp) < 0) {
+		if (classify0(STDIN_FILENO, asciip, faithp, decodp) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -587,7 +682,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (classify0(fd, asciip, faithp) < 0) {
+		} else if (classify0(fd, asciip, faithp, decodp) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
