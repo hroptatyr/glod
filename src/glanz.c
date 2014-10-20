@@ -174,13 +174,13 @@ pr_asc(const char c)
 }
 
 static inline char
-_hexc(uint_fast8_t c, uint_fast8_t cas)
+_hexc(uint_fast8_t c)
 {
 	if (LIKELY(c < 10)) {
 		return (char)(c ^ '0');
 	}
 	/* no check for the upper bound of c */
-	return (char)((c + 'W') ^ (cas << 5U));
+	return (char)(c + 'W');
 }
 
 static cls_t
@@ -224,6 +224,54 @@ cod2low(uint_fast32_t c)
 	return c;
 }
 
+static uint_fast32_t
+cod2upc(uint_fast32_t c)
+{
+	if (c < 0x80U) {
+		for (size_t i = 0U; i < countof(genmof1); i++) {
+			const uint_fast32_t base = 0x0U + 0x40U * i;
+			const uint_fast8_t k = genmof1[i];
+			if (!k) {
+				continue;
+			}
+			for (size_t j = 0U; j < 0x40U; j++) {
+				if (genmap1[k][j] == c && c != base + j) {
+					return base + j;
+				}
+			}
+		}
+	} else if (c < 0x800U) {
+		for (size_t i = 0U; i < countof(genmof2); i++) {
+			const uint_fast32_t base = 0x80U + 0x40U * i;
+			const uint_fast8_t k = genmof2[i];
+
+			if (!k) {
+				continue;
+			}
+			for (size_t j = 0U; j < 0x40U; j++) {
+				if (genmap2[k][j] == c && c != base + j) {
+					return base + j;
+				}
+			}
+		}
+	} else if (c < 0x10000U) {
+		for (size_t i = 0U; i < countof(genmof3); i++) {
+			const uint_fast32_t base = 0x800U + 0x40U * i;
+			const uint_fast8_t k = genmof3[i];
+
+			if (!k) {
+				continue;
+			}
+			for (size_t j = 0U; j < 0x40U; j++) {
+				if (genmap3[k][j] == c && c != base + j) {
+					return base + j;
+				}
+			}
+		}
+	}
+	return c;
+}
+
 static void
 pr_uni(const struct wc_s x)
 {
@@ -246,17 +294,17 @@ pr_cod(const struct wc_s x)
 	strk_buf[strk_i++] = '+';
 
 	if (UNLIKELY(x.cod > 0xffffU)) {
-		strk_buf[strk_i++] = _hexc(x.cod >> 28U & 0xfU, 0U);
-		strk_buf[strk_i++] = _hexc(x.cod >> 24U & 0xfU, 0U);
-		strk_buf[strk_i++] = _hexc(x.cod >> 20U & 0xfU, 0U);
-		strk_buf[strk_i++] = _hexc(x.cod >> 16U & 0xfU, 0U);
+		strk_buf[strk_i++] = _hexc(x.cod >> 28U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 24U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 20U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 16U & 0xfU);
 	}
 	if (UNLIKELY(x.cod > 0xffU)) {
-		strk_buf[strk_i++] = _hexc(x.cod >> 12U & 0xfU, 0U);
-		strk_buf[strk_i++] = _hexc(x.cod >> 8U & 0xfU, 0U);
+		strk_buf[strk_i++] = _hexc(x.cod >> 12U & 0xfU);
+		strk_buf[strk_i++] = _hexc(x.cod >> 8U & 0xfU);
 	}
-	strk_buf[strk_i++] = _hexc(x.cod >> 4U & 0xfU, 0U);
-	strk_buf[strk_i++] = _hexc(x.cod >> 0U & 0xfU, 0U);
+	strk_buf[strk_i++] = _hexc(x.cod >> 4U & 0xfU);
+	strk_buf[strk_i++] = _hexc(x.cod >> 0U & 0xfU);
 	strk_buf[strk_i++] = 'U';
 	return;
 }
@@ -271,9 +319,9 @@ pr_cod_faithful(const struct wc_s x)
 		[CLS_NUMBR] = 'O',
 	};
 	const cls_t cls = cod2cls(x.cod);
-	const char clsc = _clsc[cls];
-	uint_fast32_t equc = LIKELY(cls == CLS_ALPHA) ? cod2low(x.cod) : x.cod;
-	const uint_fast8_t casv = UNLIKELY(equc != x.cod);
+	const uint_fast32_t equc = LIKELY(cls == CLS_ALPHA)
+		? cod2low(x.cod) : x.cod;
+	const char clsc = _clsc[cls] ^ (UNLIKELY(equc != x.cod) << 5U);
 
 	if (UNLIKELY(strk_i + 11U > sizeof(strk_buf))) {
 		pr_flsh();
@@ -282,17 +330,17 @@ pr_cod_faithful(const struct wc_s x)
 	strk_buf[strk_i++] = '+';
 
 	if (UNLIKELY(equc > 0xffffU)) {
-		strk_buf[strk_i++] = _hexc(equc >> 28U & 0xfU, casv);
-		strk_buf[strk_i++] = _hexc(equc >> 24U & 0xfU, casv);
-		strk_buf[strk_i++] = _hexc(equc >> 20U & 0xfU, casv);
-		strk_buf[strk_i++] = _hexc(equc >> 16U & 0xfU, casv);
+		strk_buf[strk_i++] = _hexc(equc >> 28U & 0xfU);
+		strk_buf[strk_i++] = _hexc(equc >> 24U & 0xfU);
+		strk_buf[strk_i++] = _hexc(equc >> 20U & 0xfU);
+		strk_buf[strk_i++] = _hexc(equc >> 16U & 0xfU);
 	}
 	if (UNLIKELY(x.cod > 0xffU)) {
-		strk_buf[strk_i++] = _hexc(equc >> 12U & 0xfU, casv);
-		strk_buf[strk_i++] = _hexc(equc >> 8U & 0xfU, casv);
+		strk_buf[strk_i++] = _hexc(equc >> 12U & 0xfU);
+		strk_buf[strk_i++] = _hexc(equc >> 8U & 0xfU);
 	}
-	strk_buf[strk_i++] = _hexc(equc >> 4U & 0xfU, casv);
-	strk_buf[strk_i++] = _hexc(equc >> 0U & 0xfU, casv);
+	strk_buf[strk_i++] = _hexc(equc >> 4U & 0xfU);
+	strk_buf[strk_i++] = _hexc(equc >> 0U & 0xfU);
 	strk_buf[strk_i++] = clsc;
 	return;
 }
@@ -366,13 +414,25 @@ _try_decod(const char *bp, const char *const ep)
 		res.cod |= d;
 		res.len += 2U;
 		if (bp[4U] == cid) {
-			return res;
+			goto chk;
 		}
 		/* maybe more digits then */
 	} while (res.len < 11U &&
 		 (bp += 2U) + 2U/*more digits*/ + 1U/*CID*/ < ep);
 nop:
 	return (struct wc_s){0U, 1U};
+chk:
+	/* check CID and add offsets */
+	switch (cid) {
+	default:
+	case 'U':
+		break;
+	case 'u':
+		/* is a downcased char, find its upcase */
+		res.cod = cod2upc(res.cod);
+		break;
+	}
+	return res;
 }
 
 static __attribute__((noinline)) ssize_t
@@ -477,9 +537,9 @@ decode_buf(const char *const buf, size_t bsz)
 			/* can't decode a non-ascii stream */
 			return -1;
 		}
-		/* one of O or U (also E G L, W, \, _)
+		/* one of O or U (also E G M, W, \, _)
 		 * or . or ?  (also / and >) */
-		if ((*bp | 0x1a) == '_' || (*bp | 0x11) == '?') {
+		if ((*bp | 0x3a) == '\x7f' || (*bp | 0x11) == '?') {
 			const struct wc_s wc = _try_decod(bp, ep);
 
 			switch (wc.len) {
