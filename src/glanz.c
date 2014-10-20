@@ -1,4 +1,4 @@
-/*** glueck.c -- glod unicode encoder/converter
+/*** glanz.c -- glod ascii<->unicode converter/normaliser
  *
  * Copyright (C) 2014 Sebastian Freundt
  *
@@ -442,7 +442,7 @@ classify0(int fd, bool asciip)
 }
 
 
-#include "glueck.yucc"
+#include "glanz.yucc"
 
 int
 main(int argc, char *argv[])
@@ -489,4 +489,4 @@ out:
 	return rc;
 }
 
-/* glueck.c ends here */
+/* glanz.c ends here */
