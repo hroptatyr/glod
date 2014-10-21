@@ -104,6 +104,12 @@ xwctomb(char *restrict s, uint_fast32_t c)
 		s[n++] = 0xe0U | (c >> 12U);
 		s[n++] = 0x80U | ((c >> 6U) & 0b111111U);
 		s[n++] = 0x80U | (c & 0b111111U);
+	} else if (c < lohi[3U]) {
+		/* 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx*/
+		s[n++] = 0xf0U | (c >> 18U);
+		s[n++] = 0x80U | ((c >> 12U) & 0b111111U);
+		s[n++] = 0x80U | ((c >> 6U) & 0b111111U);
+		s[n++] = 0x80U | (c & 0b111111U);
 	}
 	return n;
 }
@@ -141,6 +147,22 @@ static __attribute__((nonnull(1))) struct wc_s {
 				((c & 0b1111U) << 6U |
 				 (nx1 & 0b111111U)) << 6U |
 					(nx2 & 0b111111U), 3U};
+		}
+	} else if (UNLIKELY(c < 0xf8U && z < 4U)) {
+		goto nul;
+	} else if (c < 0xf8U) {
+		/* 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx */
+		const int_fast8_t nx1 = s[1U];
+		const int_fast8_t nx2 = s[2U];
+		const int_fast8_t nx3 = s[3U];
+		if (LIKELY(nx1 < (int_fast8_t)0xc0 &&
+			   nx2 < (int_fast8_t)0xc0 &&
+			   nx3 < (int_fast8_t)0xc0)) {
+			return (struct wc_s){
+				(((c & 0b111U) << 6U |
+				  (nx1 & 0b111111U)) << 6U |
+				 (nx2 & 0b111111U)) << 6U |
+					(nx3 & 0b111111U), 4U};
 		}
 	}
 	return (struct wc_s){c, 1U};
@@ -376,7 +398,7 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 	tmp[0U] = (char)x.cod;
 	/* ... and inspect the next NEED characters */
 	for (size_t i = 0U; i < need; i++) {
-		struct wc_s nex = xmbtowc(bp);
+		struct wc_s nex = xmbtowc(bp, ep - bp);
 		if (nex.cod < 0x80U || nex.cod >= 0x100U) {
 			return x;
 		}
@@ -385,7 +407,7 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 		bp += nex.len;
 	}
 	/* finally decode the temporary string ... */
-	x = xmbtowc(tmp);
+	x = xmbtowc(tmp, sizeof(tmp));
 	/* ... but fiddle with its length */
 	return (struct wc_s){x.cod, x.len * 2U};
 }
@@ -453,9 +475,9 @@ unicodify_buf(const char *const buf, size_t bsz, bool finp)
 			pr_asc(*bp++);
 		} else {
 			/* great, big turd coming up */
-			struct wc_s wc = xmbtowc(bp);
+			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(bp + wc.len >= ep)) {
+			if (UNLIKELY(!wc.len)) {
 				/* have to do this in a second run */
 				break;
 			}
@@ -483,9 +505,9 @@ asciify_buf(const char *const buf, size_t bsz, bool finp)
 			pr_asc(*bp++);
 		} else {
 			/* great, big turd coming up */
-			struct wc_s wc = xmbtowc(bp);
+			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(bp + wc.len >= ep)) {
+			if (UNLIKELY(!wc.len)) {
 				/* have to do this in a second run */
 				break;
 			}
@@ -513,9 +535,9 @@ faithify_buf(const char *const buf, size_t bsz, bool finp)
 			pr_asc(*bp++);
 		} else {
 			/* great, big turd coming up */
-			struct wc_s wc = xmbtowc(bp);
+			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(bp + wc.len >= ep)) {
+			if (UNLIKELY(!wc.len)) {
 				/* have to do this in a second run */
 				break;
 			}
