@@ -361,7 +361,7 @@ pr_feed(void)
 static void(*pr_strk)(const char *s, size_t z, char sep) = _pr_strk_lit;
 
 static ssize_t
-classify_buf(const char *const buf, size_t z, unsigned int n)
+termify_buf(const char *const buf, size_t z, unsigned int n)
 {
 /* this is a simple state machine,
  * we start at NONE and wait for an ALNUM,
@@ -609,13 +609,12 @@ DEFCORU(co_class, {
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
 	const unsigned int n = CORU_CLOSUR(n);
-	const size_t bsz = (intptr_t)arg;
-	size_t nrd = bsz;
+	size_t nrd = (intptr_t)arg;
 	ssize_t npr;
 
 	/* enter the main snarf loop */
 	do {
-		if ((npr = classify_buf(buf, nrd, n)) < 0) {
+		if ((npr = termify_buf(buf, nrd, n)) < 0) {
 			return -1;
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
