@@ -561,19 +561,21 @@ illegal character sequence @%td (0x%tx): %02x\n", off, off, (*x)[-1]);
 
 DEFCORU(co_snarf, {
 		char *buf;
+		size_t bsz;
 		int fd;
-	}, void *arg)
+	}, void *UNUSED(arg))
 {
 	/* upon the first call we expect a completely processed buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const size_t bsz = (intptr_t)arg;
+	const size_t bsz = CORU_CLOSUR(bsz);
 	const int fd = CORU_CLOSUR(fd);
 	ssize_t npr = bsz;
 	ssize_t nrd;
 	size_t nun = 0U;
 
 	/* leave some good advice about our access pattern */
+	posix_fadvise(fd, 0, 0, POSIX_FADV_WILLNEED);
 	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	/* enter the main snarf loop */
@@ -635,14 +637,13 @@ classify0(int fd, unsigned int n)
 	self = PREP();
 	snarf = START_PACK(
 		co_snarf, .next = self,
-		.clo = {.buf = buf, .fd = fd});
+		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	class = START_PACK(
 		co_class, .next = self,
 		.clo = {.buf = buf, .n = n});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
-	npr = sizeof(buf);
 	do {
 		/* technically we could let the corus flip-flop call each other
 		 * but we'd like to filter bad input right away */
