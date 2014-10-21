@@ -436,7 +436,7 @@ chk:
 }
 
 static __attribute__((noinline)) ssize_t
-unicodify_buf(const char *const buf, size_t bsz)
+unicodify_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -466,7 +466,7 @@ unicodify_buf(const char *const buf, size_t bsz)
 }
 
 static __attribute__((noinline)) ssize_t
-asciify_buf(const char *const buf, size_t bsz)
+asciify_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -496,7 +496,7 @@ asciify_buf(const char *const buf, size_t bsz)
 }
 
 static __attribute__((noinline)) ssize_t
-faithify_buf(const char *const buf, size_t bsz)
+faithify_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -526,7 +526,7 @@ faithify_buf(const char *const buf, size_t bsz)
 }
 
 static __attribute__((noinline)) ssize_t
-decode_buf(const char *const buf, size_t bsz)
+decode_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -567,7 +567,7 @@ DEFCORU(co_snarf, {
 		char *buf;
 		size_t bsz;
 		int fd;
-	}, void *arg)
+	}, void *UNUSED(arg))
 {
 	/* upon the first call we expect a completely processed buffer
 	 * just to determine the buffer's size */
@@ -587,7 +587,7 @@ DEFCORU(co_snarf, {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
 		/* process */
-		npr = YIELD(nun);
+		npr = YIELD(nun << 1);
 		/* now it's NPR less unprocessed bytes */
 		nun -= npr;
 
@@ -599,7 +599,7 @@ DEFCORU(co_snarf, {
 	/* final drain */
 	if (nun) {
 		/* we don't care how much got processed */
-		YIELD(nun);
+		YIELD(nun << 1 | 1);
 	}
 	return nrd;
 }
@@ -614,35 +614,43 @@ DEFCORU(co_class, {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const size_t bsz = (intptr_t)arg;
-	size_t nrd = bsz;
+	size_t nrd = (intptr_t)arg;
+	bool finp;
 	ssize_t npr;
 
 	if (UNLIKELY(CORU_CLOSUR(decodp))) {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = decode_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = decode_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
 	} else if (!CORU_CLOSUR(asciip)) {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = unicodify_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = unicodify_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
 	} else if (!CORU_CLOSUR(faithp)) {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = asciify_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = asciify_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
 	} else {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = faithify_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = faithify_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
