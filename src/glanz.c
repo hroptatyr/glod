@@ -374,7 +374,7 @@ pr_cod_faithful(const struct wc_s x)
 }
 
 static struct wc_s
-_examine(struct wc_s x, const char *bp, const char *const ep)
+_examine(struct wc_s x, const char *bp, const char *const ep, bool finp)
 {
 	char tmp[4U];
 	size_t need = 1U;
@@ -392,7 +392,10 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 		need++;
 	}
 	if (UNLIKELY(bp + 2U * need > ep)) {
-		return (struct wc_s){0U, 0U};
+		if (LIKELY(!finp)) {
+			return (struct wc_s){0U, 0U};
+		}
+		return x;
 	}
 	/* otherwise set up the temp string ... */
 	tmp[0U] = (char)x.cod;
@@ -477,12 +480,12 @@ unicodify_buf(const char *const buf, size_t bsz, bool finp)
 			/* great, big turd coming up */
 			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(!wc.len)) {
+			if (UNLIKELY(!wc.len) && LIKELY(!finp)) {
 				/* have to do this in a second run */
 				break;
 			}
 			/* re-examine the whole shebang */
-			if (!(wc = _examine(wc, bp, ep)).len) {
+			if (!(wc = _examine(wc, bp, ep, finp)).len) {
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
@@ -507,12 +510,12 @@ asciify_buf(const char *const buf, size_t bsz, bool finp)
 			/* great, big turd coming up */
 			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(!wc.len)) {
+			if (UNLIKELY(!wc.len) && LIKELY(!finp)) {
 				/* have to do this in a second run */
 				break;
 			}
 			/* re-examine the whole shebang */
-			if (!(wc = _examine(wc, bp, ep)).len) {
+			if (!(wc = _examine(wc, bp, ep, finp)).len) {
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
@@ -537,12 +540,12 @@ faithify_buf(const char *const buf, size_t bsz, bool finp)
 			/* great, big turd coming up */
 			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(!wc.len)) {
+			if (UNLIKELY(!wc.len) && LIKELY(!finp)) {
 				/* have to do this in a second run */
 				break;
 			}
 			/* re-examine the whole shebang */
-			if (!(wc = _examine(wc, bp, ep)).len) {
+			if (!(wc = _examine(wc, bp, ep, finp)).len) {
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
