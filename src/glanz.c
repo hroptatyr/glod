@@ -108,10 +108,10 @@ xwctomb(char *restrict s, uint_fast32_t c)
 	return n;
 }
 
-static struct wc_s {
+static __attribute__((nonnull(1))) struct wc_s {
 	uint_fast32_t cod;
 	size_t len;
-} xmbtowc(const char *s)
+} xmbtowc(const char *s, size_t z)
 {
 	const uint_fast8_t c = (uint_fast8_t)*s;
 
@@ -120,6 +120,8 @@ static struct wc_s {
 	} else if (UNLIKELY(c < 0xc2U)) {
 		/* illegal */
 		;
+	} else if (UNLIKELY(c < 0xe0U && z < 2U)) {
+		goto nul;
 	} else if (c < 0xe0U) {
 		/* 110x xxxx  10xx xxxx */
 		const int_fast8_t nx1 = s[1U];
@@ -127,6 +129,8 @@ static struct wc_s {
 			return (struct wc_s){
 				(c & 0b11111U) << 6U | (nx1 & 0b111111U), 2U};
 		}
+	} else if (UNLIKELY(c < 0xf0U && z < 3U)) {
+		goto nul;
 	} else if (c < 0xf0U) {
 		/* 1110 xxxx  10xx xxxx  10xx xxxx */
 		const int_fast8_t nx1 = s[1U];
@@ -140,6 +144,8 @@ static struct wc_s {
 		}
 	}
 	return (struct wc_s){c, 1U};
+nul:
+	return (struct wc_s){0U, 0U};
 }
 
 
