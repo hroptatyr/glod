@@ -104,14 +104,20 @@ xwctomb(char *restrict s, uint_fast32_t c)
 		s[n++] = 0xe0U | (c >> 12U);
 		s[n++] = 0x80U | ((c >> 6U) & 0b111111U);
 		s[n++] = 0x80U | (c & 0b111111U);
+	} else if (c < lohi[3U]) {
+		/* 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx*/
+		s[n++] = 0xf0U | (c >> 18U);
+		s[n++] = 0x80U | ((c >> 12U) & 0b111111U);
+		s[n++] = 0x80U | ((c >> 6U) & 0b111111U);
+		s[n++] = 0x80U | (c & 0b111111U);
 	}
 	return n;
 }
 
-static struct wc_s {
+static __attribute__((nonnull(1))) struct wc_s {
 	uint_fast32_t cod;
 	size_t len;
-} xmbtowc(const char *s)
+} xmbtowc(const char *s, size_t z)
 {
 	const uint_fast8_t c = (uint_fast8_t)*s;
 
@@ -120,6 +126,8 @@ static struct wc_s {
 	} else if (UNLIKELY(c < 0xc2U)) {
 		/* illegal */
 		;
+	} else if (UNLIKELY(c < 0xe0U && z < 2U)) {
+		goto nul;
 	} else if (c < 0xe0U) {
 		/* 110x xxxx  10xx xxxx */
 		const int_fast8_t nx1 = s[1U];
@@ -127,6 +135,8 @@ static struct wc_s {
 			return (struct wc_s){
 				(c & 0b11111U) << 6U | (nx1 & 0b111111U), 2U};
 		}
+	} else if (UNLIKELY(c < 0xf0U && z < 3U)) {
+		goto nul;
 	} else if (c < 0xf0U) {
 		/* 1110 xxxx  10xx xxxx  10xx xxxx */
 		const int_fast8_t nx1 = s[1U];
@@ -138,8 +148,26 @@ static struct wc_s {
 				 (nx1 & 0b111111U)) << 6U |
 					(nx2 & 0b111111U), 3U};
 		}
+	} else if (UNLIKELY(c < 0xf8U && z < 4U)) {
+		goto nul;
+	} else if (c < 0xf8U) {
+		/* 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx */
+		const int_fast8_t nx1 = s[1U];
+		const int_fast8_t nx2 = s[2U];
+		const int_fast8_t nx3 = s[3U];
+		if (LIKELY(nx1 < (int_fast8_t)0xc0 &&
+			   nx2 < (int_fast8_t)0xc0 &&
+			   nx3 < (int_fast8_t)0xc0)) {
+			return (struct wc_s){
+				(((c & 0b111U) << 6U |
+				  (nx1 & 0b111111U)) << 6U |
+				 (nx2 & 0b111111U)) << 6U |
+					(nx3 & 0b111111U), 4U};
+		}
 	}
 	return (struct wc_s){c, 1U};
+nul:
+	return (struct wc_s){0U, 0U};
 }
 
 
@@ -346,7 +374,7 @@ pr_cod_faithful(const struct wc_s x)
 }
 
 static struct wc_s
-_examine(struct wc_s x, const char *bp, const char *const ep)
+_examine(struct wc_s x, const char *bp, const char *const ep, bool finp)
 {
 	char tmp[4U];
 	size_t need = 1U;
@@ -364,13 +392,16 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 		need++;
 	}
 	if (UNLIKELY(bp + 2U * need > ep)) {
-		return (struct wc_s){0U, 0U};
+		if (LIKELY(!finp)) {
+			return (struct wc_s){0U, 0U};
+		}
+		return x;
 	}
 	/* otherwise set up the temp string ... */
 	tmp[0U] = (char)x.cod;
 	/* ... and inspect the next NEED characters */
 	for (size_t i = 0U; i < need; i++) {
-		struct wc_s nex = xmbtowc(bp);
+		struct wc_s nex = xmbtowc(bp, ep - bp);
 		if (nex.cod < 0x80U || nex.cod >= 0x100U) {
 			return x;
 		}
@@ -379,7 +410,7 @@ _examine(struct wc_s x, const char *bp, const char *const ep)
 		bp += nex.len;
 	}
 	/* finally decode the temporary string ... */
-	x = xmbtowc(tmp);
+	x = xmbtowc(tmp, sizeof(tmp));
 	/* ... but fiddle with its length */
 	return (struct wc_s){x.cod, x.len * 2U};
 }
@@ -436,7 +467,7 @@ chk:
 }
 
 static __attribute__((noinline)) ssize_t
-unicodify_buf(const char *const buf, size_t bsz)
+unicodify_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -447,14 +478,14 @@ unicodify_buf(const char *const buf, size_t bsz)
 			pr_asc(*bp++);
 		} else {
 			/* great, big turd coming up */
-			struct wc_s wc = xmbtowc(bp);
+			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(bp + wc.len >= ep)) {
+			if (UNLIKELY(!wc.len) && LIKELY(!finp)) {
 				/* have to do this in a second run */
 				break;
 			}
 			/* re-examine the whole shebang */
-			if (!(wc = _examine(wc, bp, ep)).len) {
+			if (!(wc = _examine(wc, bp, ep, finp)).len) {
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
@@ -466,7 +497,7 @@ unicodify_buf(const char *const buf, size_t bsz)
 }
 
 static __attribute__((noinline)) ssize_t
-asciify_buf(const char *const buf, size_t bsz)
+asciify_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -477,14 +508,14 @@ asciify_buf(const char *const buf, size_t bsz)
 			pr_asc(*bp++);
 		} else {
 			/* great, big turd coming up */
-			struct wc_s wc = xmbtowc(bp);
+			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(bp + wc.len >= ep)) {
+			if (UNLIKELY(!wc.len) && LIKELY(!finp)) {
 				/* have to do this in a second run */
 				break;
 			}
 			/* re-examine the whole shebang */
-			if (!(wc = _examine(wc, bp, ep)).len) {
+			if (!(wc = _examine(wc, bp, ep, finp)).len) {
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
@@ -496,7 +527,7 @@ asciify_buf(const char *const buf, size_t bsz)
 }
 
 static __attribute__((noinline)) ssize_t
-faithify_buf(const char *const buf, size_t bsz)
+faithify_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -507,14 +538,14 @@ faithify_buf(const char *const buf, size_t bsz)
 			pr_asc(*bp++);
 		} else {
 			/* great, big turd coming up */
-			struct wc_s wc = xmbtowc(bp);
+			struct wc_s wc = xmbtowc(bp, ep - bp);
 
-			if (UNLIKELY(bp + wc.len >= ep)) {
+			if (UNLIKELY(!wc.len) && LIKELY(!finp)) {
 				/* have to do this in a second run */
 				break;
 			}
 			/* re-examine the whole shebang */
-			if (!(wc = _examine(wc, bp, ep)).len) {
+			if (!(wc = _examine(wc, bp, ep, finp)).len) {
 				break;
 			}
 			/* now we've got a single encoded char (hopefully) */
@@ -526,7 +557,7 @@ faithify_buf(const char *const buf, size_t bsz)
 }
 
 static __attribute__((noinline)) ssize_t
-decode_buf(const char *const buf, size_t bsz)
+decode_buf(const char *const buf, size_t bsz, bool finp)
 {
 /* turn BUF's characters into pure ASCII. */
 	const char *bp = buf;
@@ -544,8 +575,11 @@ decode_buf(const char *const buf, size_t bsz)
 
 			switch (wc.len) {
 			case 0U:
-				/* not enough data to examine */
-				goto out;
+				if (LIKELY(!finp)) {
+					/* not enough data to examine */
+					goto out;
+				}
+				/*@fallthrough@*/
 			case 1U:
 				/* just an ascii char */
 				break;
@@ -565,19 +599,21 @@ out:
 
 DEFCORU(co_snarf, {
 		char *buf;
+		size_t bsz;
 		int fd;
-	}, void *arg)
+	}, void *UNUSED(arg))
 {
 	/* upon the first call we expect a completely processed buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const size_t bsz = (intptr_t)arg;
+	const size_t bsz = CORU_CLOSUR(bsz);
 	const int fd = CORU_CLOSUR(fd);
 	ssize_t npr = bsz;
 	ssize_t nrd;
 	size_t nun = 0U;
 
 	/* leave some good advice about our access pattern */
+	posix_fadvise(fd, 0, 0, POSIX_FADV_WILLNEED);
 	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	/* enter the main snarf loop */
@@ -585,7 +621,7 @@ DEFCORU(co_snarf, {
 		/* we've got NRD more unprocessed bytes */
 		nun += nrd;
 		/* process */
-		npr = YIELD(nun);
+		npr = YIELD(nun << 1);
 		/* now it's NPR less unprocessed bytes */
 		nun -= npr;
 
@@ -597,7 +633,7 @@ DEFCORU(co_snarf, {
 	/* final drain */
 	if (nun) {
 		/* we don't care how much got processed */
-		YIELD(nun);
+		YIELD(nun << 1 | 1);
 	}
 	return nrd;
 }
@@ -612,35 +648,43 @@ DEFCORU(co_class, {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const size_t bsz = (intptr_t)arg;
-	size_t nrd = bsz;
+	size_t nrd = (intptr_t)arg;
+	bool finp;
 	ssize_t npr;
 
 	if (UNLIKELY(CORU_CLOSUR(decodp))) {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = decode_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = decode_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
 	} else if (!CORU_CLOSUR(asciip)) {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = unicodify_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = unicodify_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
 	} else if (!CORU_CLOSUR(faithp)) {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = asciify_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = asciify_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
 	} else {
 		/* enter the main snarf loop */
 		do {
-			if ((npr = faithify_buf(buf, nrd)) < 0) {
+			finp = nrd & 1U;
+			nrd >>= 1U;
+			if ((npr = faithify_buf(buf, nrd, finp)) < 0) {
 				return -1;
 			}
 		} while ((nrd = YIELD(npr)) > 0U);
@@ -663,7 +707,7 @@ classify0(int fd, bool asciip, bool faithp, bool decodp)
 	self = PREP();
 	snarf = START_PACK(
 		co_snarf, .next = self,
-		.clo = {.buf = buf, .fd = fd});
+		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	class = START_PACK(
 		co_class, .next = self,
 		.clo = {
@@ -674,7 +718,6 @@ classify0(int fd, bool asciip, bool faithp, bool decodp)
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
-	npr = sizeof(buf);
 	do {
 		/* technically we could let the corus flip-flop call each other
 		 * but we'd like to filter bad input right away */
