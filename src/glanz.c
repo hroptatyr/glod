@@ -544,8 +544,11 @@ decode_buf(const char *const buf, size_t bsz, bool finp)
 
 			switch (wc.len) {
 			case 0U:
-				/* not enough data to examine */
-				goto out;
+				if (LIKELY(!finp)) {
+					/* not enough data to examine */
+					goto out;
+				}
+				/*@fallthrough@*/
 			case 1U:
 				/* just an ascii char */
 				break;
