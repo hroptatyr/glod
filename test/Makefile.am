@@ -158,6 +158,12 @@ glep_TESTS += glep.30.tst
 EXTRA_DIST += tk2.pats
 EXTRA_DIST += tk2.news
 
+## tk also discovered this one
+glep_TESTS += glep.31.tst
+EXTRA_DIST += tk3.pats
+EXTRA_DIST += tk3.news
+
+
 enum_TESTS =
 TESTS += $(enum_TESTS)
 enum_TESTS += enum.01.tst
