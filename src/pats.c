@@ -162,9 +162,8 @@ snarf_pat(word_t w)
 			word = realloc(word, worz);
 		}
 		/* operate on static space for the fun of it */
-		memcpy(word, w.s, w.z);
 		for (size_t wi = 0U; wi < w.z; wi++) {
-			if (LIKELY((word[ci] = w.s[wi]) == '\\')) {
+			if (LIKELY((word[ci] = w.s[wi]) != '\\')) {
 				/* increment */
 				ci++;
 			}
