@@ -17,6 +17,7 @@ built_men =
 built_men += terms.man
 built_men += enum.man
 built_men += glep.man
+built_men += glanz.man
 built_men += ldmatrix.man
 
 BUILT_SOURCES += $(built_men)
