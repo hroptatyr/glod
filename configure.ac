@@ -168,6 +168,7 @@ echo "[[x]] glid  (will not be installed)"
 echo "[[x]] ldmatrix  (will not be installed)"
 echo "[[x]] unpgbrk"
 echo "[[x]] unwrap"
+echo "[[x]] glanz"
 echo "[[x]] terms"
 if test "${HAVE_INTRIN_FALSE}" = "#"; then
 	echo "[[x]] fastterms"
