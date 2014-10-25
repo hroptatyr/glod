@@ -34,7 +34,6 @@ AC_CANONICAL_HOST
 AC_PROG_CC
 SXE_CHECK_CC([c11 c1x c99 gnu99])
 SXE_CHECK_CFLAGS([native=no])
-AC_CHECK_TOOLS([AR], [xiar ar], [false])
 AC_C_BIGENDIAN
 
 ## check for yuck helper
