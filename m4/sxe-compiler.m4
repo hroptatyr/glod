@@ -348,8 +348,16 @@ AC_DEFUN([SXE_OPTIFLAGS], [dnl
 	AC_REQUIRE([SXE_USER_CFLAGS])
 	AC_REQUIRE([SXE_WARNFLAGS])
 
-	case " ${CFLAGS} ${EXTRA_CFLAGS}" in
-	(*" -O"[0-9]" "*)
+	case " ${CFLAGS} ${EXTRA_CFLAGS} " in
+	(*" -O"[[0-9]]" "*)
+		;;
+	(*" -Os "*)
+		;;
+	(*" -Og "*)
+		;;
+	(*" -Ofast "*)
+		;;
+	(*" -O "*)
 		;;
 	(*)
 		SXE_CHECK_COMPILER_FLAG([-O3], [
