@@ -1,0 +1,7 @@
+Usage: qgscore [OPTIONS...] [FILE]
+
+Compute q-gram scores of (tab-separated) strings in FILE.
+If omitted use stdin.
+
+  -h, --help     Print help and exit
+  -V, --version  Print version and exit
