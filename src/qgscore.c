@@ -63,8 +63,8 @@ error(const char *fmt, ...)
 	return;
 }
 
-static int
-qgscore2(const char *s1, size_t z1, const char *s2, size_t z2)
+static uint_fast32_t
+hash(const char *s, size_t z)
 {
 	static const uint_fast8_t tbl[256U] = {
 		[' '] = 28,
@@ -130,8 +130,26 @@ qgscore2(const char *s1, size_t z1, const char *s2, size_t z2)
 		['x'] = 'X' - '@',
 		['y'] = 'Y' - '@',
 		['z'] = 'Z' - '@',
-		['.'] = 29,
+		['\''] = 29,
 	};
+	uint_fast32_t res = 0U;
+
+	for (size_t i = 0U, j = 0U; i < z && j < 5U; i++) {
+		const uint_fast8_t h = tbl[s[i]];
+
+		if (h) {
+			res <<= 3U;
+			res ^= h;
+			j++;
+		}
+	}
+	return res;
+}
+
+
+static int
+qgscore2(const char *s1, size_t z1, const char *s2, size_t z2)
+{
 	uint_fast32_t x;
 	uint_fast32_t bs[(1 << 17U) / (sizeof(x) * 8U)];
 	const size_t mz = z1 < z2 ? z1 : z2;
@@ -139,23 +157,17 @@ qgscore2(const char *s1, size_t z1, const char *s2, size_t z2)
 
 	/* fill up our q-gram table */
 	memset(bs, 0, sizeof(bs));
-	for (size_t i = 5U, j; i <= z1; i++) {
+	for (size_t i = 0U; i + 5U <= z1; i++) {
 		/* build a 5-gram */
-		for (j = i - 5U, x = 0; j < i; j++) {
-			x <<= 3U;
-			x ^= tbl[s1[j]];
-		}			
+		x = hash(s1 + i, z1 - i);
 		/* store */
 		bs[x / (sizeof(x) * 8U)] |= 1ULL << (x % (sizeof(x) * 8U));
 	}
 
 	/* check */
-	for (size_t i = 5U, j; i <= z2; i++) {
+	for (size_t i = 0U; i + 5U <= z2; i++) {
 		/* build a 5-gram */
-		for (j = i - 5U, x = 0; j < i; j++) {
-			x <<= 3U;
-			x ^= tbl[s2[j]];
-		}			
+		x = hash(s2 + i, z2 - i);
 		/* look him up */
 		if (bs[x / (sizeof(x) * 8U)] >> (x % (sizeof(x) * 8U)) & 0x1U) {
 			sco++;
