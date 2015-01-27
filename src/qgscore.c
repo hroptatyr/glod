@@ -264,6 +264,7 @@ qgscore(const char *fn)
 		float sco;
 
 		if (UNLIKELY(sep++ == NULL)) {
+			putchar('\n');
 			continue;
 		}
 
