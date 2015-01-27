@@ -160,7 +160,7 @@ hash5(const char *s, size_t z)
 	uint_fast32_t res = 0U;
 
 	for (size_t i = 0U, j = 0U; i < z && j < 5U; i++) {
-		const uint_fast8_t h = tbl[s[i]];
+		const uint_fast8_t h = tbl[(unsigned char)s[i]];
 
 		if (h) {
 			res <<= 3U;
