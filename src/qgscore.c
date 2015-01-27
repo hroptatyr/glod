@@ -155,6 +155,7 @@ hash5(const char *s, size_t z)
 		['x'] = 'X' - '@',
 		['y'] = 'Y' - '@',
 		['z'] = 'Z' - '@',
+		['-'] = 30,
 		['\''] = 29,
 	};
 	uint_fast32_t res = 0U;
