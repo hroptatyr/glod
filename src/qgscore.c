@@ -93,6 +93,8 @@ hash5(const char *s, size_t z)
 {
 	static const uint_fast8_t tbl[256U] = {
 		[' '] = 28,
+		['-'] = 28,
+		['_'] = 28,
 		['0'] = 'O' - '@',
 		['1'] = 'I' - '@',
 		['2'] = 'Z' - '@',
@@ -155,7 +157,6 @@ hash5(const char *s, size_t z)
 		['x'] = 'X' - '@',
 		['y'] = 'Y' - '@',
 		['z'] = 'Z' - '@',
-		['\''] = 29,
 	};
 	uint_fast32_t res = 0U;
 
