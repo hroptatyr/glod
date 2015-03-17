@@ -189,14 +189,7 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
  * min(|x|, |y|) ranges in the output.
  * This feature allows us to write straight back to X without intermediate
  * arrays and copy-over on finish. */
-
-	if (UNLIKELY(!NRNG(x))) {
-		/* as a special service, the intersection of the empty set
-		 * with something equals something */
-		memcpy(x, y, NRNG(y) * sizeof(*y));
-		return;
-	}
-
+	assert(IRNG(x) == 0U);
 	for (size_t i = 1U, j = 1U, ei = NRNG(x), ej = NRNG(y);
 	     i < ei && j < ej;) {
 		size_t from = x[i].from > y[j].from ? x[i].from : y[j].from;
@@ -231,6 +224,10 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 	if (LIKELY((NRNG(x) = IRNG(x)))) {
 		/* adapt, because the naught-th cell is for size info */
 		NRNG(x)++;
+	} else {
+		/* as a special service, the intersection of the empty set
+		 * with something equals something */
+		memcpy(x, y, NRNG(y) * sizeof(*y));
 	}
 	IRNG(x) = 0U;
 	return;

@@ -80,7 +80,9 @@ EXTRA_DIST += xetra.txt
 uncol_TESTS =
 TESTS += $(uncol_TESTS)
 uncol_TESTS += uncol.01.tst
+uncol_TESTS += uncol.02.tst
 EXTRA_DIST += dividend-info.txt
+EXTRA_DIST += dividend-inf2.txt
 
 if HAVE_GLEP_REQS
 TESTS += $(glep_TESTS)
