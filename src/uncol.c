@@ -199,19 +199,27 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 		size_t from = x[i].from > y[j].from ? x[i].from : y[j].from;
 		size_t till = x[i].till > y[j].till ? y[j].till : x[i].till;
 
-		if (from < till) {
-			/* there's definitely an intersection */
-			tgt[NRNG(tgt)++] = (struct rng_s){from, till};
-		}
-
 		/* decide which one to advance */
 		if (x[i].till < y[j].till) {
 			i++;
+			if (UNLIKELY(i < ei && x[i].from < y[j].till)) {
+				/* skip this one, as it's contained in x[i+1] */
+				continue;
+			}
 		} else if (x[i].till > y[j].till) {
 			j++;
+			if (UNLIKELY(j < ej && y[j].from < x[i].till)) {
+				/* skip this one, as it's contained in y[j+1] */
+				continue;
+			}
 		} else {
 			i++;
 			j++;
+		}
+
+		if (from < till) {
+			/* there's definitely an intersection */
+			tgt[NRNG(tgt)++] = (struct rng_s){from, till};
 		}
 	}
 	if (LIKELY(NRNG(tgt) > 1U)) {
