@@ -197,7 +197,6 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 		return;
 	}
 
-	IRNG(x) = 0U;
 	for (size_t i = 1U, j = 1U, ei = NRNG(x), ej = NRNG(y);
 	     i < ei && j < ej;) {
 		size_t from = x[i].from > y[j].from ? x[i].from : y[j].from;
@@ -230,8 +229,10 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 	}
 	/* good effort, set new NRNG */
 	if (LIKELY((NRNG(x) = IRNG(x)))) {
+		/* adapt, because the naught-th cell is for size info */
 		NRNG(x)++;
 	}
+	IRNG(x) = 0U;
 	return;
 }
 
