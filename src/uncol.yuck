@@ -1,0 +1,3 @@
+Usage: uncol [FILE]...
+
+Undo the columnisation of FILE, or stdin if omitted.

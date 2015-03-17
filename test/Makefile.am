@@ -77,6 +77,11 @@ unpgbrk_TESTS += unpgbrk_test_01.tst
 unpgbrk_TESTS += unpgbrk_test_02.tst
 EXTRA_DIST += xetra.txt
 
+uncol_TESTS =
+TESTS += $(uncol_TESTS)
+uncol_TESTS += uncol.01.tst
+EXTRA_DIST += dividend-info.txt
+
 if HAVE_GLEP_REQS
 TESTS += $(glep_TESTS)
 endif  HAVE_GLEP_REQS
