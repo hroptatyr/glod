@@ -122,6 +122,18 @@ EXTRA_terms_SOURCES =
 EXTRA_terms_SOURCES += unicode.bf
 EXTRA_terms_SOURCES += unicode.cm
 
+bin_PROGRAMS += uncol
+uncol_SOURCES = uncol.c
+uncol_SOURCES += uncol.yuck
+uncol_CPPFLAGS = $(AM_CPPFLAGS)
+uncol_LDADD = libglod.la
+uncol_LDADD += libcoru.la
+uncol_LDADD += libversion.a
+BUILT_SOURCES += uncol.yucc
+EXTRA_uncol_SOURCES =
+EXTRA_uncol_SOURCES += unicode.bf
+EXTRA_uncol_SOURCES += unicode.cm
+
 noinst_PROGRAMS += porter-stemmer
 porter_stemmer_CPPFLAGS = $(AM_CPPFLAGS)
 porter_stemmer_CPPFLAGS += -D_GNU_SOURCE
