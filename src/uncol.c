@@ -285,22 +285,45 @@ DEFCORU(co_uncol, {
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
 	/* field widths */
-	struct rng_s fw_sect[64U];
+	struct rng_s *fw_sect;
+	struct rng_s *fw;
+	size_t nfw = 64U;
+
+	if (UNLIKELY((fw_sect = calloc(nfw, sizeof(*fw_sect))) == NULL)) {
+		return -1;
+	} else if (UNLIKELY((fw = calloc(nfw, sizeof(*fw))) == NULL)) {
+		return -1;
+	}
 
 	/* enter the main uncol loop */
 	do {
 		/* process contents line by line */
 		npr = 0U;
-		memset(fw_sect, 0, sizeof(fw_sect));
-
 		for (const char *eol;
 		     npr < nrd &&
 			     (eol = memchr(buf + npr, '\n', nrd - npr)) != NULL;
 		     npr = eol - buf + 1/*\n*/) {
-			struct rng_s fw[64U] = {{1U}};
+			/* reset fieldwidth array */
+			NRNG(fw) = 1U;
 
 			for (size_t i = 0U, ei = eol - buf - npr; i < ei; i++) {
 				if (buf[npr + i] == ' ') {
+					/* resize fw? */
+					if (NRNG(fw) >= nfw) {
+						fw = realloc(
+							fw,
+							nfw * 2U * sizeof(*fw));
+						fw_sect = realloc(
+							fw_sect,
+							nfw * 2U * sizeof(*fw));
+						nfw *= 2U;
+
+						if (UNLIKELY(fw == NULL ||
+							     fw_sect == NULL)) {
+							return -1;
+						}
+					}
+
 					fw[NRNG(fw)].from = i;
 					while (i < ei && buf[npr + ++i] == ' ');
 					fw[NRNG(fw)].till = i;
@@ -316,6 +339,12 @@ DEFCORU(co_uncol, {
 			pr_rng(buf + npr, eol - buf - npr, fw_sect);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
+	if (LIKELY(fw_sect != NULL)) {
+		free(fw_sect);
+	}
+	if (LIKELY(fw != NULL)) {
+		free(fw);
+	}
 	return 0;
 }
 
