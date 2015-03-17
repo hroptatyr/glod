@@ -185,7 +185,10 @@ pr_rng(const char *ln, size_t lz, const struct rng_s r[static 1U])
 static void
 isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 {
-	struct rng_s tgt[64U] = {{1U}};
+/* intersect ranges from X with ranges from Y, but do not create more than
+ * min(|x|, |y|) ranges in the output.
+ * This feature allows us to write straight back to X without intermediate
+ * arrays and copy-over on finish. */
 
 	if (UNLIKELY(!NRNG(x))) {
 		/* as a special service, the intersection of the empty set
@@ -194,6 +197,7 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 		return;
 	}
 
+	IRNG(x) = 0U;
 	for (size_t i = 1U, j = 1U, ei = NRNG(x), ej = NRNG(y);
 	     i < ei && j < ej;) {
 		size_t from = x[i].from > y[j].from ? x[i].from : y[j].from;
@@ -206,12 +210,14 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 				/* skip this one, as it's contained in x[i+1] */
 				continue;
 			}
+			j++;
 		} else if (x[i].till > y[j].till) {
 			j++;
 			if (UNLIKELY(j < ej && y[j].from < x[i].till)) {
 				/* skip this one, as it's contained in y[j+1] */
 				continue;
 			}
+			i++;
 		} else {
 			i++;
 			j++;
@@ -219,14 +225,12 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 
 		if (from < till) {
 			/* there's definitely an intersection */
-			tgt[NRNG(tgt)++] = (struct rng_s){from, till};
+			x[++IRNG(x)] = (struct rng_s){from, till};
 		}
 	}
-	if (LIKELY(NRNG(tgt) > 1U)) {
-		/* good effort, copy back to X */
-		memcpy(x, tgt, NRNG(tgt) * sizeof(*tgt));
-	} else {
-		NRNG(x) = 0U;
+	/* good effort, set new NRNG */
+	if (LIKELY((NRNG(x) = IRNG(x)))) {
+		NRNG(x)++;
 	}
 	return;
 }
