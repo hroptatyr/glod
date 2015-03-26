@@ -279,11 +279,13 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_uncol, {
 		char *buf;
+		char sep;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
+	const char sep = CORU_CLOSUR(sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
 	/* field widths */
@@ -368,7 +370,7 @@ uncol1(int fd)
 		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	uncol = START_PACK(
 		co_uncol, .next = self,
-		.clo = {.buf = buf});
+		.clo = {.buf = buf, .sep = ' '});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
