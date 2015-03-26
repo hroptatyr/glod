@@ -51,9 +51,11 @@
 #include "nifty.h"
 #include "coru.h"
 
+typedef size_t charcnt_t;
+
 struct rng_s {
-	size_t from;
-	size_t till;
+	charcnt_t from;
+	charcnt_t till;
 };
 #define NRNG(x)	(x->from)
 #define IRNG(x)	(x->till)
