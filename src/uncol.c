@@ -311,29 +311,30 @@ DEFCORU(co_uncol, {
 			NRNG(fw) = 1U;
 
 			for (size_t i = 0U, ei = eol - buf - npr; i < ei; i++) {
-				if (buf[npr + i] == ' ') {
-					/* resize fw? */
-					if (NRNG(fw) >= nfw) {
-						fw = realloc(
-							fw,
-							nfw * 2U * sizeof(*fw));
-						fw_sect = realloc(
-							fw_sect,
-							nfw * 2U * sizeof(*fw));
-						nfw *= 2U;
+				if (buf[npr + i] != sep) {
+					continue;
+				}
+				/* resize fw? */
+				if (NRNG(fw) >= nfw) {
+					fw = realloc(
+						fw,
+						nfw * 2U * sizeof(*fw));
+					fw_sect = realloc(
+						fw_sect,
+						nfw * 2U * sizeof(*fw));
+					nfw *= 2U;
 
-						if (UNLIKELY(fw == NULL ||
-							     fw_sect == NULL)) {
-							return -1;
-						}
+					if (UNLIKELY(fw == NULL ||
+						     fw_sect == NULL)) {
+						return -1;
 					}
+				}
 
-					fw[NRNG(fw)].from = i;
-					while (i < ei && buf[npr + ++i] == ' ');
-					fw[NRNG(fw)].till = i;
-					if (LIKELY(i < ei)) {
-						NRNG(fw)++;
-					}
+				fw[NRNG(fw)].from = i;
+				while (i < ei && buf[npr + ++i] == ' ');
+				fw[NRNG(fw)].till = i;
+				if (LIKELY(i < ei)) {
+					NRNG(fw)++;
 				}
 			}
 
