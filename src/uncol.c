@@ -51,9 +51,11 @@
 #include "nifty.h"
 #include "coru.h"
 
+typedef size_t charcnt_t;
+
 struct rng_s {
-	size_t from;
-	size_t till;
+	charcnt_t from;
+	charcnt_t till;
 };
 #define NRNG(x)	(x->from)
 #define IRNG(x)	(x->till)
@@ -93,62 +95,79 @@ struct clw_s {
 	cls_t cls;
 };
 
-#include "unicode.bf"
-#include "unicode.cm"
-
-/* utf8 seq ranges */
-static const long unsigned int lohi[4U] = {
-	16U * (1U << (4U - 1U)),
-	16U * (1U << (8U - 1U)),
-	16U * (1U << (13U - 1U)),
-	16U * (1U << (16U - 1U)) + 16U * (1U << (13U - 1U)),
-};
-
-static size_t
-xwctomb(char *restrict s, uint_fast32_t c)
-{
-	size_t n = 0U;
-
-	if (c < lohi[0U]) {
-		s[n++] = (char)c;
-	} else if (c < lohi[1U]) {
-		/* 110x xxxx  10xx xxxx */
-		s[n++] = 0xc0U | (c >> 6U);
-		s[n++] = 0x80U | (c & 0b111111U);
-	} else if (c < lohi[2U]) {
-		/* 1110 xxxx  10xx xxxx  10xx xxxx */
-		s[n++] = 0xe0U | (c >> 12U);
-		s[n++] = 0x80U | ((c >> 6U) & 0b111111U);
-		s[n++] = 0x80U | (c & 0b111111U);
-	}
-	return n;
-}
-
-static uint_fast32_t
-xmbtowc(const char *s)
-{
-	const uint_fast8_t c = (uint_fast8_t)*s;
-
-	if (LIKELY(c < 0x80U)) {
-		return c;
-	} else if (UNLIKELY(c < 0xc2U)) {
-		/* illegal */
-		;
-	} else if (c < 0xe0U) {
-		/* 110x xxxx  10xx xxxx */
-		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
-		return (c & 0b11111U) << 6U | (nx1 & 0b111111U);
-	} else if (c < 0xf0U) {
-		/* 1110 xxxx  10xx xxxx  10xx xxxx */
-		const uint_fast8_t nx1 = (uint_fast8_t)s[1U];
-		const uint_fast8_t nx2 = (uint_fast8_t)s[2U];
-		return ((c & 0b1111U) << 6U | (nx1 & 0b111111U)) << 6U |
-			(nx2 & 0b111111U);
-	}
-	return 0U;
-}
-
 
+static int
+bc2cc(struct rng_s fw[static 1U], const char *ln, size_t lz)
+{
+	for (size_t i = 1U, ei = NRNG(fw), li = 0U, ci = 0U; i < ei; i++) {
+		const size_t len = fw[i].till - fw[i].from;
+
+		if (UNLIKELY(fw[i].till > lz)) {
+			return -1;
+		}
+		for (const size_t ef = fw[i].from; li < ef; ci++) {
+			uint_fast8_t c = (uint_fast8_t)ln[li];
+
+			if (LIKELY(c < 0x80U)) {
+				li++;
+			} else if (UNLIKELY(c < 0xc2U)) {
+				/* illegal */
+				li++;
+			} else if (c < 0xe0U) {
+				/* 110x xxxx  10xx xxxx */
+				li += 2U;
+			} else if (c < 0xf0U) {
+				li += 3U;
+			} else {
+				return -1;
+			}
+		}
+		/* rewrite fw cell */
+		fw[i].from = ci;
+		fw[i].till = ci + len;
+		/* add separator chars */
+		li += len;
+		ci += len;
+	}
+	return 0;
+}
+
+static int
+cc2bc(struct rng_s fw[static 1U], const char *ln, size_t lz)
+{
+	for (size_t i = 1U, ei = NRNG(fw), ci = 0U, li = 0U; i < ei; i++) {
+		const size_t len = fw[i].till - fw[i].from;
+
+		for (const size_t ef = fw[i].from; ci < ef; ci++) {
+			uint_fast8_t c = (uint_fast8_t)ln[li];
+
+			if (LIKELY(c < 0x80U)) {
+				li++;
+			} else if (UNLIKELY(c < 0xc2U)) {
+				/* illegal */
+				li++;
+			} else if (c < 0xe0U) {
+				/* 110x xxxx  10xx xxxx */
+				li += 2U;
+			} else if (c < 0xf0U) {
+				li += 3U;
+			} else {
+				return -1;
+			}
+		}
+		if (UNLIKELY(li + len > lz)) {
+			return -1;
+		}
+		/* rewrite fw cell */
+		fw[i].from = li;
+		fw[i].till = li + len;
+		/* add separator chars */
+		li += len;
+		ci += len;
+	}
+	return 0;
+}
+
 static void
 pr_feed(void)
 {
@@ -277,11 +296,13 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_uncol, {
 		char *buf;
+		char sep;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
+	const char sep = CORU_CLOSUR(sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
 	/* field widths */
@@ -307,36 +328,45 @@ DEFCORU(co_uncol, {
 			NRNG(fw) = 1U;
 
 			for (size_t i = 0U, ei = eol - buf - npr; i < ei; i++) {
-				if (buf[npr + i] == ' ') {
-					/* resize fw? */
-					if (NRNG(fw) >= nfw) {
-						fw = realloc(
-							fw,
-							nfw * 2U * sizeof(*fw));
-						fw_sect = realloc(
-							fw_sect,
-							nfw * 2U * sizeof(*fw));
-						nfw *= 2U;
+				if (buf[npr + i] != sep) {
+					continue;
+				}
+				/* resize fw? */
+				if (NRNG(fw) >= nfw) {
+					fw = realloc(
+						fw,
+						nfw * 2U * sizeof(*fw));
+					fw_sect = realloc(
+						fw_sect,
+						nfw * 2U * sizeof(*fw));
+					nfw *= 2U;
 
-						if (UNLIKELY(fw == NULL ||
-							     fw_sect == NULL)) {
-							return -1;
-						}
+					if (UNLIKELY(fw == NULL ||
+						     fw_sect == NULL)) {
+						return -1;
 					}
+				}
 
-					fw[NRNG(fw)].from = i;
-					while (i < ei && buf[npr + ++i] == ' ');
-					fw[NRNG(fw)].till = i;
-					if (LIKELY(i < ei)) {
-						NRNG(fw)++;
-					}
+				fw[NRNG(fw)].from = i;
+				while (i < ei && buf[npr + ++i] == ' ');
+				fw[NRNG(fw)].till = i;
+				if (LIKELY(i < ei)) {
+					NRNG(fw)++;
 				}
 			}
 
-			/* intersect FW and FW_PREV */
+			/* fw now holds field width ranges in bytes
+			 * convert to charcounts */
+			bc2cc(fw, buf + npr, eol - (buf + npr));
+
+			/* intersect current FW and reference FW (FW_SECT) */
 			isect(fw_sect, fw);
 
-			pr_rng(buf + npr, eol - buf - npr, fw_sect);
+			/* convert back to byte counts */
+			memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
+			cc2bc(fw, buf + npr, eol - (buf + npr));
+
+			pr_rng(buf + npr, eol - (buf + npr), fw);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
 	if (LIKELY(fw_sect != NULL)) {
@@ -366,7 +396,7 @@ uncol1(int fd)
 		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	uncol = START_PACK(
 		co_uncol, .next = self,
-		.clo = {.buf = buf});
+		.clo = {.buf = buf, .sep = ' '});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
