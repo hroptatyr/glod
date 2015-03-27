@@ -244,118 +244,145 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 static struct rng_s*
 sn_rng(const char *ln, size_t lz)
 {
+	static enum {
+		SN_UNKNOWN,
+		SN_INITTED,
+	} state = SN_UNKNOWN;
 	static struct rng_s *fw;
-	static size_t nfw;
-	static char sep;
 
 #define init_sn_rng(sep)	(sn_rng(NULL, sep) == NULL ? -1 : 0)
 #define free_sn_rng()		(void)sn_rng(NULL, 0U)
-	if (UNLIKELY(ln == NULL)) {
-		if (nfw == 0U) {
-			/* init */
-			sep = (char)lz;
-			nfw = 64U;
-			fw = calloc(nfw, sizeof(*fw));
-			return fw;
-		} else {
+
+	switch (state) {
+		static size_t nfw;
+		static char sep;
+
+	case SN_UNKNOWN:
+		/* init */
+		sep = (char)lz;
+		nfw = 64U;
+		if (UNLIKELY((fw = calloc(nfw, sizeof(*fw))) == NULL)) {
+			/* grrr */
+			return NULL;
+		}
+		/* otherwise yay */
+		state = SN_INITTED;
+		break;
+
+	case SN_INITTED:
+		if (UNLIKELY(ln == NULL)) {
 			/* free */
 			if (fw != NULL) {
 				free(fw);
 			}
 			nfw = 0U;
+			state = SN_UNKNOWN;
 			return NULL;
+		} else if (UNLIKELY(fw == NULL)) {
+			/* dragged on allocation error? */
+			break;
 		}
-	} else if (UNLIKELY(fw == NULL)) {
-		/* dragged on allocation error? */
-		return NULL;
-	}
 
-	/* reset fieldwidth array */
-	NRNG(fw) = 1U;
+		/* reset fieldwidth array */
+		NRNG(fw) = 1U;
 
-	for (size_t i = 0U; i < lz; i++) {
-		if (ln[i] == sep) {
-			/* resize fw? */
-			if (NRNG(fw) >= nfw) {
-				fw = realloc(fw, nfw * 2U * sizeof(*fw));
-				nfw *= 2U;
+		for (size_t i = 0U; i < lz; i++) {
+			if (ln[i] == sep) {
+				/* resize fw? */
+				if (NRNG(fw) >= nfw) {
+					nfw *= 2U;
+					fw = realloc(fw, nfw * sizeof(*fw));
 
-				if (UNLIKELY(fw == NULL)) {
-					return NULL;
+					if (UNLIKELY(fw == NULL)) {
+						return NULL;
+					}
+				}
+
+				fw[NRNG(fw)].from = i;
+				while (i < lz && ln[++i] == sep);
+				fw[NRNG(fw)].till = i;
+				if (LIKELY(i < lz)) {
+					NRNG(fw)++;
 				}
 			}
-
-			fw[NRNG(fw)].from = i;
-			while (i < lz && ln[++i] == sep);
-			fw[NRNG(fw)].till = i;
-			if (LIKELY(i < lz)) {
-				NRNG(fw)++;
-			}
 		}
+		break;
 	}
 	return fw;
 }
 
 /* cc routines */
 static int
-cc_rng_utf8(struct rng_s fw[static 1U], const char *ln, size_t lz)
+cc_rng(struct rng_s fw[static 1U], const char *ln, size_t lz)
 {
-	static struct rng_s *fw_sect;
-	const size_t nf = NRNG(fw);
+	static enum {
+		CC_UNKNOWN,
+		CC_INITTED,
+	} state = CC_UNKNOWN;
 
-	if (UNLIKELY(nf == 0U)) {
-		return 0;
-	} else if (UNLIKELY(fw_sect == NULL)) {
-		/* round up to next multiple of 64 */
-		size_t fz = (nf + 63U) & -63ULL;
-		fw_sect = calloc(fz, sizeof(*fw));
-	} else if (UNLIKELY(nf > NRNG(fw_sect))) {
-		size_t fz = (nf + 63U) & -63ULL;
-		fw_sect = realloc(fw_sect, fz * sizeof(*fw));
+#define init_cc_rng(ascp)	cc_rng(NULL, NULL, ascp)
+#define free_cc_rng()		(void)cc_rng(NULL, NULL, 0U)
+
+	switch (state) {
+		static struct rng_s *sect;
+		static size_t nsect;
+		static bool asciip;
+
+	case CC_UNKNOWN:
+		asciip = (bool)lz;
+		nsect = 64U;
+		if (UNLIKELY((sect = calloc(nsect, sizeof(*sect))) == NULL)) {
+			/* bugger */
+			return -1;
+		}
+		/* otherwise yay */
+		state = CC_INITTED;
+		break;
+
+	case CC_INITTED:
+		if (UNLIKELY(ln == NULL)) {
+			/* free */
+			if (sect != NULL) {
+				free(sect);
+			}
+			nsect = 0U;
+			state = CC_UNKNOWN;
+			return 0;
+		}
+
+		const size_t nf = NRNG(fw);
+
+		if (UNLIKELY(nf == 0U)) {
+			/* don't bother */
+			return 0;
+		} else if (UNLIKELY(nf > nsect)) {
+			/* round up to next multiple of 64 */
+			nsect = (nf + 63U) & -63ULL;
+			sect = realloc(sect, nsect * sizeof(*fw));
+
+			if (UNLIKELY(sect == NULL)) {
+				return -1;
+			}
+		}
+
+		if (!asciip) {
+			/* fw is meant to hold field width ranges in bytes
+			 * convert to charcounts */
+			bc2cc(fw, ln, lz);
+		}
+
+		/* intersect current FW and reference FW (FW_SECT) */
+		isect(sect, fw);
+
+		/* copy back to target array */
+		memcpy(fw, sect, NRNG(sect) * sizeof(*fw));
+
+		if (!asciip) {
+			/* convert back to byte counts */
+			cc2bc(fw, ln, lz);
+		}
+		break;
 	}
-
-	if (UNLIKELY(fw_sect == NULL)) {
-		return -1;
-	}
-
-	/* fw now holds field width ranges in bytes
-	 * convert to charcounts */
-	bc2cc(fw, ln, lz);
-
-	/* intersect current FW and reference FW (FW_SECT) */
-	isect(fw_sect, fw);
-
-	/* convert back to byte counts */
-	memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
-	cc2bc(fw, ln, lz);
-	return 0;
-}
-
-static int
-cc_rng_asc(struct rng_s fw[static 1U], const char *UNUSED(l), size_t UNUSED(z))
-{
-	static struct rng_s *fw_sect;
-	const size_t nf = NRNG(fw);
-
-	if (UNLIKELY(nf == 0U)) {
-		return 0;
-	} else if (UNLIKELY(fw_sect == NULL)) {
-		/* round up to next multiple of 64 */
-		size_t fz = (nf + 63U) & -63ULL;
-		fw_sect = calloc(fz, sizeof(*fw));
-	} else if (UNLIKELY(nf > NRNG(fw_sect))) {
-		size_t fz = (nf + 63U) & -63ULL;
-		fw_sect = realloc(fw_sect, fz * sizeof(*fw));
-	}
-
-	if (UNLIKELY(fw_sect == NULL)) {
-		return -1;
-	}
-
-	isect(fw_sect, fw);
-
-	/* copy back to target array */
-	memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
 	return 0;
 }
 
@@ -428,16 +455,11 @@ DEFCORU(co_uncol, {
 	const char sep = CORU_CLOSUR(sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
-	int(*cc_rng)(struct rng_s fw[static 1U], const char *ln, size_t lz);
-
-	if (!CORU_CLOSUR(asciip)) {
-		cc_rng = cc_rng_utf8;
-	} else {
-		cc_rng = cc_rng_asc;
-	}
 
 	/* initialise snarfer */
 	if (UNLIKELY(init_sn_rng(sep) < 0)) {
+		return -1;
+	} else if (UNLIKELY(init_cc_rng(CORU_CLOSUR(asciip)) < 0)) {
 		return -1;
 	}
 
@@ -460,7 +482,9 @@ DEFCORU(co_uncol, {
 
 			/* compare field widths with previous state
 			 * and calculate the new field width array */
-			cc_rng(fw, ln, lz);
+			if (UNLIKELY(cc_rng(fw, ln, lz) < 0)) {
+				return -1;
+			}
 
 			/* print */
 			pr_rng(fw, ln, lz);
@@ -469,6 +493,8 @@ DEFCORU(co_uncol, {
 
 	/* free snarfer resources */
 	free_sn_rng();
+	/* free intersecter resources */
+	free_cc_rng();
 	return 0;
 }
 
