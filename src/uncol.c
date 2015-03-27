@@ -388,13 +388,13 @@ cc_rng(struct rng_s fw[static 1U], const char *ln, size_t lz)
 
 /* field width printer */
 static void
-pr_rng(const struct rng_s r[static 1U], const char *ln, size_t lz)
+pr_rng(const struct rng_s r[static 1U], const char *ln, size_t lz, char sep)
 {
 	size_t o = 0U;
 
 	for (size_t i = 1U, ei = NRNG(r); i < ei; o = r[i++].till) {
 		fwrln(ln + o, r[i].from - o, stdout);
-		fputc('\t', stdout);
+		fputc(sep, stdout);
 	}
 	fwrln(ln + o, lz - o, stdout);
 	fputc('\n', stdout);
@@ -445,19 +445,20 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_uncol, {
 		char *buf;
-		char sep;
+		char in_sep;
+		char ou_sep;
 		bool asciip;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const char sep = CORU_CLOSUR(sep);
+	const char ou_sep = CORU_CLOSUR(ou_sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
 
 	/* initialise snarfer */
-	if (UNLIKELY(init_sn_rng(sep) < 0)) {
+	if (UNLIKELY(init_sn_rng(CORU_CLOSUR(in_sep)) < 0)) {
 		return -1;
 	} else if (UNLIKELY(init_cc_rng(CORU_CLOSUR(asciip)) < 0)) {
 		return -1;
@@ -487,7 +488,7 @@ DEFCORU(co_uncol, {
 			}
 
 			/* print */
-			pr_rng(fw, ln, lz);
+			pr_rng(fw, ln, lz, ou_sep);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
 
@@ -500,6 +501,7 @@ DEFCORU(co_uncol, {
 
 
 struct uncol_opt_s {
+	char dlm;
 	char sep;
 	bool asciip;
 };
@@ -521,7 +523,9 @@ uncol1(int fd, struct uncol_opt_s opt)
 		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	uncol = START_PACK(
 		co_uncol, .next = self,
-		.clo = {.buf = buf, .sep = opt.sep, .asciip = opt.asciip});
+		.clo = {.buf = buf,
+				.in_sep = opt.dlm, .ou_sep = opt.sep,
+				.asciip = opt.asciip});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -560,7 +564,8 @@ main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
 	struct uncol_opt_s opt = {
-		.sep = ' ',
+		.dlm = ' ',
+		.sep = '\t',
 		.asciip = false,
 	};
 	int rc = 0;
@@ -577,7 +582,10 @@ main(int argc, char *argv[])
 		opt.asciip = true;
 	}
 	if (argi->delimiter_arg) {
-		opt.sep = *argi->delimiter_arg;
+		opt.dlm = *argi->delimiter_arg;
+	}
+	if (argi->output_delimiter_arg) {
+		opt.sep = *argi->output_delimiter_arg;
 	}
 
 	/* process stdin? */
