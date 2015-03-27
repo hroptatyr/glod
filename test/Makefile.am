@@ -81,6 +81,10 @@ uncol_TESTS =
 TESTS += $(uncol_TESTS)
 uncol_TESTS += uncol.01.tst
 uncol_TESTS += uncol.02.tst
+uncol_TESTS += uncol.03.tst
+uncol_TESTS += uncol.04.tst
+uncol_TESTS += uncol.05.tst
+uncol_TESTS += uncol.06.tst
 EXTRA_DIST += dividend-info.txt
 EXTRA_DIST += dividend-inf2.txt
 

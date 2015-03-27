@@ -178,11 +178,11 @@ pr_feed(void)
 }
 
 static void
-fwrln(const char *ln, size_t lz, FILE *f)
+fwrln(const char *ln, size_t lz, char sep, FILE *f)
 {
 /* write line normalised */
-	for (; lz > 0U && ln[lz - 1U] == ' '; lz--);
-	for (const char *const el = ln + lz; ln < el && *ln == ' '; ln++, lz--);
+	for (; lz > 0U && ln[lz - 1U] == sep; lz--);
+	for (const char *const el = ln + lz; ln < el && *ln == sep; ln++, lz--);
 	fwrite(ln, sizeof(*ln), lz, f);
 	return;
 }
@@ -388,15 +388,15 @@ cc_rng(struct rng_s fw[static 1U], const char *ln, size_t lz)
 
 /* field width printer */
 static void
-pr_rng(const struct rng_s r[static 1U], const char *ln, size_t lz, char sep)
+pr_rng(const struct rng_s r[static 1U], const char *ln, size_t lz, char dlm, char sep)
 {
 	size_t o = 0U;
 
 	for (size_t i = 1U, ei = NRNG(r); i < ei; o = r[i++].till) {
-		fwrln(ln + o, r[i].from - o, stdout);
+		fwrln(ln + o, r[i].from - o, dlm, stdout);
 		fputc(sep, stdout);
 	}
-	fwrln(ln + o, lz - o, stdout);
+	fwrln(ln + o, lz - o, dlm, stdout);
 	fputc('\n', stdout);
 	return;
 }
@@ -453,12 +453,13 @@ DEFCORU(co_uncol, {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
+	const char in_sep = CORU_CLOSUR(in_sep);
 	const char ou_sep = CORU_CLOSUR(ou_sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
 
 	/* initialise snarfer */
-	if (UNLIKELY(init_sn_rng(CORU_CLOSUR(in_sep)) < 0)) {
+	if (UNLIKELY(init_sn_rng(in_sep) < 0)) {
 		return -1;
 	} else if (UNLIKELY(init_cc_rng(CORU_CLOSUR(asciip)) < 0)) {
 		return -1;
@@ -488,7 +489,7 @@ DEFCORU(co_uncol, {
 			}
 
 			/* print */
-			pr_rng(fw, ln, lz, ou_sep);
+			pr_rng(fw, ln, lz, in_sep, ou_sep);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
 
