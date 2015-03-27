@@ -187,20 +187,8 @@ fwrln(const char *ln, size_t lz, FILE *f)
 	return;
 }
 
-static void
-pr_rng(const char *ln, size_t lz, const struct rng_s r[static 1U])
-{
-	size_t o = 0U;
-
-	for (size_t i = 1U, ei = NRNG(r); i < ei; o = r[i++].till) {
-		fwrln(ln + o, r[i].from - o, stdout);
-		fputc('\t', stdout);
-	}
-	fwrln(ln + o, lz - o, stdout);
-	fputc('\n', stdout);
-	return;
-}
-
+
+/* operations on field width extents */
 static void
 isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 {
@@ -252,6 +240,140 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 	return;
 }
 
+/* fw snarfer */
+static struct rng_s*
+sn_rng(const char *ln, size_t lz)
+{
+	static struct rng_s *fw;
+	static size_t nfw;
+	static char sep;
+
+#define init_sn_rng(sep)	(sn_rng(NULL, sep) == NULL ? -1 : 0)
+#define free_sn_rng()		(void)sn_rng(NULL, 0U)
+	if (UNLIKELY(ln == NULL)) {
+		if (nfw == 0U) {
+			/* init */
+			sep = (char)lz;
+			nfw = 64U;
+			fw = calloc(nfw, sizeof(*fw));
+			return fw;
+		} else {
+			/* free */
+			if (fw != NULL) {
+				free(fw);
+			}
+			nfw = 0U;
+			return NULL;
+		}
+	} else if (UNLIKELY(fw == NULL)) {
+		/* dragged on allocation error? */
+		return NULL;
+	}
+
+	/* reset fieldwidth array */
+	NRNG(fw) = 1U;
+
+	for (size_t i = 0U; i < lz; i++) {
+		if (ln[i] == sep) {
+			/* resize fw? */
+			if (NRNG(fw) >= nfw) {
+				fw = realloc(fw, nfw * 2U * sizeof(*fw));
+				nfw *= 2U;
+
+				if (UNLIKELY(fw == NULL)) {
+					return NULL;
+				}
+			}
+
+			fw[NRNG(fw)].from = i;
+			while (i < lz && ln[++i] == sep);
+			fw[NRNG(fw)].till = i;
+			if (LIKELY(i < lz)) {
+				NRNG(fw)++;
+			}
+		}
+	}
+	return fw;
+}
+
+/* cc routines */
+static int
+cc_rng_utf8(struct rng_s fw[static 1U], const char *ln, size_t lz)
+{
+	static struct rng_s *fw_sect;
+	const size_t nf = NRNG(fw);
+
+	if (UNLIKELY(nf == 0U)) {
+		return 0;
+	} else if (UNLIKELY(fw_sect == NULL)) {
+		/* round up to next multiple of 64 */
+		size_t fz = (nf + 63U) & -63ULL;
+		fw_sect = calloc(fz, sizeof(*fw));
+	} else if (UNLIKELY(nf > NRNG(fw_sect))) {
+		size_t fz = (nf + 63U) & -63ULL;
+		fw_sect = realloc(fw_sect, fz * sizeof(*fw));
+	}
+
+	if (UNLIKELY(fw_sect == NULL)) {
+		return -1;
+	}
+
+	/* fw now holds field width ranges in bytes
+	 * convert to charcounts */
+	bc2cc(fw, ln, lz);
+
+	/* intersect current FW and reference FW (FW_SECT) */
+	isect(fw_sect, fw);
+
+	/* convert back to byte counts */
+	memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
+	cc2bc(fw, ln, lz);
+	return 0;
+}
+
+static int
+cc_rng_asc(struct rng_s fw[static 1U], const char *UNUSED(l), size_t UNUSED(z))
+{
+	static struct rng_s *fw_sect;
+	const size_t nf = NRNG(fw);
+
+	if (UNLIKELY(nf == 0U)) {
+		return 0;
+	} else if (UNLIKELY(fw_sect == NULL)) {
+		/* round up to next multiple of 64 */
+		size_t fz = (nf + 63U) & -63ULL;
+		fw_sect = calloc(fz, sizeof(*fw));
+	} else if (UNLIKELY(nf > NRNG(fw_sect))) {
+		size_t fz = (nf + 63U) & -63ULL;
+		fw_sect = realloc(fw_sect, fz * sizeof(*fw));
+	}
+
+	if (UNLIKELY(fw_sect == NULL)) {
+		return -1;
+	}
+
+	isect(fw_sect, fw);
+
+	/* copy back to target array */
+	memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
+	return 0;
+}
+
+/* field width printer */
+static void
+pr_rng(const struct rng_s r[static 1U], const char *ln, size_t lz)
+{
+	size_t o = 0U;
+
+	for (size_t i = 1U, ei = NRNG(r); i < ei; o = r[i++].till) {
+		fwrln(ln + o, r[i].from - o, stdout);
+		fputc('\t', stdout);
+	}
+	fwrln(ln + o, lz - o, stdout);
+	fputc('\n', stdout);
+	return;
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -297,6 +419,7 @@ DEFCORU(co_snarf, {
 DEFCORU(co_uncol, {
 		char *buf;
 		char sep;
+		bool asciip;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
@@ -305,14 +428,16 @@ DEFCORU(co_uncol, {
 	const char sep = CORU_CLOSUR(sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
-	/* field widths */
-	struct rng_s *fw_sect;
-	struct rng_s *fw;
-	size_t nfw = 64U;
+	int(*cc_rng)(struct rng_s fw[static 1U], const char *ln, size_t lz);
 
-	if (UNLIKELY((fw_sect = calloc(nfw, sizeof(*fw_sect))) == NULL)) {
-		return -1;
-	} else if (UNLIKELY((fw = calloc(nfw, sizeof(*fw))) == NULL)) {
+	if (!CORU_CLOSUR(asciip)) {
+		cc_rng = cc_rng_utf8;
+	} else {
+		cc_rng = cc_rng_asc;
+	}
+
+	/* initialise snarfer */
+	if (UNLIKELY(init_sn_rng(sep) < 0)) {
 		return -1;
 	}
 
@@ -324,57 +449,26 @@ DEFCORU(co_uncol, {
 		     npr < nrd &&
 			     (eol = memchr(buf + npr, '\n', nrd - npr)) != NULL;
 		     npr = eol - buf + 1/*\n*/) {
-			/* reset fieldwidth array */
-			NRNG(fw) = 1U;
+			const char *const ln = buf + npr;
+			const size_t lz = eol - (buf + npr);
+			struct rng_s *fw;
 
-			for (size_t i = 0U, ei = eol - buf - npr; i < ei; i++) {
-				if (buf[npr + i] != sep) {
-					continue;
-				}
-				/* resize fw? */
-				if (NRNG(fw) >= nfw) {
-					fw = realloc(
-						fw,
-						nfw * 2U * sizeof(*fw));
-					fw_sect = realloc(
-						fw_sect,
-						nfw * 2U * sizeof(*fw));
-					nfw *= 2U;
-
-					if (UNLIKELY(fw == NULL ||
-						     fw_sect == NULL)) {
-						return -1;
-					}
-				}
-
-				fw[NRNG(fw)].from = i;
-				while (i < ei && buf[npr + ++i] == ' ');
-				fw[NRNG(fw)].till = i;
-				if (LIKELY(i < ei)) {
-					NRNG(fw)++;
-				}
+			/* obtain field widths */
+			if (UNLIKELY((fw = sn_rng(ln, lz)) == NULL)) {
+				return -1;
 			}
 
-			/* fw now holds field width ranges in bytes
-			 * convert to charcounts */
-			bc2cc(fw, buf + npr, eol - (buf + npr));
+			/* compare field widths with previous state
+			 * and calculate the new field width array */
+			cc_rng(fw, ln, lz);
 
-			/* intersect current FW and reference FW (FW_SECT) */
-			isect(fw_sect, fw);
-
-			/* convert back to byte counts */
-			memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
-			cc2bc(fw, buf + npr, eol - (buf + npr));
-
-			pr_rng(buf + npr, eol - (buf + npr), fw);
+			/* print */
+			pr_rng(fw, ln, lz);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
-	if (LIKELY(fw_sect != NULL)) {
-		free(fw_sect);
-	}
-	if (LIKELY(fw != NULL)) {
-		free(fw);
-	}
+
+	/* free snarfer resources */
+	free_sn_rng();
 	return 0;
 }
 
