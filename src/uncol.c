@@ -576,6 +576,9 @@ main(int argc, char *argv[])
 	if (argi->ascii_flag) {
 		opt.asciip = true;
 	}
+	if (argi->delimiter_arg) {
+		opt.sep = *argi->delimiter_arg;
+	}
 
 	/* process stdin? */
 	if (!argi->nargs) {
