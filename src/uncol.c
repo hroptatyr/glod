@@ -187,20 +187,8 @@ fwrln(const char *ln, size_t lz, FILE *f)
 	return;
 }
 
-static void
-pr_rng(const char *ln, size_t lz, const struct rng_s r[static 1U])
-{
-	size_t o = 0U;
-
-	for (size_t i = 1U, ei = NRNG(r); i < ei; o = r[i++].till) {
-		fwrln(ln + o, r[i].from - o, stdout);
-		fputc('\t', stdout);
-	}
-	fwrln(ln + o, lz - o, stdout);
-	fputc('\n', stdout);
-	return;
-}
-
+
+/* operations on field width extents */
 static void
 isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 {
@@ -252,6 +240,167 @@ isect(struct rng_s *restrict x, const struct rng_s y[static 1U])
 	return;
 }
 
+/* fw snarfer */
+static struct rng_s*
+sn_rng(const char *ln, size_t lz)
+{
+	static enum {
+		SN_UNKNOWN,
+		SN_INITTED,
+	} state = SN_UNKNOWN;
+	static struct rng_s *fw;
+
+#define init_sn_rng(sep)	(sn_rng(NULL, sep) == NULL ? -1 : 0)
+#define free_sn_rng()		(void)sn_rng(NULL, 0U)
+
+	switch (state) {
+		static size_t nfw;
+		static char sep;
+
+	case SN_UNKNOWN:
+		/* init */
+		sep = (char)lz;
+		nfw = 64U;
+		if (UNLIKELY((fw = calloc(nfw, sizeof(*fw))) == NULL)) {
+			/* grrr */
+			return NULL;
+		}
+		/* otherwise yay */
+		state = SN_INITTED;
+		break;
+
+	case SN_INITTED:
+		if (UNLIKELY(ln == NULL)) {
+			/* free */
+			if (fw != NULL) {
+				free(fw);
+			}
+			nfw = 0U;
+			state = SN_UNKNOWN;
+			return NULL;
+		} else if (UNLIKELY(fw == NULL)) {
+			/* dragged on allocation error? */
+			break;
+		}
+
+		/* reset fieldwidth array */
+		NRNG(fw) = 1U;
+
+		for (size_t i = 0U; i < lz; i++) {
+			if (ln[i] == sep) {
+				/* resize fw? */
+				if (NRNG(fw) >= nfw) {
+					nfw *= 2U;
+					fw = realloc(fw, nfw * sizeof(*fw));
+
+					if (UNLIKELY(fw == NULL)) {
+						return NULL;
+					}
+				}
+
+				fw[NRNG(fw)].from = i;
+				while (i < lz && ln[++i] == sep);
+				fw[NRNG(fw)].till = i;
+				if (LIKELY(i < lz)) {
+					NRNG(fw)++;
+				}
+			}
+		}
+		break;
+	}
+	return fw;
+}
+
+/* cc routines */
+static int
+cc_rng(struct rng_s fw[static 1U], const char *ln, size_t lz)
+{
+	static enum {
+		CC_UNKNOWN,
+		CC_INITTED,
+	} state = CC_UNKNOWN;
+
+#define init_cc_rng(ascp)	cc_rng(NULL, NULL, ascp)
+#define free_cc_rng()		(void)cc_rng(NULL, NULL, 0U)
+
+	switch (state) {
+		static struct rng_s *sect;
+		static size_t nsect;
+		static bool asciip;
+
+	case CC_UNKNOWN:
+		asciip = (bool)lz;
+		nsect = 64U;
+		if (UNLIKELY((sect = calloc(nsect, sizeof(*sect))) == NULL)) {
+			/* bugger */
+			return -1;
+		}
+		/* otherwise yay */
+		state = CC_INITTED;
+		break;
+
+	case CC_INITTED:
+		if (UNLIKELY(ln == NULL)) {
+			/* free */
+			if (sect != NULL) {
+				free(sect);
+			}
+			nsect = 0U;
+			state = CC_UNKNOWN;
+			return 0;
+		}
+
+		const size_t nf = NRNG(fw);
+
+		if (UNLIKELY(nf == 0U)) {
+			/* don't bother */
+			return 0;
+		} else if (UNLIKELY(nf > nsect)) {
+			/* round up to next multiple of 64 */
+			nsect = (nf + 63U) & -63ULL;
+			sect = realloc(sect, nsect * sizeof(*fw));
+
+			if (UNLIKELY(sect == NULL)) {
+				return -1;
+			}
+		}
+
+		if (!asciip) {
+			/* fw is meant to hold field width ranges in bytes
+			 * convert to charcounts */
+			bc2cc(fw, ln, lz);
+		}
+
+		/* intersect current FW and reference FW (FW_SECT) */
+		isect(sect, fw);
+
+		/* copy back to target array */
+		memcpy(fw, sect, NRNG(sect) * sizeof(*fw));
+
+		if (!asciip) {
+			/* convert back to byte counts */
+			cc2bc(fw, ln, lz);
+		}
+		break;
+	}
+	return 0;
+}
+
+/* field width printer */
+static void
+pr_rng(const struct rng_s r[static 1U], const char *ln, size_t lz, char sep)
+{
+	size_t o = 0U;
+
+	for (size_t i = 1U, ei = NRNG(r); i < ei; o = r[i++].till) {
+		fwrln(ln + o, r[i].from - o, stdout);
+		fputc(sep, stdout);
+	}
+	fwrln(ln + o, lz - o, stdout);
+	fputc('\n', stdout);
+	return;
+}
+
 
 DEFCORU(co_snarf, {
 		char *buf;
@@ -296,23 +445,22 @@ DEFCORU(co_snarf, {
 
 DEFCORU(co_uncol, {
 		char *buf;
-		char sep;
+		char in_sep;
+		char ou_sep;
+		bool asciip;
 	}, void *arg)
 {
 	/* upon the first call we expect a completely filled buffer
 	 * just to determine the buffer's size */
 	char *const buf = CORU_CLOSUR(buf);
-	const char sep = CORU_CLOSUR(sep);
+	const char ou_sep = CORU_CLOSUR(ou_sep);
 	size_t nrd = (intptr_t)arg;
 	size_t npr;
-	/* field widths */
-	struct rng_s *fw_sect;
-	struct rng_s *fw;
-	size_t nfw = 64U;
 
-	if (UNLIKELY((fw_sect = calloc(nfw, sizeof(*fw_sect))) == NULL)) {
+	/* initialise snarfer */
+	if (UNLIKELY(init_sn_rng(CORU_CLOSUR(in_sep)) < 0)) {
 		return -1;
-	} else if (UNLIKELY((fw = calloc(nfw, sizeof(*fw))) == NULL)) {
+	} else if (UNLIKELY(init_cc_rng(CORU_CLOSUR(asciip)) < 0)) {
 		return -1;
 	}
 
@@ -324,63 +472,42 @@ DEFCORU(co_uncol, {
 		     npr < nrd &&
 			     (eol = memchr(buf + npr, '\n', nrd - npr)) != NULL;
 		     npr = eol - buf + 1/*\n*/) {
-			/* reset fieldwidth array */
-			NRNG(fw) = 1U;
+			const char *const ln = buf + npr;
+			const size_t lz = eol - (buf + npr);
+			struct rng_s *fw;
 
-			for (size_t i = 0U, ei = eol - buf - npr; i < ei; i++) {
-				if (buf[npr + i] != sep) {
-					continue;
-				}
-				/* resize fw? */
-				if (NRNG(fw) >= nfw) {
-					fw = realloc(
-						fw,
-						nfw * 2U * sizeof(*fw));
-					fw_sect = realloc(
-						fw_sect,
-						nfw * 2U * sizeof(*fw));
-					nfw *= 2U;
-
-					if (UNLIKELY(fw == NULL ||
-						     fw_sect == NULL)) {
-						return -1;
-					}
-				}
-
-				fw[NRNG(fw)].from = i;
-				while (i < ei && buf[npr + ++i] == ' ');
-				fw[NRNG(fw)].till = i;
-				if (LIKELY(i < ei)) {
-					NRNG(fw)++;
-				}
+			/* obtain field widths */
+			if (UNLIKELY((fw = sn_rng(ln, lz)) == NULL)) {
+				return -1;
 			}
 
-			/* fw now holds field width ranges in bytes
-			 * convert to charcounts */
-			bc2cc(fw, buf + npr, eol - (buf + npr));
+			/* compare field widths with previous state
+			 * and calculate the new field width array */
+			if (UNLIKELY(cc_rng(fw, ln, lz) < 0)) {
+				return -1;
+			}
 
-			/* intersect current FW and reference FW (FW_SECT) */
-			isect(fw_sect, fw);
-
-			/* convert back to byte counts */
-			memcpy(fw, fw_sect, NRNG(fw_sect) * sizeof(*fw));
-			cc2bc(fw, buf + npr, eol - (buf + npr));
-
-			pr_rng(buf + npr, eol - (buf + npr), fw);
+			/* print */
+			pr_rng(fw, ln, lz, ou_sep);
 		}
 	} while ((nrd = YIELD(npr)) > 0U);
-	if (LIKELY(fw_sect != NULL)) {
-		free(fw_sect);
-	}
-	if (LIKELY(fw != NULL)) {
-		free(fw);
-	}
+
+	/* free snarfer resources */
+	free_sn_rng();
+	/* free intersecter resources */
+	free_cc_rng();
 	return 0;
 }
 
 
+struct uncol_opt_s {
+	char dlm;
+	char sep;
+	bool asciip;
+};
+
 static int
-uncol1(int fd)
+uncol1(int fd, struct uncol_opt_s opt)
 {
 	char buf[4U * 4096U];
 	struct cocore *snarf;
@@ -396,7 +523,9 @@ uncol1(int fd)
 		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	uncol = START_PACK(
 		co_uncol, .next = self,
-		.clo = {.buf = buf, .sep = ' '});
+		.clo = {.buf = buf,
+				.in_sep = opt.dlm, .ou_sep = opt.sep,
+				.asciip = opt.asciip});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -434,6 +563,11 @@ int
 main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
+	struct uncol_opt_s opt = {
+		.dlm = ' ',
+		.sep = '\t',
+		.asciip = false,
+	};
 	int rc = 0;
 
 	if (yuck_parse(argi, argc, argv)) {
@@ -444,9 +578,19 @@ main(int argc, char *argv[])
 	/* get the coroutines going */
 	initialise_cocore();
 
+	if (argi->ascii_flag) {
+		opt.asciip = true;
+	}
+	if (argi->delimiter_arg) {
+		opt.dlm = *argi->delimiter_arg;
+	}
+	if (argi->output_delimiter_arg) {
+		opt.sep = *argi->output_delimiter_arg;
+	}
+
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (uncol1(STDIN_FILENO) < 0) {
+		if (uncol1(STDIN_FILENO, opt) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -462,7 +606,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (uncol1(fd) < 0) {
+		} else if (uncol1(fd, opt) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}

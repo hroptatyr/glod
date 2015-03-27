@@ -1,3 +1,7 @@
 Usage: uncol [FILE]...
 
 Undo the columnisation of FILE, or stdin if omitted.
+
+  --ascii               Speed up processing for pure ASCII files.
+  -d, --delimiter=C     Use C as delimiter character.
+  --output-delimiter=C  Use C as output delimiter, default: \t
