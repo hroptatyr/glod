@@ -499,8 +499,13 @@ DEFCORU(co_uncol, {
 }
 
 
+struct uncol_opt_s {
+	char sep;
+	bool asciip;
+};
+
 static int
-uncol1(int fd)
+uncol1(int fd, struct uncol_opt_s opt)
 {
 	char buf[4U * 4096U];
 	struct cocore *snarf;
@@ -516,7 +521,7 @@ uncol1(int fd)
 		.clo = {.buf = buf, .bsz = sizeof(buf), .fd = fd});
 	uncol = START_PACK(
 		co_uncol, .next = self,
-		.clo = {.buf = buf, .sep = ' '});
+		.clo = {.buf = buf, .sep = opt.sep, .asciip = opt.asciip});
 
 	/* assume a nicely processed buffer to indicate its size to
 	 * the reader coroutine */
@@ -554,6 +559,10 @@ int
 main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
+	struct uncol_opt_s opt = {
+		.sep = ' ',
+		.asciip = false,
+	};
 	int rc = 0;
 
 	if (yuck_parse(argi, argc, argv)) {
@@ -564,9 +573,13 @@ main(int argc, char *argv[])
 	/* get the coroutines going */
 	initialise_cocore();
 
+	if (argi->ascii_flag) {
+		opt.asciip = true;
+	}
+
 	/* process stdin? */
 	if (!argi->nargs) {
-		if (uncol1(STDIN_FILENO) < 0) {
+		if (uncol1(STDIN_FILENO, opt) < 0) {
 			error("Error: processing stdin failed");
 			rc = 1;
 		}
@@ -582,7 +595,7 @@ main(int argc, char *argv[])
 			error("Error: cannot open file `%s'", file);
 			rc = 1;
 			continue;
-		} else if (uncol1(fd) < 0) {
+		} else if (uncol1(fd, opt) < 0) {
 			error("Error: cannot process `%s'", file);
 			rc = 1;
 		}
