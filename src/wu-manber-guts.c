@@ -1,6 +1,6 @@
 /*** wu-manber-guts.c -- wu-manber multi-pattern matcher
  *
- * Copyright (C) 2013 Sebastian Freundt
+ * Copyright (C) 2013-2015 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *

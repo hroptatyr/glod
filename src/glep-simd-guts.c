@@ -1,6 +1,6 @@
 /*** glep-guts.c -- simd goodness
  *
- * Copyright (C) 2014 Sebastian Freundt
+ * Copyright (C) 2014-2015 Sebastian Freundt
  *
  * Author:  Sebastian Freundt <freundt@ga-group.nl>
  *
