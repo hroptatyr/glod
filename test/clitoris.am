@@ -15,6 +15,7 @@ endif  HAVE_PTY_H
 BUILT_SOURCES += clitoris.yucc
 
 check_PROGRAMS += hxdiff
+hxdiff_SOURCES = hxdiff.c hxdiff.yuck
 hxdiff_CPPFLAGS = $(AM_CPPFLAGS)
 hxdiff_LDFLAGS = $(AM_LDFLAGS) -static
 BUILT_SOURCES += hxdiff.yucc
