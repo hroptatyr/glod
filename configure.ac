@@ -165,13 +165,15 @@ echo "Build summary"
 echo "============="
 echo
 echo "[[x]] enum"
+echo "[[x]] glanz"
 echo "[[x]] gloom"
 echo "[[x]] glid  (will not be installed)"
 echo "[[x]] ldmatrix  (will not be installed)"
+echo "[[x]] qgscore"
+echo "[[x]] terms"
+echo "[[x]] uncol"
 echo "[[x]] unpgbrk"
 echo "[[x]] unwrap"
-echo "[[x]] glanz"
-echo "[[x]] terms"
 if test "${HAVE_INTRIN_FALSE}" = "#"; then
 	echo "[[x]] fastterms"
 else
