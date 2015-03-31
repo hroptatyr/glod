@@ -38,6 +38,9 @@ AX_CHECK_YUCK
 AX_YUCK_SCMVER([version.mk])
 AC_CONFIG_LINKS([GNUmakefile:GNUmakefile])
 
+## check for clitoris helper
+AX_CHECK_CLITORIS
+
 ## check for pseudo-tty support
 AC_CHECK_HEADERS([pty.h])
 AM_CONDITIONAL([HAVE_PTY_H], [test "${ac_cv_header_pty_h}" = "yes"])
