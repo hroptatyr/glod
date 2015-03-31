@@ -26,9 +26,6 @@ AC_COPYRIGHT([dnl
 AM_INIT_AUTOMAKE([foreign parallel-tests dist-xz color-tests subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-AX_YUCK_SCMVER([version.mk])
-AC_CONFIG_LINKS([GNUmakefile:GNUmakefile])
-
 ## the build chain
 AC_CANONICAL_HOST
 AC_PROG_CC
@@ -38,6 +35,11 @@ AC_C_BIGENDIAN
 
 ## check for yuck helper
 AX_CHECK_YUCK
+AX_YUCK_SCMVER([version.mk])
+AC_CONFIG_LINKS([GNUmakefile:GNUmakefile])
+
+## check for clitoris helper
+AX_CHECK_CLITORIS
 
 ## check for pseudo-tty support
 AC_CHECK_HEADERS([pty.h])
@@ -163,13 +165,15 @@ echo "Build summary"
 echo "============="
 echo
 echo "[[x]] enum"
+echo "[[x]] glanz"
 echo "[[x]] gloom"
 echo "[[x]] glid  (will not be installed)"
 echo "[[x]] ldmatrix  (will not be installed)"
+echo "[[x]] qgscore"
+echo "[[x]] terms"
+echo "[[x]] uncol"
 echo "[[x]] unpgbrk"
 echo "[[x]] unwrap"
-echo "[[x]] glanz"
-echo "[[x]] terms"
 if test "${HAVE_INTRIN_FALSE}" = "#"; then
 	echo "[[x]] fastterms"
 else
