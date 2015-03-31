@@ -3,7 +3,7 @@ dnl Autoconf startup.
 dnl -------------------------------------------------------------------------
 
 AC_PREREQ([2.63])
-AC_INIT([glod], [0.1.5], [https://github.com/hroptatyr/glod])
+AC_INIT([glod], [0.1.6.GIT], [https://github.com/hroptatyr/glod])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([src/config.h])
 AC_CONFIG_MACRO_DIR([m4])
