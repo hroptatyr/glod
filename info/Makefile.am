@@ -19,6 +19,8 @@ built_men += enum.man
 built_men += glep.man
 built_men += glanz.man
 built_men += ldmatrix.man
+built_men += uncol.man
+built_men += qgscore.man
 
 BUILT_SOURCES += $(built_men)
 EXTRA_DIST += author.h2m
