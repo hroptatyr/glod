@@ -111,6 +111,33 @@ and now enumerating the lines
     $
 
 
+uncol
+-----
+
+Turn columnised text into tab-separated form again, i.e. undo the
+columnisation (as produced for instance with `column(1)` from
+[util-linux][4]).
+
+    $ cat testfile
+    INSTR               EXCH                    ISIN
+    WIGA                XFRA                    DE000A11QCU2
+    TTY                 XFRA                    US8919061098
+    $ uncol < testfile
+    INSTR	EXCH	ISIN
+    WIGA	XFRA	DE000A11QCU2
+    TTY	XFRA	US8919061098
+    $
+
+or to demonstrate more clearly using a different output delimiter:
+
+    $ uncol --output-delimiter ';' < testfile
+    INSTR;EXCH;ISIN
+    WIGA;XFRA;DE000A11QCU2
+    TTY;XFRA;US8919061098
+    $
+
+
   [1]: http://code.google.com/p/preto/
   [2]: http://openrefine.org/
   [3]: http://sites.labic.icmc.usp.br/torch/msd2011/jpretext/
+  [4]: http://git.kernel.org/cgit/utils/util-linux/util-linux.git
