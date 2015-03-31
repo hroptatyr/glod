@@ -26,9 +26,6 @@ AC_COPYRIGHT([dnl
 AM_INIT_AUTOMAKE([foreign parallel-tests dist-xz color-tests subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-AX_YUCK_SCMVER([version.mk])
-AC_CONFIG_LINKS([GNUmakefile:GNUmakefile])
-
 ## the build chain
 AC_CANONICAL_HOST
 AC_PROG_CC
@@ -38,6 +35,8 @@ AC_C_BIGENDIAN
 
 ## check for yuck helper
 AX_CHECK_YUCK
+AX_YUCK_SCMVER([version.mk])
+AC_CONFIG_LINKS([GNUmakefile:GNUmakefile])
 
 ## check for pseudo-tty support
 AC_CHECK_HEADERS([pty.h])
