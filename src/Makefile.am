@@ -155,7 +155,7 @@ ldmatrix_LDADD = libglod.la
 ldmatrix_LDADD += libversion.a
 BUILT_SOURCES += ldmatrix.yucc
 
-noinst_PROGRAMS += qgscore
+bin_PROGRAMS += qgscore
 qgscore_SOURCES = qgscore.c
 qgscore_SOURCES += qgscore.yuck
 qgscore_CPPFLAGS = $(AM_CPPFLAGS)
