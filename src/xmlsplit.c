@@ -218,6 +218,19 @@ xmlns_attr_p(const char *a)
 	return !memcmp(a, xmlns, strlenof(xmlns));
 }
 
+static const char*
+mempbrk(const char *s, const char *set, size_t z)
+{
+	const char *xp = s + z;
+	for (const char *sp = set; *sp; sp++) {
+		const char *tp = memchr(s, *sp, z);
+		if (tp != NULL && tp < xp) {
+			xp = tp;
+		}
+	}
+	return xp < s + z ? xp : NULL;
+}
+
 
 #if defined HAVE_EXPAT_H
 static void
@@ -357,6 +370,8 @@ static void
 el_txt(void *clo, const char *txt, int len)
 {
 	__ctx_t ctx = clo;
+	const char *tp = txt;
+	const char *const ep = txt + len;
 
 	if (ctx->copy <= 0) {
 		/* do fuckall */
@@ -366,7 +381,36 @@ el_txt(void *clo, const char *txt, int len)
 		return;
 	}
 
-	fwrite(txt, sizeof(*txt), (size_t)len, stdout);
+	/* xml escape characters */
+	for (const char *sp;
+	     (sp = mempbrk(tp, "\"&'<>", ep - tp)) != NULL; tp = sp + 1U) {
+		/* write old section */
+		fwrite(tp, sizeof(*tp), sp - tp, stdout);
+		switch (*sp) {
+		case '"':
+			fputs("&quot;", stdout);
+			break;
+		case '&':
+			fputs("&amp;", stdout);
+			break;
+		case '\'':
+			fputs("&apos;", stdout);
+			break;
+		case '<':
+			fputs("&lt;", stdout);
+			break;
+		case '>':
+			fputs("&gt;", stdout);
+			break;
+		default:
+			/* huh? */
+			break;
+		}
+	}
+	/* write rest */
+	if (LIKELY(tp < ep)) {
+		fwrite(tp, sizeof(*txt), ep - tp, stdout);
+	}
 	return;
 }
 
