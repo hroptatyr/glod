@@ -353,6 +353,23 @@ postchk:
 	return;
 }
 
+static void
+el_txt(void *clo, const char *txt, int len)
+{
+	__ctx_t ctx = clo;
+
+	if (ctx->copy <= 0) {
+		/* do fuckall */
+		return;
+	} else if (UNLIKELY(len <= 0)) {
+		/* huh? */
+		return;
+	}
+
+	fwrite(txt, sizeof(*txt), (size_t)len, stdout);
+	return;
+}
+
 static int
 rd1(const char *fn, struct opt_s opt)
 {
@@ -373,6 +390,7 @@ rd1(const char *fn, struct opt_s opt)
 	}
 
 	XML_SetElementHandler(hdl, el_sta, el_end);
+	XML_SetCharacterDataHandler(hdl, el_txt);
 	XML_SetUserData(hdl, &ctx);
 
 	for (ssize_t nrd; (nrd = read(fd, buf, sizeof(buf))) > 0;) {
