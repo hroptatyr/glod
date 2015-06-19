@@ -41,6 +41,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -79,8 +80,10 @@ struct ptx_ns_s {
 };
 
 struct __ctx_s {
-	struct ptx_ns_s ns[16];
+	struct ptx_ns_s dflt_ns[1U];
+	struct ptx_ns_s *ns;
 	size_t nns;
+	size_t zns;
 	/* stuff buf */
 #define INITIAL_STUFF_BUF_SIZE	(4096)
 	char *sbuf;
@@ -151,9 +154,9 @@ tag_massage(const char *tag)
 static ptx_ns_t
 __pref_to_ns(__ctx_t ctx, const char *pref, size_t pref_len)
 {
-	if (LIKELY(pref_len == 0 && ctx->ns[0].pref == NULL)) {
+	if (LIKELY(pref_len == 0)) {
 		/* most common case when people use the default ns */
-		return ctx->ns;
+		return ctx->dflt_ns;
 	}
 	/* special service for us because we're lazy:
 	 * you can pass pref = "foo:" and say pref_len is 4
@@ -161,8 +164,8 @@ __pref_to_ns(__ctx_t ctx, const char *pref, size_t pref_len)
 	if (pref[pref_len - 1U] == ':') {
 		pref_len--;
 	}
-	for (size_t i = (ctx->ns[0].pref == NULL); i < ctx->nns; i++) {
-		if (strncmp(ctx->ns[i].pref, pref, pref_len) == 0) {
+	for (size_t i = 0U; i < ctx->nns; i++) {
+		if (!strncmp(ctx->ns[i].pref, pref, pref_len)) {
 			return ctx->ns + i;
 		}
 	}
@@ -172,11 +175,6 @@ __pref_to_ns(__ctx_t ctx, const char *pref, size_t pref_len)
 static void
 ptx_reg_ns(__ctx_t ctx, const char *pref, const char *href)
 {
-	if (ctx->nns >= countof(ctx->ns) - 1U) {
-		error("Warning: too many name spaces");
-		return;
-	}
-
 	if (UNLIKELY(href == NULL)) {
 		/* bollocks, user MUST be a twat */
 		return;
@@ -184,17 +182,40 @@ ptx_reg_ns(__ctx_t ctx, const char *pref, const char *href)
 
 	/* get us those lovely ns ids */
 	if (pref == NULL) {
-		if (ctx->ns->href != NULL) {
-			free(ctx->ns->href);
+		if (ctx->dflt_ns->href != NULL) {
+			free(ctx->dflt_ns->href);
 		}
-		ctx->ns->pref = NULL;
-		ctx->ns->href = strdup(href);
+		ctx->dflt_ns->pref = NULL;
+		ctx->dflt_ns->href = strdup(href);
 	} else {
-		const size_t i = ++ctx->nns;
+		size_t i;
+
+		for (i = 0U; i < ctx->nns; i++) {
+			if (!strcmp(ctx->ns[i].pref, pref)) {
+				if (ctx->ns[i].href != NULL) {
+					free(ctx->ns[i].href);
+				}
+				goto asshref;
+			}
+		}
+		/* otherwise get a new one */
+		if ((i = ctx->nns++) >= ctx->zns) {
+			size_t nu = ctx->zns ? 2U * ctx->zns : 16U;
+			ctx->ns = realloc(ctx->ns, nu * sizeof(*ctx->ns));
+			ctx->zns = nu;
+		}
 		ctx->ns[i].pref = strdup(pref);
+	asshref:
 		ctx->ns[i].href = strdup(href);
 	}
 	return;
+}
+
+static bool
+xmlns_attr_p(const char *a)
+{
+	static const char xmlns[] = "xmlns";
+	return !memcmp(a, xmlns, strlenof(xmlns));
 }
 
 
@@ -202,15 +223,15 @@ ptx_reg_ns(__ctx_t ctx, const char *pref, const char *href)
 static void
 el_sta(void *clo, const char *elem, const char **attr)
 {
+	static const char xmlns[] = "xmlns";
 	__ctx_t ctx = clo;
 	/* where the real element name starts, sans ns prefix */
 	const char *relem = tag_massage(elem);
 	ptx_ns_t ns;
 
+	(void)xmlns;
 	for (const char **a = attr; *a; a += 2) {
-		static const char xmlns[] = "xmlns";
-
-		if (!memcmp(*a, xmlns, strlenof(xmlns))) {
+		if (xmlns_attr_p(*a)) {
 			const char *pref = NULL;
 
 			if (a[0U][strlenof(xmlns)] == ':') {
@@ -237,6 +258,39 @@ el_sta(void *clo, const char *elem, const char **attr)
 				/* huh? negative copy level */
 				ctx->copy = 1;
 			}
+			if (ctx->copy == 1) {
+				fputs("<?xml version=\"1.0\"?>\n", stdout);
+
+				fputc('<', stdout);
+				fputs(elem, stdout);
+				/* inject namespaces */
+				if (ctx->nns) {
+					fputs(" xmlns=\"", stdout);
+					fputs(ctx->ns->href, stdout);
+					fputc('"', stdout);
+				}
+				for (size_t i = 1U; i < ctx->nns; i++) {
+					fputs(" xmlns:", stdout);
+					fputs(ctx->ns[i].pref, stdout);
+					fputc('=', stdout);
+					fputc('"', stdout);
+					fputs(ctx->ns[i].href, stdout);
+					fputc('"', stdout);
+				}
+				/* attributes sans namespaces */
+				for (const char **a = attr; *a; a += 2U) {
+					if (!xmlns_attr_p(*a)) {
+						fputc(' ', stdout);
+						fputs(a[0U], stdout);
+						fputc('=', stdout);
+						fputc('"', stdout);
+						fputs(a[1U], stdout);
+						fputc('"', stdout);
+					}
+				}
+				fputc('>', stdout);
+				return;
+			}
 		}
 	}
 
@@ -245,7 +299,17 @@ el_sta(void *clo, const char *elem, const char **attr)
 		return;
 	}
 	/* copy the node */
-	;
+	fputc('<', stdout);
+	fputs(elem, stdout);
+	for (const char **a = attr; *a; a += 2U) {
+		fputc(' ', stdout);
+		fputs(a[0U], stdout);
+		fputc('=', stdout);
+		fputc('"', stdout);
+		fputs(a[1U], stdout);
+		fputc('"', stdout);
+	}
+	fputc('>', stdout);
 	return;
 }
 
@@ -262,9 +326,17 @@ el_end(void *clo, const char *elem)
 		goto postchk;
 	}
 	/* verbatim copy */
-	;
+	fputc('<', stdout);
+	fputc('/', stdout);
+	fputs(elem, stdout);
+	fputc('>', stdout);
 
 postchk:
+	if (UNLIKELY(ns == NULL)) {
+		error("Warning: unknown prefix in tag %s", elem);
+		return;
+	}
+
 	/* check element name first because a difference there is more likely */
 	if (!strcmp(ctx->opt.pivot_elem, relem)) {
 		/* MATCH! now go for the namespace iri */
@@ -274,7 +346,7 @@ postchk:
 		    (ctx->opt.pivot_href == NULL && ns->href == NULL)) {
 			/* complete match, ergo, turn copy mode off again */
 			if (--ctx->copy <= 0) {
-				puts("\f");
+				fputs("\n\f\n", stdout);
 			}
 		}
 	}
