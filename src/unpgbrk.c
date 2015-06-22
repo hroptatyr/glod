@@ -250,33 +250,20 @@ int
 main(int argc, char *argv[])
 {
 	yuck_t argi[1U];
-	int fd;
 	int rc = 0;
 
 	if (yuck_parse(argi, argc, argv)) {
 		rc = 1;
 		goto out;
 	} else if (!argi->nargs) {
-		error("FILE argument is mandatory, use `-' for stdin");
-		rc = 1;
-		goto out;
-	} else if (argi->nargs < 2U) {
 		error("COMMAND argument is mandatory");
 		rc = 1;
 		goto out;
 	}
 
-	if (argi->args[0U][0U] == '-' && argi->args[0U][1U] == '\0') {
-		fd = STDIN_FILENO;
-	} else if ((fd = open(argi->args[0U], O_RDONLY)) < 0) {
-		error("Cannot open file `%s'", argi->args[0U]);
-		rc = 1;
-		goto out;
-	}
-
 	/* assign command and stuff */
-	gcmd = argi->args[1U];
-	gcmd_argv = argi->args + 1U;
+	gcmd = argi->args[0U];
+	gcmd_argv = argi->args;
 	with (const char *sep) {
 		if ((sep = argi->separator_arg)) {
 			static char unesc[] = "\a\bcd\e\fghijklm\nopq\rs\tu\v";
@@ -291,11 +278,9 @@ main(int argc, char *argv[])
 	}
 
 	/* beef code */
-	if (unpgbrk_fd(fd) < 0) {
+	if (unpgbrk_fd(STDIN_FILENO) < 0) {
 		rc = 1;
 	}
-
-	close(fd);
 out:
 	yuck_free(argi);
 	return rc;
