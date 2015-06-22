@@ -152,10 +152,10 @@ AM_CONDITIONAL([HAVE_GLEP_REQS],
 PKG_CHECK_MODULES([expat], [expat >= 2.0], [have_expat="yes"], [have_expat="no"])
 if test "${have_expat}" = "yes"; then
 	## check for the header
-	SXE_DUMP_LIBS
+	save_CPPFLAGS="${CPPFLAGS}"
 	CPPFLAGS="${CPPFLAGS} ${expat_CFLAGS}"
 	AC_CHECK_HEADERS([expat.h])
-	SXE_RESTORE_LIBS
+	CPPFLAGS="${save_CPPFLAGS}"
 
 	if test "${ac_cv_header_expat_h}" != "yes"; then
 		have_expat="no"
