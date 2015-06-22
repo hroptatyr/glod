@@ -232,77 +232,16 @@ mempbrk(const char *s, const char *set, size_t z)
 }
 
 static void
-copy_root(__ctx_t ctx, const char *elem, const char **attr)
+copy_xmlesc(__ctx_t UNUSED(ctx), const char *s, size_t z)
 {
-	fputc('<', stdout);
-	fputs(elem, stdout);
-	/* inject namespaces */
-	if (ctx->dflt_ns->href) {
-		fputs(" xmlns=\"", stdout);
-		fputs(ctx->dflt_ns->href, stdout);
-		fputc('"', stdout);
-	}
-	for (size_t i = 0U; i < ctx->nns; i++) {
-		fputs(" xmlns:", stdout);
-		fputs(ctx->ns[i].pref, stdout);
-		fputc('=', stdout);
-		fputc('"', stdout);
-		fputs(ctx->ns[i].href, stdout);
-		fputc('"', stdout);
-	}
-	/* attributes sans namespaces */
-	for (const char **a = attr; *a; a += 2U) {
-		if (!xmlns_attr_p(*a)) {
-			fputc(' ', stdout);
-			fputs(a[0U], stdout);
-			fputc('=', stdout);
-			fputc('"', stdout);
-			fputs(a[1U], stdout);
-			fputc('"', stdout);
-		}
-	}
-	fputc('>', stdout);
-	return;
-}
+	const char *sp = s;
+	const char *const ep = s + z;
 
-static void
-copy_node(__ctx_t UNUSED(ctx), const char *elem, const char **attr)
-{
-	fputc('<', stdout);
-	fputs(elem, stdout);
-	for (const char **a = attr; *a; a += 2U) {
-		fputc(' ', stdout);
-		fputs(a[0U], stdout);
-		fputc('=', stdout);
-		fputc('"', stdout);
-		fputs(a[1U], stdout);
-		fputc('"', stdout);
-	}
-	fputc('>', stdout);
-	return;
-}
-
-static void
-copy_nfin(__ctx_t UNUSED(ctx), const char *elem)
-{
-	fputc('<', stdout);
-	fputc('/', stdout);
-	fputs(elem, stdout);
-	fputc('>', stdout);
-	return;
-}
-
-static void
-copy_text(__ctx_t UNUSED(ctx), const char *txt, size_t len)
-{
-	const char *tp = txt;
-	const char *const ep = txt + len;
-
-	for (const char *sp;
-	     (sp = mempbrk(tp, "\"&'<>", ep - tp)) != NULL; tp = sp + 1U) {
+	for (const char *tp;
+	     (tp = mempbrk(sp, "\"&'<>", ep - sp)) != NULL; sp = tp + 1U) {
 		/* write old section */
-		fwrite(tp, sizeof(*tp), sp - tp, stdout);
-		switch (*sp) {
+		fwrite(sp, sizeof(*sp), tp - sp, stdout);
+		switch (*tp) {
 		case '"':
 			fputs("&quot;", stdout);
 			break;
@@ -324,9 +263,77 @@ copy_text(__ctx_t UNUSED(ctx), const char *txt, size_t len)
 		}
 	}
 	/* write rest */
-	if (LIKELY(tp < ep)) {
-		fwrite(tp, sizeof(*txt), ep - tp, stdout);
+	if (LIKELY(sp < ep)) {
+		fwrite(sp, sizeof(*sp), ep - sp, stdout);
 	}
+	return;
+}
+
+static void
+copy_root(__ctx_t ctx, const char *elem, const char **attr)
+{
+	fputc('<', stdout);
+	fputs(elem, stdout);
+	/* inject namespaces */
+	if (ctx->dflt_ns->href) {
+		fputs(" xmlns=\"", stdout);
+		fputs(ctx->dflt_ns->href, stdout);
+		fputc('"', stdout);
+	}
+	for (size_t i = 0U; i < ctx->nns; i++) {
+		fputs(" xmlns:", stdout);
+		fputs(ctx->ns[i].pref, stdout);
+		fputc('=', stdout);
+		fputc('"', stdout);
+		copy_xmlesc(ctx, ctx->ns[i].href, strlen(ctx->ns[i].href));
+		fputc('"', stdout);
+	}
+	/* attributes sans namespaces */
+	for (const char **a = attr; *a; a += 2U) {
+		if (!xmlns_attr_p(*a)) {
+			fputc(' ', stdout);
+			fputs(a[0U], stdout);
+			fputc('=', stdout);
+			fputc('"', stdout);
+			copy_xmlesc(ctx, a[1U], strlen(a[1U]));
+			fputc('"', stdout);
+		}
+	}
+	fputc('>', stdout);
+	return;
+}
+
+static void
+copy_node(__ctx_t ctx, const char *elem, const char **attr)
+{
+	fputc('<', stdout);
+	fputs(elem, stdout);
+	for (const char **a = attr; *a; a += 2U) {
+		fputc(' ', stdout);
+		fputs(a[0U], stdout);
+		fputc('=', stdout);
+		fputc('"', stdout);
+		copy_xmlesc(ctx, a[1U], strlen(a[1U]));
+		fputc('"', stdout);
+	}
+	fputc('>', stdout);
+	return;
+}
+
+static void
+copy_nfin(__ctx_t UNUSED(ctx), const char *elem)
+{
+	fputc('<', stdout);
+	fputc('/', stdout);
+	fputs(elem, stdout);
+	fputc('>', stdout);
+	return;
+}
+
+static void
+copy_text(__ctx_t ctx, const char *txt, size_t len)
+{
+	copy_xmlesc(ctx, txt, len);
 	return;
 }
 
