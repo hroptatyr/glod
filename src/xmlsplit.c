@@ -500,6 +500,11 @@ Error: invalid namespace in pivot element `%s'", pivot);
 			pivot = eoh + 1U;
 		}
 		opt.pivot_elem = strdup(pivot);
+	} else {
+		errno = 0, error("\
+Error: parameter --by is not optional in this version");
+		rc = 1;
+		goto out;
 	}
 
 #if defined HAVE_EXPAT_H
