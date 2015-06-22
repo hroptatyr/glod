@@ -513,7 +513,7 @@ Error: invalid namespace in pivot element `%s'", pivot);
 		}
 	}
 #else  /* no sax(ish) parser */
-	error("\
+	errno = 0, error("\
 Error: xmlsplit has been built without SAXish XML parsing facilities");
 #endif	/* any sax(ish) parser */
 
