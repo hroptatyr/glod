@@ -113,27 +113,6 @@ error(const char *fmt, ...)
 	return errno;
 }
 
-static size_t
-xstrlncpy(char *restrict dst, size_t dsz, const char *src, size_t ssz)
-{
-	if (ssz > dsz) {
-		ssz = dsz - 1U;
-	}
-	memcpy(dst, src, ssz);
-	dst[ssz] = '\0';
-	return ssz;
-}
-
-static size_t
-xstrlcpy(char *restrict dst, const char *src, size_t dsz)
-{
-	if (UNLIKELY(src == NULL)) {
-		*dst = '\0';
-		return 0U;
-	}
-	return xstrlncpy(dst, dsz, src, strlen(src));
-}
-
 
 /* parsing guts */
 static const char*
