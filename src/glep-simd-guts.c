@@ -504,8 +504,10 @@ typedef uint64_t accu_t;
 #include __FILE__
 
 /* instantiate 512bit intrinsics */
-#define SSEZ	512
-#include __FILE__
+#if defined HAVE__MM512_CMPEQ_EPI8_MASK || defined HAVE__MM512_CMP_EPI8_MASK
+# define SSEZ	512
+# include __FILE__
+#endif	/* HAVE__MM512_CMPEQ_EPI8_MASK || HAVE__MM512_CMP_EPI8_MASK */
 
 
 #define USE_CACHE
