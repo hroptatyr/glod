@@ -221,8 +221,8 @@ unpgbrk_fd(int fd)
 		const char *const ep = buf + nrd;
 
 		for (const char *sp;
-		     (sp = memchr(bp, *gsep, ep - bp)) != NULL;
-		     bp = (*++sp == '\n' ? ++sp : sp)) {
+		     (sp = memchr(bp, *gsep, ep - bp - 1U)) != NULL;
+		     bp = sp + (sp[1U] == '\n') + 1U) {
 			/* feed into bbuf */
 			bbuf_cat(big, bp, sp - bp);
 			rc += unpgbrk_bb(big);
