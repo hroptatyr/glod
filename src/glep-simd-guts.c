@@ -81,6 +81,8 @@
 #elif SSEZ == 0
 #elif SSEZ == 64
 # define __mXi			__m64
+# define __mXbool		__m64
+# define z_mXi			(8U)
 # define _mmX_load(x)		_m64_load_si(x)
 # define _mmX_set1(x)		_mm_set1_pi8(x)
 # define _mmX_setzero()		_mm_setzero_si64()
@@ -92,8 +94,11 @@
 # define _mmX_xor(x, y)		_mm_xor_si64(x, y)
 # define _mmX_movemask(x)	_m64_movemask_pi8(x)
 # define _mmX_empty()		_mm_empty()
+# define _mmX_mask_add(msk, a, b)	(_mmX_add(a, _mmX_and(msk, b)))
 #elif SSEZ == 128
 # define __mXi			__m128i
+# define __mXbool		__m128i
+# define z_mXi			(16U)
 # define _mmX_load(x)		_mm_load_si128(x)
 # define _mmX_set1(x)		_mm_set1_epi8(x)
 # define _mmX_setzero()		_mm_setzero_si128()
@@ -105,8 +110,11 @@
 # define _mmX_xor(x, y)		_mm_xor_si128(x, y)
 # define _mmX_movemask(x)	_mm_movemask_epi8(x)
 # define _mmX_empty(args...)
+# define _mmX_mask_add(msk, a, b)	(_mmX_add(a, _mmX_and(msk, b)))
 #elif SSEZ == 256
 # define __mXi			__m256i
+# define __mXbool		__m256i
+# define z_mXi			(32U)
 # define _mmX_load(x)		_mm256_load_si256(x)
 # define _mmX_set1(x)		_mm256_set1_epi8(x)
 # define _mmX_setzero()		_mm256_setzero_si256()
@@ -118,8 +126,11 @@
 # define _mmX_xor(x, y)		_mm256_xor_si256(x, y)
 # define _mmX_movemask(x)	_mm256_movemask_epi8(x)
 # define _mmX_empty(args...)
+# define _mmX_mask_add(msk, a, b)	(_mmX_add(a, _mmX_and(msk, b)))
 #elif SSEZ == 512
 # define __mXi			__m512i
+# define __mXbool		__mmask64
+# define z_mXi			(64U)
 # define _mmX_load(x)		_mm512_load_si512(x)
 # define _mmX_set1(x)		_mm512_set1_epi8(x)
 # define _mmX_setzero()		_mm512_setzero_si512()
@@ -128,15 +139,18 @@
 #  define _mmX_cmpgt(x, y)	_mm512_cmpgt_epi8_mask(x, y)
 #  define _mmX_cmplt(x, y)	_mm512_cmpgt_epi8_mask(y, x)
 # elif defined HAVE__MM512_CMP_EPI8_MASK
-#  define _mmX_cmpeq(x, y)	_mm512_cmp_epi8_mask(x, y, 0)
-#  define _mmX_cmpgt(x, y)	_mm512_cmp_epi8_mask(y, x, 2)
-#  define _mmX_cmplt(x, y)	_mm512_cmp_epi8_mask(x, y, 1)
+#  define _mmX_cmpeq(x, y)	_mm512_cmp_epi8_mask(x, y, _MM_CMPINT_EQ)
+#  define _mmX_cmpgt(x, y)	_mm512_cmp_epi8_mask(y, x, _MM_CMPINT_LE)
+#  define _mmX_cmplt(x, y)	_mm512_cmp_epi8_mask(x, y, _MM_CMPINT_LT)
+# else
+#  error "no method to compare __m512i"
 # endif	 /* __MM512_CMPEQ_EPI8_MASK || __MM512_CMP_EPI8_MASK */
 # define _mmX_add(x, y)		_mm512_add_epi8(x, y)
-# define _mmX_and(x, y)		_mm512_and_si512(x, y)
-# define _mmX_xor(x, y)		_mm512_xor_si512(x, y)
-# define _mmX_movemask(x)	_mm512_movemask_epi8(x)
+# define _mmX_and(x, y)		((x) & (y))
+# define _mmX_xor(x, y)		((x) ^ (y))
+# define _mmX_movemask(x)	(x)
 # define _mmX_empty(args...)
+# define _mmX_mask_add(msk, a, b)	(_mm512_mask_add_epi8(a, msk, a, b))
 #else
 # error SSE level not supported
 #endif
@@ -187,15 +201,15 @@ _m64_movemask_pi8(register __m64 x)
 
 
 #if defined SSEI
-#if SSEZ > 0 && SSEZ < 512
-static inline __attribute__((pure, const)) unsigned int
+#if SSEZ > 0 && SSEZ <= 512
+static inline __attribute__((pure, const)) accu_t
 SSEI(pispuncs)(register __mXi data)
 {
 /* looks for <=' ', '!', ',', '.', ':', ';', '?' '\'', '"', '`', '-' */
-	register __mXi x0;
-	register __mXi x1;
-	register __mXi y0;
-	register __mXi y1;
+	register __mXbool x0;
+	register __mXbool x1;
+	register __mXbool y0;
+	register __mXbool y1;
 
 	/* check for <=SPC, !, " */
 	if (!non_ascii_wordsep_p) {
@@ -237,9 +251,9 @@ static inline __attribute__((pure, const)) __mXi
 SSEI(ptolower)(register __mXi data)
 {
 /* lower's standard ascii */
-	register __mXi x0;
-	register __mXi x1;
-	register __mXi y0;
+	register __mXbool x0;
+	register __mXbool x1;
+	register __mXbool y0;
 	register __mXi y1;
 
 	/* check for ALPHA */
@@ -247,16 +261,15 @@ SSEI(ptolower)(register __mXi data)
 	x1 = _mmX_cmplt(data, _mmX_set1('Z' + 1));
 	y0 = _mmX_and(x0, x1);
 	y1 = _mmX_set1(32U);
-	y0 = _mmX_and(y0, y1);
 
-	return _mmX_add(data, y0);
+	return _mmX_mask_add(y0, data, y1);
 }
 
-static inline __attribute__((pure, const)) unsigned int
+static inline __attribute__((pure, const)) accu_t
 SSEI(pmatch)(register __mXi data, const uint8_t c)
 {
 	register __mXi p = _mmX_set1(c);
-	register __mXi x = _mmX_cmpeq(data, p);
+	register __mXbool x = _mmX_cmpeq(data, p);
 	return _mmX_movemask(x);
 }
 
@@ -270,28 +283,27 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 	assert(bsz > 0);
 	for (size_t i = 0U, k = 0U; i <= eoi; k++) {
 		register __mXi data1;
-#if SSEZ <= 128 || ACCU_BITS == 64
+#if SSEZ <= 128 || (z_mXi < ACCU_BITS)
 		register __mXi data2;
 #endif
 
 		/* load */
 		data1 = _mmX_load(b + i++);
-#if SSEZ <= 128 || ACCU_BITS == 64
+#if SSEZ <= 128 || (z_mXi < ACCU_BITS)
 		data2 = _mmX_load(b + i++);
 #endif
 		/* lodge */
-		tgt[0U][k] = (accu_t)SSEI(pispuncs)(data1);
-#if SSEZ <= 128 || ACCU_BITS == 64
-		tgt[0U][k] |= (accu_t)SSEI(pispuncs)(data2) << sizeof(__mXi);
+		tgt[0U][k] = SSEI(pispuncs)(data1);
+#if SSEZ <= 128 || (z_mXi < ACCU_BITS)
+		tgt[0U][k] |= SSEI(pispuncs)(data2) << z_mXi;
 #endif
 
 		for (size_t j = 1U; j <= npchars; j++) {
 			const char p = pchars[j];
 
-			tgt[j][k] = (accu_t)SSEI(pmatch)(data1, p);
-#if SSEZ <= 128 || ACCU_BITS == 64
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data2, p) << sizeof(__mXi);
+			tgt[j][k] = SSEI(pmatch)(data1, p);
+#if SSEZ <= 128 || (z_mXi < ACCU_BITS)
+			tgt[j][k] |= SSEI(pmatch)(data2, p) << z_mXi;
 #endif
 		}
 
@@ -300,20 +312,14 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 		data1 = _mmX_load(b + i++);
 		data2 = _mmX_load(b + i++);
 		/* lodge */
-		tgt[0U][k] |=
-			(accu_t)SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
-		tgt[0U][k] |=
-			(accu_t)SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
+		tgt[0U][k] |= SSEI(pispuncs)(data1) << 2U * sizeof(__mXi);
+		tgt[0U][k] |= SSEI(pispuncs)(data2) << 3U * sizeof(__mXi);
 
 		for (size_t j = 1U; j <= npchars; j++) {
 			const char p = pchars[j];
 
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data1, p)
-				<< 2U * sizeof(__mXi);
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data2, p)
-				<< 3U * sizeof(__mXi);
+			tgt[j][k] |= SSEI(pmatch)(data1, p) << 2U * sizeof(__mXi);
+			tgt[j][k] |= SSEI(pmatch)(data2, p) << 3U * sizeof(__mXi);
 		}
 #endif	/* SSEZ <= 128 && ACCU_BITS == 64 */
 #if SSEZ == 64 && ACCU_BITS == 64
@@ -321,39 +327,29 @@ SSEI(_decomp)(accu_t (*restrict tgt)[0x100U], const void *buf, size_t bsz,
 		data1 = _mmX_load(b + i++);
 		data2 = _mmX_load(b + i++);
 		/* lodge */
-		tgt[0U][k] |=
-			(accu_t)SSEI(pispuncs)(data1) << 4U * sizeof(__mXi);
-		tgt[0U][k] |=
-			(accu_t)SSEI(pispuncs)(data2) << 5U * sizeof(__mXi);
+		tgt[0U][k] |= SSEI(pispuncs)(data1) << 4U * sizeof(__mXi);
+		tgt[0U][k] |= SSEI(pispuncs)(data2) << 5U * sizeof(__mXi);
 
 		for (size_t j = 1U; j <= npchars; j++) {
 			const char p = pchars[j];
 
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data1, p)
-				<< 4U * sizeof(__mXi);
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data2, p)
-				<< 5U * sizeof(__mXi);
+			tgt[j][k] |= SSEI(pmatch)(data1, p) << 4U * sizeof(__mXi);
+			tgt[j][k] |= SSEI(pmatch)(data2, p) << 5U * sizeof(__mXi);
 		}
 
 		/* load */
 		data1 = _mmX_load(b + i++);
 		data2 = _mmX_load(b + i++);
 		/* lodge */
-		tgt[0U][k] |=
-			(accu_t)SSEI(pispuncs)(data1) << 6U * sizeof(__mXi);
-		tgt[0U][k] |=
-			(accu_t)SSEI(pispuncs)(data2) << 7U * sizeof(__mXi);
+		tgt[0U][k] |= SSEI(pispuncs)(data1) << 6U * sizeof(__mXi);
+		tgt[0U][k] |= SSEI(pispuncs)(data2) << 7U * sizeof(__mXi);
 
 		for (size_t j = 1U; j <= npchars; j++) {
 			const char p = pchars[j];
 
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data1, p)
+			tgt[j][k] |= SSEI(pmatch)(data1, p)
 				<< 6U * sizeof(__mXi);
-			tgt[j][k] |=
-				(accu_t)SSEI(pmatch)(data2, p)
+			tgt[j][k] |= SSEI(pmatch)(data2, p)
 				<< 7U * sizeof(__mXi);
 		}
 #endif	/* SSEZ == 64 && ACCU_BITS == 64 */
@@ -505,6 +501,10 @@ typedef uint64_t accu_t;
 
 /* instantiate 256bit intrinsics */
 #define SSEZ	256
+#include __FILE__
+
+/* instantiate 512bit intrinsics */
+#define SSEZ	512
 #include __FILE__
 
 
@@ -1123,6 +1123,8 @@ glep_simd_dsptch_nfo(void)
 
 /* prepare for the next inclusion */
 #undef __mXi
+#undef __mXbool
+#undef z_mXi
 #undef _mmX_load
 #undef _mmX_set1
 #undef _mmX_setzero
@@ -1134,5 +1136,6 @@ glep_simd_dsptch_nfo(void)
 #undef _mmX_xor
 #undef _mmX_movemask
 #undef _mmX_empty
+#undef _mmX_mask_add
 #undef SSEZ
 #undef SSEI
