@@ -231,6 +231,105 @@ mempbrk(const char *s, const char *set, size_t z)
 	return xp < s + z ? xp : NULL;
 }
 
+static void
+copy_root(__ctx_t ctx, const char *elem, const char **attr)
+{
+	fputc('<', stdout);
+	fputs(elem, stdout);
+	/* inject namespaces */
+	if (ctx->dflt_ns->href) {
+		fputs(" xmlns=\"", stdout);
+		fputs(ctx->dflt_ns->href, stdout);
+		fputc('"', stdout);
+	}
+	for (size_t i = 0U; i < ctx->nns; i++) {
+		fputs(" xmlns:", stdout);
+		fputs(ctx->ns[i].pref, stdout);
+		fputc('=', stdout);
+		fputc('"', stdout);
+		fputs(ctx->ns[i].href, stdout);
+		fputc('"', stdout);
+	}
+	/* attributes sans namespaces */
+	for (const char **a = attr; *a; a += 2U) {
+		if (!xmlns_attr_p(*a)) {
+			fputc(' ', stdout);
+			fputs(a[0U], stdout);
+			fputc('=', stdout);
+			fputc('"', stdout);
+			fputs(a[1U], stdout);
+			fputc('"', stdout);
+		}
+	}
+	fputc('>', stdout);
+	return;
+}
+
+static void
+copy_node(__ctx_t UNUSED(ctx), const char *elem, const char **attr)
+{
+	fputc('<', stdout);
+	fputs(elem, stdout);
+	for (const char **a = attr; *a; a += 2U) {
+		fputc(' ', stdout);
+		fputs(a[0U], stdout);
+		fputc('=', stdout);
+		fputc('"', stdout);
+		fputs(a[1U], stdout);
+		fputc('"', stdout);
+	}
+	fputc('>', stdout);
+	return;
+}
+
+static void
+copy_nfin(__ctx_t UNUSED(ctx), const char *elem)
+{
+	fputc('<', stdout);
+	fputc('/', stdout);
+	fputs(elem, stdout);
+	fputc('>', stdout);
+	return;
+}
+
+static void
+copy_text(__ctx_t UNUSED(ctx), const char *txt, size_t len)
+{
+	const char *tp = txt;
+	const char *const ep = txt + len;
+
+	for (const char *sp;
+	     (sp = mempbrk(tp, "\"&'<>", ep - tp)) != NULL; tp = sp + 1U) {
+		/* write old section */
+		fwrite(tp, sizeof(*tp), sp - tp, stdout);
+		switch (*sp) {
+		case '"':
+			fputs("&quot;", stdout);
+			break;
+		case '&':
+			fputs("&amp;", stdout);
+			break;
+		case '\'':
+			fputs("&apos;", stdout);
+			break;
+		case '<':
+			fputs("&lt;", stdout);
+			break;
+		case '>':
+			fputs("&gt;", stdout);
+			break;
+		default:
+			/* huh? */
+			break;
+		}
+	}
+	/* write rest */
+	if (LIKELY(tp < ep)) {
+		fwrite(tp, sizeof(*txt), ep - tp, stdout);
+	}
+	return;
+}
+
 
 #if defined HAVE_EXPAT_H
 static void
@@ -273,35 +372,7 @@ el_sta(void *clo, const char *elem, const char **attr)
 			}
 			if (ctx->copy == 1) {
 				fputs("<?xml version=\"1.0\"?>\n", stdout);
-
-				fputc('<', stdout);
-				fputs(elem, stdout);
-				/* inject namespaces */
-				if (ctx->nns) {
-					fputs(" xmlns=\"", stdout);
-					fputs(ctx->ns->href, stdout);
-					fputc('"', stdout);
-				}
-				for (size_t i = 1U; i < ctx->nns; i++) {
-					fputs(" xmlns:", stdout);
-					fputs(ctx->ns[i].pref, stdout);
-					fputc('=', stdout);
-					fputc('"', stdout);
-					fputs(ctx->ns[i].href, stdout);
-					fputc('"', stdout);
-				}
-				/* attributes sans namespaces */
-				for (const char **a = attr; *a; a += 2U) {
-					if (!xmlns_attr_p(*a)) {
-						fputc(' ', stdout);
-						fputs(a[0U], stdout);
-						fputc('=', stdout);
-						fputc('"', stdout);
-						fputs(a[1U], stdout);
-						fputc('"', stdout);
-					}
-				}
-				fputc('>', stdout);
+				copy_root(ctx, elem, attr);
 				return;
 			}
 		}
@@ -312,17 +383,7 @@ el_sta(void *clo, const char *elem, const char **attr)
 		return;
 	}
 	/* copy the node */
-	fputc('<', stdout);
-	fputs(elem, stdout);
-	for (const char **a = attr; *a; a += 2U) {
-		fputc(' ', stdout);
-		fputs(a[0U], stdout);
-		fputc('=', stdout);
-		fputc('"', stdout);
-		fputs(a[1U], stdout);
-		fputc('"', stdout);
-	}
-	fputc('>', stdout);
+	copy_node(ctx, elem, attr);
 	return;
 }
 
@@ -334,17 +395,11 @@ el_end(void *clo, const char *elem)
 	const char *relem = tag_massage(elem);
 	ptx_ns_t ns = __pref_to_ns(ctx, elem, relem - elem);
 
-	if (ctx->copy <= 0) {
-		/* do fuckall */
-		goto postchk;
+	if (ctx->copy > 0) {
+		/* verbatim copy */
+		copy_nfin(ctx, elem);
 	}
-	/* verbatim copy */
-	fputc('<', stdout);
-	fputc('/', stdout);
-	fputs(elem, stdout);
-	fputc('>', stdout);
 
-postchk:
 	if (UNLIKELY(ns == NULL)) {
 		error("Warning: unknown prefix in tag %s", elem);
 		return;
@@ -370,8 +425,6 @@ static void
 el_txt(void *clo, const char *txt, int len)
 {
 	__ctx_t ctx = clo;
-	const char *tp = txt;
-	const char *const ep = txt + len;
 
 	if (ctx->copy <= 0) {
 		/* do fuckall */
@@ -382,35 +435,7 @@ el_txt(void *clo, const char *txt, int len)
 	}
 
 	/* xml escape characters */
-	for (const char *sp;
-	     (sp = mempbrk(tp, "\"&'<>", ep - tp)) != NULL; tp = sp + 1U) {
-		/* write old section */
-		fwrite(tp, sizeof(*tp), sp - tp, stdout);
-		switch (*sp) {
-		case '"':
-			fputs("&quot;", stdout);
-			break;
-		case '&':
-			fputs("&amp;", stdout);
-			break;
-		case '\'':
-			fputs("&apos;", stdout);
-			break;
-		case '<':
-			fputs("&lt;", stdout);
-			break;
-		case '>':
-			fputs("&gt;", stdout);
-			break;
-		default:
-			/* huh? */
-			break;
-		}
-	}
-	/* write rest */
-	if (LIKELY(tp < ep)) {
-		fwrite(tp, sizeof(*txt), ep - tp, stdout);
-	}
+	copy_text(ctx, txt, len);
 	return;
 }
 
@@ -491,6 +516,7 @@ Error: invalid namespace in pivot element `%s'", pivot);
 		opt.pivot_elem = strdup(pivot);
 	}
 
+#if defined HAVE_EXPAT_H
 	with (size_t i = 0U) {
 		if (!argi->args) {
 			goto one_off;
@@ -500,6 +526,10 @@ Error: invalid namespace in pivot element `%s'", pivot);
 			rd1(argi->args[i], opt);
 		}
 	}
+#else  /* no sax(ish) parser */
+	error("\
+Error: xmlsplit has been built without SAXish XML parsing facilities");
+#endif	/* any sax(ish) parser */
 
 	if (opt.pivot_href != NULL) {
 		free(opt.pivot_href);
