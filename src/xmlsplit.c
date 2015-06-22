@@ -491,6 +491,7 @@ Error: invalid namespace in pivot element `%s'", pivot);
 		opt.pivot_elem = strdup(pivot);
 	}
 
+#if defined HAVE_EXPAT_H
 	with (size_t i = 0U) {
 		if (!argi->args) {
 			goto one_off;
@@ -500,6 +501,10 @@ Error: invalid namespace in pivot element `%s'", pivot);
 			rd1(argi->args[i], opt);
 		}
 	}
+#else  /* no sax(ish) parser */
+	error("\
+Error: xmlsplit has been built without SAXish XML parsing facilities");
+#endif	/* any sax(ish) parser */
 
 	if (opt.pivot_href != NULL) {
 		free(opt.pivot_href);
