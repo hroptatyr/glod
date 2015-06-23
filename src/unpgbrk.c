@@ -221,8 +221,9 @@ unpgbrk_fd(int fd)
 		const char *const ep = buf + nrd;
 
 		for (const char *sp;
-		     (sp = memchr(bp, *gsep, ep - bp - 1U)) != NULL;
-		     bp = sp + (sp[1U] == '\n') + 1U) {
+		     bp < ep - 1U &&
+			     (sp = memchr(bp, *gsep, (ep - 1U) - bp)) != NULL;
+		     bp = sp + (*++sp == '\n')) {
 			/* feed into bbuf */
 			bbuf_cat(big, bp, sp - bp);
 			rc += unpgbrk_bb(big);
@@ -232,7 +233,9 @@ unpgbrk_fd(int fd)
 			rc += write_sep();
 		}
 		/* just append it and read the next chunk */
-		bbuf_cat(big, bp, ep - bp);
+		if (LIKELY(bp < ep)) {
+			bbuf_cat(big, bp, ep - bp);
+		}
 	}
 	if (big->z) {
 		unpgbrk_bb(big);
