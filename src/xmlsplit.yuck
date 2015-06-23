@@ -1,7 +1,0 @@
-Usage: xmlsplit [FILE]...
-
-Split big XML files into form-feed (\f) separated chunks.
-
-  --by={NS-HREF}NODE    Output trees with NODE as the root node.
-                        The namespace full URI NS-HREF can optionally
-                        be specified in braces.

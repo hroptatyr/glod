@@ -230,17 +230,6 @@ EXTRA_glanz_SOURCES =
 EXTRA_glanz_SOURCES += unicode.bf
 EXTRA_glanz_SOURCES += unicode.cm
 
-bin_PROGRAMS += xmlsplit
-xmlsplit_SOURCES = xmlsplit.c xmlsplit.yuck
-xmlsplit_CPPFLAGS = $(AM_CPPFLAGS)
-xmlsplit_LDFLAGS = $(AM_LDFLAGS)
-xmlsplit_LDADD = libversion.a
-if HAVE_EXPAT
-xmlsplit_CPPFLAGS += $(expat_CFLAGS)
-xmlsplit_LDFLAGS += $(expat_LIBS)
-endif  HAVE_EXPAT
-BUILT_SOURCES += xmlsplit.yucc
-
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
