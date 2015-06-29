@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/wait.h>
@@ -213,6 +214,7 @@ unpgbrk_fd(int fd)
 	static bbuf_t big[1U];
 	static char buf[4096U];
 	ssize_t nrd;
+	bool skip1 = false;
 	int rc = 0;
 
 	big->z = 0U;
@@ -221,9 +223,11 @@ unpgbrk_fd(int fd)
 		const char *const ep = buf + nrd;
 
 		for (const char *sp;
-		     bp < ep - 1U &&
-			     (sp = memchr(bp, *gsep, (ep - 1U) - bp)) != NULL;
-		     bp = sp + (*++sp == '\n')) {
+		     bp < ep && (sp = memchr(bp, *gsep, ep - bp)) != NULL;
+		     bp = sp + 1U) {
+			if (*bp == '\n' && (bp > buf || skip1)) {
+				bp++;
+			}
 			/* feed into bbuf */
 			bbuf_cat(big, bp, sp - bp);
 			rc += unpgbrk_bb(big);
@@ -232,9 +236,18 @@ unpgbrk_fd(int fd)
 			 * stream too, aids command chaining */
 			rc += write_sep();
 		}
-		/* just append it and read the next chunk */
+		/* prepare for the next chunk
+		 * in case BP == EP we can conclude that BP[-1] was a formfeed
+		 * and in which case we need to skip the next newline */
 		if (LIKELY(bp < ep)) {
+			if (*bp == '\n' && (bp > buf || skip1)) {
+				bp++;
+			}
 			bbuf_cat(big, bp, ep - bp);
+			skip1 = false;
+		} else {
+			/* skip next newline (\f\n) */
+			skip1 = true;
 		}
 	}
 	if (big->z) {
