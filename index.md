@@ -2,7 +2,7 @@
 title: glod
 project: glod
 layout: project
-latest: https://github.com/hroptatyr/glod/releases/download/v0.1.3/glod-0.1.3.tar.xz
+latest: https://github.com/hroptatyr/glod/releases/download/v0.1.6/glod-0.1.6.tar.xz
 ---
 
 glod (grokking lots of data)
