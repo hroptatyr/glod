@@ -199,6 +199,11 @@ enum_CPPFLAGS += -DSTANDALONE
 enum_LDADD = libversion.a
 BUILT_SOURCES += enum.yucc
 
+bin_PROGRAMS += deinfix
+deinfix_SOURCES = deinfix.c deinfix.yuck
+deinfix_LDADD = libversion.a
+BUILT_SOURCES += deinfix.yucc
+
 noinst_PROGRAMS += glid
 glid_SOURCES = glid.c
 glid_SOURCES += glid.yuck

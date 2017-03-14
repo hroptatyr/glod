@@ -1,0 +1,4 @@
+Usage: deinfix [FILE]
+
+Take lines from FILE (or stdin if omitted) and output only those
+which are not a (true) infix of any other line.
