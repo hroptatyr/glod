@@ -37,7 +37,7 @@ bf_compute_hashes(uint64_t *restrict hashes, unsigned int k_num, char *key)
 	/**
 	 * We use the results of
 	 * 'Less Hashing, Same Performance: Building a Better Bloom Filter'
-	 * http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf, to use
+	 * https://www.eecs.harvard.edu/~michaelm/postscripts/tr-02-05.pdf, to use
 	 * g_i(x) = h1(u) + i * h2(u) mod m'
 	 *
 	 * This allows us to only use 2 hash functions h1, and h2 but generate
