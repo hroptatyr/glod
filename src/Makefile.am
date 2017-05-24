@@ -224,17 +224,6 @@ fastterms_LDADD += libversion.a
 endif  HAVE_INTRIN
 BUILT_SOURCES += fastterms.yucc
 
-bin_PROGRAMS += glanz
-glanz_SOURCES = glanz.c
-glanz_SOURCES += glanz.yuck
-glanz_LDADD = libglod.la
-glanz_LDADD += libcoru.la
-glanz_LDADD += libversion.a
-BUILT_SOURCES += glanz.yucc
-EXTRA_glanz_SOURCES =
-EXTRA_glanz_SOURCES += unicode.bf
-EXTRA_glanz_SOURCES += unicode.cm
-
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
